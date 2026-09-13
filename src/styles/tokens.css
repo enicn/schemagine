@@ -1,0 +1,139 @@
+/* ============================================================
+ * Schemagine 样式 Token 基线（唯一颜色/字号/间距/圆角/阴影来源）
+ * ============================================================
+ * 设计约定：
+ *  1. 所有 token 以 `--sg-` 为前缀，定义在 :root，作用域全局 ——
+ *     EP 弹层（dialog / popover / message）teleport 到 body 后依然生效。
+ *  2. 颜色类 token 默认值绑定 Element Plus 同名变量（var(--el-*, 回退值)）：
+ *     宿主更换 EP 主题（含暗色模式 html.dark）时引擎自动跟随，无需额外配置；
+ *     未安装 EP 时回退到下列静态默认值（EP 2.x 官方默认色板）。
+ *  3. 宿主定制：在任意祖先（:root / 容器）覆盖 --sg-* 即可，例如
+ *       :root { --sg-color-primary: #7c3aed; --sg-radius-md: 6px; }
+ *     覆盖 --sg-color-primary 后，其派生色（light-3~9 / alpha / focus 光晕）
+ *     通过 --el-color-primary-* 联动或 color-mix 自动跟随。
+ *  4. 组件样式禁止出现字面量颜色/字号/间距/圆角/阴影，一律引用本文件 token。
+ *     新增 token 必须先在此登记并更新 docs/style-tokens.md。
+ * ============================================================ */
+
+:root {
+  /* ========== 1. 品牌色 ========== */
+  /* 基色跟随 EP 主题；light-N 阶由基色 color-mix 白色派生（等价 EP 的 mix 白算法），
+   * 因此宿主只覆盖 --sg-color-primary（或 EP 的 --el-color-primary）即可整体换色。 */
+  --sg-color-primary: var(--el-color-primary, #409eff);
+  --sg-color-primary-light-3: color-mix(in srgb, var(--sg-color-primary) 70%, #ffffff);
+  --sg-color-primary-light-5: color-mix(in srgb, var(--sg-color-primary) 50%, #ffffff);
+  --sg-color-primary-light-7: color-mix(in srgb, var(--sg-color-primary) 30%, #ffffff);
+  --sg-color-primary-light-8: color-mix(in srgb, var(--sg-color-primary) 20%, #ffffff);
+  --sg-color-primary-light-9: color-mix(in srgb, var(--sg-color-primary) 10%, #ffffff);
+  --sg-color-primary-dark-2: color-mix(in srgb, var(--sg-color-primary) 80%, #000000);
+  /* 主色透明变体（focus 光晕、高亮遮罩等；随主色自动联动） */
+  --sg-color-primary-alpha-20: color-mix(in srgb, var(--sg-color-primary) 20%, transparent);
+  --sg-color-primary-alpha-40: color-mix(in srgb, var(--sg-color-primary) 40%, transparent);
+
+  /* 功能色（success / warning / danger / info，基色跟随 EP 主题，浅阶同样派生） */
+  --sg-color-success: var(--el-color-success, #67c23a);
+  --sg-color-success-light-3: color-mix(in srgb, var(--sg-color-success) 70%, #ffffff);
+  --sg-color-success-light-8: color-mix(in srgb, var(--sg-color-success) 20%, #ffffff);
+  --sg-color-success-light-9: color-mix(in srgb, var(--sg-color-success) 10%, #ffffff);
+  --sg-color-warning: var(--el-color-warning, #e6a23c);
+  --sg-color-warning-light-3: color-mix(in srgb, var(--sg-color-warning) 70%, #ffffff);
+  --sg-color-warning-light-8: color-mix(in srgb, var(--sg-color-warning) 20%, #ffffff);
+  --sg-color-warning-light-9: color-mix(in srgb, var(--sg-color-warning) 10%, #ffffff);
+  --sg-color-danger: var(--el-color-danger, #f56c6c);
+  --sg-color-danger-light-3: color-mix(in srgb, var(--sg-color-danger) 70%, #ffffff);
+  --sg-color-danger-light-8: color-mix(in srgb, var(--sg-color-danger) 20%, #ffffff);
+  --sg-color-danger-light-9: color-mix(in srgb, var(--sg-color-danger) 10%, #ffffff);
+  --sg-color-info: var(--el-color-info, #909399);
+  --sg-color-info-light-8: color-mix(in srgb, var(--sg-color-info) 20%, #ffffff);
+  --sg-color-info-light-9: color-mix(in srgb, var(--sg-color-info) 10%, #ffffff);
+
+  /* ========== 2. 文字颜色 ========== */
+  --sg-text-color-primary: var(--el-text-color-primary, #303133);
+  --sg-text-color-regular: var(--el-text-color-regular, #606266);
+  --sg-text-color-secondary: var(--el-text-color-secondary, #909399);
+  --sg-text-color-placeholder: var(--el-text-color-placeholder, #a8abb2);
+  --sg-text-color-disabled: var(--el-text-color-disabled, #c0c4cc);
+  /* 彩色底（primary/danger 按钮等）之上的文字 */
+  --sg-color-white: #ffffff;
+  /* 筛选命中高亮（荧光笔效果），on-* 为其上的文字色 */
+  --sg-color-highlight: #ffc107;
+  --sg-color-on-highlight: #000000;
+
+  /* ========== 3. 边框颜色 ========== */
+  --sg-border-color: var(--el-border-color, #dcdfe6);
+  --sg-border-color-light: var(--el-border-color-light, #e4e7ed);
+  --sg-border-color-lighter: var(--el-border-color-lighter, #ebeef5);
+  --sg-border-color-extra-light: var(--el-border-color-extra-light, #f0f0f0);
+
+  /* ========== 4. 填充 / 背景 ========== */
+  --sg-fill-color: var(--el-fill-color, #f0f2f5);
+  --sg-fill-color-light: var(--el-fill-color-light, #f5f7fa);
+  --sg-fill-color-lighter: var(--el-fill-color-lighter, #fafafa);
+  --sg-bg-color: var(--el-bg-color, #ffffff);
+  /* 页面/演示壳层背景（不跟随 EP 时回退为冷灰） */
+  --sg-bg-color-page: var(--el-bg-color-page, #f8fafc);
+  /* 骨架屏（加载占位） */
+  --sg-skeleton-color: #e0e0e0;
+  --sg-skeleton-highlight: #f0f0f0;
+
+  /* ========== 5. 字号（基数 12px，向上下扩展） ========== */
+  --sg-font-size-xs: 10px;   /* 角标 / 徽标 */
+  --sg-font-size-sm: 11px;   /* 辅助标签 / 表头说明 */
+  --sg-font-size-base: 12px; /* 默认：表格 / 表单 / 标签 */
+  --sg-font-size-md: 13px;   /* 正文次级 */
+  --sg-font-size-lg: 14px;   /* 正文 / 控件默认 */
+  --sg-font-size-xl: 16px;   /* 小标题 */
+  --sg-font-size-2xl: 20px;  /* 标题 */
+  --sg-font-size-3xl: 32px;  /* 空状态大图标 */
+  --sg-font-family: 'Open Sans', 'Inter', 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+
+  /* ========== 6. 间距（2px 基网格；token 数值 = px / 2） ========== */
+  --sg-spacing-1: 2px;
+  --sg-spacing-2: 4px;
+  --sg-spacing-3: 6px;
+  --sg-spacing-4: 8px;
+  --sg-spacing-5: 10px;
+  --sg-spacing-6: 12px;
+  --sg-spacing-7: 14px;
+  --sg-spacing-8: 16px;
+  --sg-spacing-10: 20px;
+  --sg-spacing-12: 24px;
+  --sg-spacing-16: 32px;
+  --sg-spacing-20: 40px;
+  --sg-spacing-24: 48px;
+
+  /* ========== 7. 控件高度（新增控件请从本档位取值） ========== */
+  --sg-size-sm: 24px;
+  --sg-size-md: 28px;
+  --sg-size-lg: 32px;
+
+  /* ========== 8. 圆角 ========== */
+  --sg-radius-xs: 2px;
+  --sg-radius-sm: 3px;
+  --sg-radius-md: 4px; /* 默认 */
+  --sg-radius-lg: 6px;
+  --sg-radius-xl: 8px;
+  --sg-radius-round: 9999px;
+  --sg-radius-circle: 50%;
+
+  /* ========== 9. 阴影 ========== */
+  --sg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --sg-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --sg-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --sg-shadow-xl: 0 4px 16px rgba(0, 0, 0, 0.08);
+  /* focus 光晕（随主色联动） */
+  --sg-shadow-focus: 0 0 0 2px var(--sg-color-primary-alpha-20);
+  --sg-shadow-focus-strong: 0 0 0 2px var(--sg-color-primary-alpha-40);
+
+  /* ========== 10. 层叠顺序（引擎内部约定，EP 弹层从 2000 起） ========== */
+  --sg-z-index-base: 1;
+  --sg-z-index-raised: 2;
+  --sg-z-index-sticky: 10;
+  --sg-z-index-overlay: 100;
+  --sg-z-index-topmost: 1000;
+
+  /* ========== 11. 动效时长 ========== */
+  --sg-duration-fast: 0.15s;
+  --sg-duration-normal: 0.2s;
+}

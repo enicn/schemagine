@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ModuleDemo from '@/views/ModuleDemo.vue'
 import SchemaEditor from '@/editor/SchemaEditor.vue'
+import SchemaPlayground from '@/editor/playground/SchemaPlayground.vue'
 
 const moduleRoutes = [
   { path: '/voucher', name: 'voucher', moduleId: 'module-voucher' },
@@ -37,6 +38,11 @@ const router = createRouter({
       path: '/editor',
       name: 'schema-editor',
       component: SchemaEditor,
+    },
+    {
+      path: '/playground',
+      name: 'schema-playground',
+      component: SchemaPlayground,
     },
   ],
 })

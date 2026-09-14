@@ -35,6 +35,7 @@ const emit = defineEmits<{
   'column-drag-end': [payload: { columns: any[]; newOrder: string[] }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'row-click': [payload: { rowId: string }]
+  'cell-click': [payload: { field: string; rowId: string | null }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'selection-change': [rowIds: string[]]
 }>()
@@ -96,6 +97,9 @@ const columns = computed<WrapperColumn[]>(() => {
       trueLabelClass: field.trueLabelClass,
       falseLabelClass: field.falseLabelClass,
       highlightStyle: field.highlightStyle,
+      decimal: field.decimal,
+      decimalMode: field.decimalMode,
+      maxDecimal: field.maxDecimal,
     })
   })
   const orderMap = new Map(props.viewConfig.map(c => [c.field, c.order]))
@@ -185,6 +189,13 @@ function handleRowClick({ row }: { row: Record<string, unknown>; rowIndex: numbe
   emit('row-click', { rowId })
 }
 
+function handleCellClick(payload: { row: Record<string, unknown>; column: { field: string } }): void {
+  emit('cell-click', {
+    field: payload.column.field,
+    rowId: (payload.row._recordId as string | undefined) ?? null,
+  })
+}
+
 function handleRelationClick({ row, column }: { row: Record<string, unknown>; column: any }): void {
   const field = column.field
   const fieldSchema = props.schema.fields.find(f => f.key === field)
@@ -223,6 +234,7 @@ function handleRowAction(payload: { row: Record<string, unknown>; actionId: stri
       @sort-change="handleSortChange"
       @filter-change="(payload: { field: string; clause: FilterClause | null }) => emit('filter-change', payload)"
       @row-click="handleRowClick"
+      @cell-click="handleCellClick"
       @inline-edit="handleInlineEdit"
       @cell-dblclick="handleCellDblclick"
       @relation-click="handleRelationClick"

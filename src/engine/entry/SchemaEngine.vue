@@ -39,6 +39,7 @@ const emit = defineEmits<{
   'request-open-dialog': [payload: { dialogType: DialogType; payload: Record<string, unknown> }]
   'action-trigger': [payload: { action: ListAction; context?: Record<string, unknown> }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
+  'cell-click': [payload: { field: string; rowId: string | null }]
 }>()
 
 const schemaMeta = createSchemaMetaState()
@@ -544,6 +545,7 @@ defineExpose({
                 @row-action="handleRowAction"
                 @open-relation-editor="handleOpenRelationEditor"
                 @action-trigger="(p) => emit('action-trigger', p)"
+                @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
               />
             </ErrorBoundary>
           </template>

@@ -53,6 +53,7 @@
     "lint:eslint": "eslint . --fix --cache",
     "lint:check": "oxlint . && eslint . --cache",
     "format": "oxfmt src/",
+    "gen:schema-docs": "node scripts/generate-schema-docs.run.mjs",
     "prepublishOnly": "pnpm build:lib",
     "prepack": "pnpm build:lib",
     "version": "node -p \"require('./package.json').version\""

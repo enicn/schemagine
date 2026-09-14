@@ -6,7 +6,7 @@ test.describe('P0 Schema 引擎基础闭环', () => {
   })
 
   test('1.1 页面加载 - 标题和模块切换栏', async ({ page }) => {
-    await expect(page.locator('h1')).toHaveText('Schema 引擎演示')
+    await expect(page.locator('h1')).toHaveText('Schemagine')
 
     const radioLabels = page.locator('.el-radio-button__inner')
     await expect(radioLabels).toHaveText([
@@ -17,8 +17,8 @@ test.describe('P0 Schema 引擎基础闭环', () => {
       '应收账单',
       '用户管理',
       '车间管理',
-      '空模块（无数据）',
-      '无权限模块',
+      '空模块',
+      '无权限',
     ])
   })
 
@@ -51,7 +51,8 @@ test.describe('P0 Schema 引擎基础闭环', () => {
     const bodyRows = page.locator('.vxe-body--row')
     const rowCount = await bodyRows.count()
     expect(rowCount).toBeGreaterThanOrEqual(1)
-    expect(rowCount).toBeLessThanOrEqual(10)
+    // pageSize 缺省 20:凭证模块 15 条种子数据全部落在第一页
+    expect(rowCount).toBeLessThanOrEqual(20)
   })
 
   test('3.1 凭证管理 - 排序交互', async ({ page }) => {
@@ -66,21 +67,34 @@ test.describe('P0 Schema 引擎基础闭环', () => {
     await page.waitForTimeout(500)
   })
 
-  test('3.2 凭证管理 - 筛选交互', async ({ page }) => {
-    await page.waitForTimeout(1000)
+  test('3.2 凭证管理 - 表头筛选交互（关键词）', async ({ page }) => {
+    await page.waitForTimeout(1500)
 
-    const filterButton = page.locator('button', { hasText: '筛选' }).first()
-    await expect(filterButton).toBeVisible({ timeout: 5000 })
-    await filterButton.click()
-    await page.waitForTimeout(500)
+    // 打开「金额」列表头的筛选与排序弹层（每列表头 ▼ 按钮）
+    const amountHeader = page.locator('.vxe-header--row th').filter({ hasText: '金额' }).first()
+    await expect(amountHeader).toBeVisible({ timeout: 10000 })
+    await amountHeader.locator('button[aria-label="筛选与排序"]').click()
 
-    const searchButton = page.locator('button', { hasText: '搜索' }).nth(0)
-    await expect(searchButton).toBeVisible({ timeout: 5000 })
-    await searchButton.click()
+    // 数值列缺省为关键词模式：输入 125 并确定（like 包含匹配）
+    // 注意：ElPopover persistent 常驻 DOM,每列各有一份弹层内容,只有当前打开的可见
+    const keywordInput = page.locator('input[placeholder="输入关键词，回车筛选"]').filter({ visible: true })
+    await expect(keywordInput).toBeVisible({ timeout: 5000 })
+    await keywordInput.fill('125')
+    await page.locator('.header-popover__footer button').filter({ hasText: '确定' }).filter({ visible: true }).click()
 
-    const resetButton = page.locator('button', { hasText: '重置' }).first()
-    await expect(resetButton).toBeVisible({ timeout: 3000 })
-    await resetButton.click()
+    // 仅剩金额为 12500 的一行（.vxe-body--row 含左右固定列克隆行，按凭证编号文本定位主表数据行）
+    const dataRows = page.locator('.vxe-body--row').filter({ hasText: 'PZ-2026' })
+    await expect(dataRows).toHaveCount(1, { timeout: 5000 })
+    await expect(dataRows.first()).toContainText('12500')
+
+    // 重开弹层清除筛选，恢复全量数据
+    await amountHeader.locator('button[aria-label="筛选与排序"]').click()
+    const clearButton = page.locator('.header-popover button').filter({ hasText: '清除筛选' }).filter({ visible: true })
+    await expect(clearButton).toBeVisible({ timeout: 5000 })
+    await clearButton.click()
+    await page.waitForTimeout(800)
+    const restoredCount = await dataRows.count()
+    expect(restoredCount).toBeGreaterThanOrEqual(2)
   })
 
   test('4.1 切换到应付账款模块', async ({ page }) => {

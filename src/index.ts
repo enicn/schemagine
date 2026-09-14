@@ -38,6 +38,11 @@ export type { ICandidateService } from './services/api/candidateService'
 export type { IUserViewConfigService } from './services/api/userViewConfigService'
 export type { IRelationService } from './services/api/relationService'
 export type { IMediaService, MediaAsset, MediaListParams, MediaListResponse } from './services/api/mediaService'
+export { peekRecordService } from './services/api/recordService'
+
+// === 本地数据源（数组进、内存分页/排序/过滤；docs/19 批次 C1） ===
+export { createLocalRecordService } from './services/local/localRecordService'
+export type { LocalRecordService, LocalRecordServiceOptions } from './services/local/localRecordService'
 
 // === 扩展注册表（自定义字段类型 / 自定义弹窗，docs/19 批次 B） ===
 export {

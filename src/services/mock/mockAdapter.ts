@@ -19,6 +19,7 @@ import { setUserViewConfigService } from '@/services/api/userViewConfigService'
 import { setCandidateService } from '@/services/api/candidateService'
 import { setRelationService } from '@/services/api/relationService'
 import { readStorage, writeStorage, isStorageInitialized, markStorageInitialized } from './mockStorage'
+import { evaluateFilter } from '@/utils/evaluateFilter'
 import { compareVersions } from '@/composables/useMigration'
 import {
   voucherSchema, apSchema, emptyModuleSchema, NoPermissionSchema,
@@ -100,64 +101,6 @@ function seedCandidatesIfNeeded(targetModule: string): CandidateOption[] {
     }
   }
   return options
-}
-
-function evaluateFilter(clause: FilterClause, fieldValue: unknown): boolean {
-  const { operator, value, values } = clause
-
-  if (fieldValue == null) {
-    if (operator === 'neq' || operator === 'notLike' || operator === 'notIn' || operator === 'notBetween') {
-      return true
-    }
-    return false
-  }
-
-  const strVal = String(fieldValue).toLowerCase()
-
-  switch (operator) {
-    case 'eq':
-      return fieldValue === value
-
-    case 'neq':
-      return fieldValue !== value
-
-    case 'like': {
-      if (typeof value !== 'string') return false
-      return strVal.includes(value.toLowerCase())
-    }
-
-    case 'notLike': {
-      if (typeof value !== 'string') return false
-      return !strVal.includes(value.toLowerCase())
-    }
-
-    case 'in': {
-      if (!Array.isArray(values)) return false
-      return values.some(v => fieldValue === v)
-    }
-
-    case 'notIn': {
-      if (!Array.isArray(values)) return false
-      return !values.some(v => fieldValue === v)
-    }
-
-    case 'between': {
-      if (!Array.isArray(values) || values.length < 2) return false
-      const lo = values[0] as string | number
-      const hi = values[1] as string | number
-      return fieldValue >= lo && fieldValue <= hi
-    }
-
-    case 'notBetween': {
-      if (!Array.isArray(values) || values.length < 2) return false
-      const lo = values[0] as string | number
-      const hi = values[1] as string | number
-      return fieldValue < lo || fieldValue > hi
-    }
-
-    default:
-      return true
-  }
 }
 
 function autoFillRecordFields(moduleId: string, fields: Record<string, unknown>): void {
@@ -342,6 +285,7 @@ export class MockRecordService implements IRecordService {
       total,
       page,
       pageSize,
+      hasMore: start + pageSize < total,
     })
   }
 

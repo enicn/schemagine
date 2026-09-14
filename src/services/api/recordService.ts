@@ -25,6 +25,11 @@ export function setRecordService(impl: IRecordService): void {
   implementation = impl
 }
 
+/** 读取当前实现(未初始化时为 null);供临时换源的场景(如 Playground)保存并恢复 */
+export function peekRecordService(): IRecordService | null {
+  return implementation
+}
+
 export function getRecordService(): IRecordService {
   if (!implementation) {
     return getRecordServiceFallback()

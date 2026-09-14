@@ -18,6 +18,7 @@ import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
 import type { CandidateOption, Condition, FilterClause, FieldValueCandidateOption } from '@/types'
 import { evaluateCondition } from '@/utils/condition'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import { resolveScrollY } from './virtualScroll'
 import type { Component } from 'vue'
 
 export interface WrapperColumn {
@@ -1258,6 +1259,12 @@ const tableMaxHeight = computed(() => {
   return props.maxHeight
 })
 
+/**
+ * 纵向虚拟滚动（docs/19 批次 C2）：virtualScroll 显式开启；否则数据量超阈值自动开启。
+ * 判定逻辑抽在 virtualScroll.ts(可单测)。
+ */
+const tableScrollY = computed(() => resolveScrollY(props.virtualScroll, props.data.length))
+
 function clearSort(): void {
   tableRef.value?.clearSort()
 }
@@ -1457,6 +1464,7 @@ defineExpose({
       :height="tableHeight"
       :max-height="tableMaxHeight"
       :row-config="{ keyField: rowKey, isHover: true }"
+      :scroll-y="tableScrollY"
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
       :keep-source="true"

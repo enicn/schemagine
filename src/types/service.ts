@@ -32,7 +32,6 @@ export interface ListQueryParams {
   sort?: SortParam
   page: number
   pageSize: number
-  cursor?: string
   viewMode?: 'list' | 'card'
 }
 
@@ -65,7 +64,6 @@ export interface PaginationState {
   page: number
   pageSize: number
   total: number
-  cursor?: string
 }
 
 export interface CandidateQueryParams {

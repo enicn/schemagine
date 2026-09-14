@@ -9,7 +9,9 @@ import {
   getFieldProperties,
   getModuleProperties,
 } from '@/schemaMeta'
-import { recordService } from '@/services/api/recordService'
+import { peekRecordService, recordService, setRecordService } from '@/services/api/recordService'
+import type { IRecordService } from '@/services/api/recordService'
+import { createLocalRecordService } from '@/services/local/localRecordService'
 import { schemaService } from '@/services/api/schemaService'
 import PlaygroundTree from './components/PlaygroundTree.vue'
 import PropertyDocTable from './components/PropertyDocTable.vue'
@@ -73,6 +75,11 @@ function scheduleAutosave(): void {
 
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
+  // 恢复进入前的全局 RecordService(沙箱数据只存在于内存本地源,不落 localStorage)
+  if (savedRecordService) {
+    setRecordService(savedRecordService)
+    savedRecordService = null
+  }
 })
 
 watch(schema, () => {
@@ -80,6 +87,7 @@ watch(schema, () => {
 }, { deep: true })
 
 onMounted(async () => {
+  savedRecordService = peekRecordService()
   isLoading.value = true
   try {
     const res = await schemaService.listModuleIds()
@@ -99,7 +107,29 @@ onMounted(async () => {
   }
 })
 
-/** 从模板模块复制 Schema 到沙箱;沙箱无记录时从模板模块复制一份记录 */
+/**
+ * 沙箱数据源(docs/19 批次 C1):记录经 createLocalRecordService 常驻内存,
+ * 模板记录在换源前从原服务(通常是 mock)复制,退出页面恢复原服务。
+ */
+let savedRecordService: IRecordService | null = null
+
+async function collectSourceRows(sourceId: string): Promise<Array<Record<string, unknown>>> {
+  const source = savedRecordService ?? recordService
+  const collected: Array<Record<string, unknown>> = []
+  let page = 1
+  while (page <= 50) {
+    const r = await source.list({ moduleId: sourceId, page, pageSize: 100 })
+    if (!r.success || r.data.records.length === 0) break
+    for (const rec of r.data.records) {
+      collected.push({ ...rec.fields })
+    }
+    if (!r.data.hasMore) break
+    page++
+  }
+  return collected
+}
+
+/** 从模板模块复制 Schema 到沙箱,并把沙箱记录装载进内存本地数据源 */
 async function loadSandbox(sourceId: string): Promise<void> {
   if (!sourceId) return
   const res = await schemaService.loadModuleSchema(sourceId)
@@ -122,34 +152,14 @@ async function loadSandbox(sourceId: string): Promise<void> {
     ElMessage.error(saved.message || '初始化沙箱 Schema 失败')
     return
   }
-  await ensureSandboxRecords(sourceId)
-  refreshKey.value++
-}
 
-async function ensureSandboxRecords(sourceId: string): Promise<void> {
   try {
-    const existing = await recordService.list({ moduleId: SANDBOX_ID, page: 1, pageSize: 1 })
-    if (existing.success && existing.data.total > 0) return
-
-    const collected: Array<Record<string, unknown>> = []
-    let page = 1
-    while (page <= 20) {
-      const r = await recordService.list({ moduleId: sourceId, page, pageSize: 100 })
-      if (!r.success || r.data.records.length === 0) break
-      for (const rec of r.data.records) {
-        collected.push({ ...rec.fields })
-      }
-      if (!r.data.hasMore) break
-      page++
-    }
-    if (collected.length > 0) {
-      await recordService.batchCreate(
-        collected.map(fields => ({ moduleId: SANDBOX_ID, fields })),
-      )
-    }
+    const rows = await collectSourceRows(sourceId)
+    setRecordService(createLocalRecordService(rows, { moduleId: SANDBOX_ID }))
   } catch {
-    // 记录复制失败不阻塞 Schema 演示(空表仍可看列结构)
+    // 记录装载失败不阻塞 Schema 演示(空表仍可看列结构)
   }
+  refreshKey.value++
 }
 
 function handleSelect(key: string | null): void {

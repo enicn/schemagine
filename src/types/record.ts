@@ -14,8 +14,8 @@ export interface RecordListResponse {
   total: number
   page: number
   pageSize: number
+  /** 当前页之后仍有数据(本地数据源与 mock 均产出;供"加载更多"式消费) */
   hasMore?: boolean
-  cursor?: string
 }
 
 export interface DraftRecord {

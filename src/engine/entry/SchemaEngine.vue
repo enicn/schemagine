@@ -19,7 +19,7 @@ import CardCreateView from '@/engine/containers/CardCreateView.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
-import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, ListAction, SortParam } from '@/types'
+import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, SortParam, RowActionEvent, ActionTriggerEvent } from '@/types'
 
 const props = defineProps<{
   moduleId: string
@@ -37,8 +37,8 @@ const emit = defineEmits<{
   'data-changed': [payload: { moduleId: string }]
   error: [payload: { moduleId: string; code: string; message: string }]
   'request-open-dialog': [payload: { dialogType: DialogType; payload: Record<string, unknown> }]
-  'action-trigger': [payload: { action: ListAction; context?: Record<string, unknown> }]
-  'row-action': [payload: { rowId: string; field: string; actionId: string }]
+  'action-trigger': [payload: ActionTriggerEvent]
+  'row-action': [payload: RowActionEvent]
   'cell-click': [payload: { field: string; rowId: string | null }]
 }>()
 

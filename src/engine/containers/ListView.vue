@@ -13,7 +13,7 @@ import { usePermission } from '@/composables/usePermission'
 import { recordService } from '@/services/api/recordService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
-import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, ListAction } from '@/types'
+import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
 import type { AggregationItem } from '@/composables/useAggregation'
 
 const props = defineProps<{
@@ -34,7 +34,7 @@ const emit = defineEmits<{
   'cell-click': [payload: { field: string; rowId: string | null }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
-  'action-trigger': [payload: { action: ListAction; context?: Record<string, unknown> }]
+  'action-trigger': [payload: ActionTriggerEvent]
 }>()
 
 const filterSummaryItems = computed(() => {
@@ -204,7 +204,7 @@ function handleFormulaDetailOpen(payload: { field: string; rowId?: string }): vo
   emit('formula-detail-open', payload)
 }
 
-function handleRowAction(payload: { rowId: string; field: string; actionId: string }): void {
+function handleRowAction(payload: RowActionEvent): void {
   // 标准删除操作：引擎统一二次确认后再上抛，宿主只负责执行
   if (payload.actionId === 'delete') {
     void confirmRowDelete(payload)
@@ -373,7 +373,7 @@ function handleRowClick(payload: { rowId: string }): void {
   }
 }
 
-function handleListAction(payload: { action: ListAction; context?: Record<string, unknown> }): void {
+function handleListAction(payload: ActionTriggerEvent): void {
   // 自定义列表动作上抛给 SchemaEngine -> 宿主
   emit('action-trigger', payload)
   emit('query-change', {

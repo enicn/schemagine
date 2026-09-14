@@ -79,4 +79,6 @@ export type {
   DialogType,
   DraftChangeEvent,
   LockColumnEvent,
+  RowActionEvent,
+  ActionTriggerEvent,
 } from './events'

@@ -32,6 +32,8 @@ const emit = defineEmits<{
   'open-quick-create': [payload: { field: string; targetModuleId: string }]
   'formula-detail-open': [payload: { field: string; rowId?: string }]
   'cell-click': [payload: { field: string; rowId: string | null }]
+  'edit-activated': [payload: { rowId: string; field: string }]
+  'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'action-trigger': [payload: ActionTriggerEvent]
@@ -487,6 +489,8 @@ function handleBottomTabChange(tabId: string): void {
       :show-selection="showSelection" :loading="recordStore.isLoading" :height="tableHeight" @sort-change="handleSortChange"
       @filter-change="handleHeaderFilterChange" @row-click="handleRowClick" @cell-edit="handleCellEdit"
       @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
+      @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"
+      @edit-closed="(p: { rowId: string; field: string; value: unknown }) => emit('edit-closed', p)"
       @open-quick-create="handleOpenQuickCreate" @formula-detail-open="handleFormulaDetailOpen"
       @row-action="handleRowAction" @open-relation-editor="handleOpenRelationEditor"
       @selection-change="handleSelectionChange" />

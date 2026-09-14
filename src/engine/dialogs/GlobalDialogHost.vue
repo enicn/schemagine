@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElDialog, ElButton, ElMessage } from 'element-plus'
 import { useUi } from '@/composables/instanceState'
 import { useFormula } from '@/composables/useFormula'
+import { getDialogComponent } from '@/engine/registry/dialogRegistry'
 import DynamicMaxConfirmDialog from './DynamicMaxConfirmDialog.vue'
 import QuickCreateDialog from './QuickCreateDialog.vue'
 import FormulaDetailPopover from '@/components/field/FormulaDetailPopover.vue'
@@ -14,6 +15,9 @@ const formula = useFormula()
 const visible = computed(() => uiState.dialogVisible)
 const dialogType = computed(() => uiState.dialogType)
 const payload = computed(() => uiState.dialogState.payload)
+
+/** 宿主经 registerDialog 注册的自定义弹窗组件(docs/19 B4);命中时优先于内置渲染 */
+const customDialog = computed(() => (dialogType.value ? getDialogComponent(dialogType.value) : undefined))
 
 const formulaContext = ref<FormulaEvaluationContext | null>(null)
 
@@ -68,6 +72,15 @@ function handleQuickCreateCancel(): void {
 </script>
 
 <template>
+  <!-- 自定义注册弹窗(docs/19 B4):约定 props { visible, payload },emit close -->
+  <component
+    :is="customDialog"
+    v-if="customDialog"
+    :visible="visible"
+    :payload="payload"
+    @close="handleClose"
+  />
+
   <DynamicMaxConfirmDialog
     :visible="dialogType === 'dynamic-max-confirm' && visible"
     :payload="payload"

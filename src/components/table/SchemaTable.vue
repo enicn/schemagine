@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import VxeTableWrapper from './VxeTableWrapper.vue'
 import type { WrapperColumn } from './VxeTableWrapper.vue'
@@ -21,6 +21,10 @@ const props = defineProps<{
   filterClauses?: FilterClause[]
   /** 是否渲染行首复选框列（批量操作） */
   showSelection?: boolean
+  /** 单元格插槽透传（docs/19 B2）：field → 插槽名 */
+  cellSlots?: Record<string, string>
+  /** 表头插槽透传（docs/19 B2）：field → 插槽名 */
+  headerSlots?: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -28,14 +32,13 @@ const emit = defineEmits<{
   'filter-change': [payload: { field: string; clause: FilterClause | null }]
   'cell-edit': [payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }]
   'open-quick-create': [payload: { field: string; targetModuleId: string }]
-  'row-add': [payload: void]
-  'row-remove': [payload: { rowId: string }]
-  'lock-column': [payload: { field: string; direction: 'left' | 'right' | 'none' }]
   'formula-detail-open': [payload: { field: string; rowId: string }]
   'column-drag-end': [payload: { columns: any[]; newOrder: string[] }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'row-click': [payload: { rowId: string }]
   'cell-click': [payload: { field: string; rowId: string | null }]
+  'edit-activated': [payload: { rowId: string; field: string }]
+  'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'selection-change': [rowIds: string[]]
 }>()
@@ -100,6 +103,7 @@ const columns = computed<WrapperColumn[]>(() => {
       decimal: field.decimal,
       decimalMode: field.decimalMode,
       maxDecimal: field.maxDecimal,
+      fieldSchema: field,
     })
   })
   const orderMap = new Map(props.viewConfig.map(c => [c.field, c.order]))
@@ -196,6 +200,21 @@ function handleCellClick(payload: { row: Record<string, unknown>; column: { fiel
   })
 }
 
+function handleEditActivated(payload: { row: Record<string, unknown>; column: { field: string } }): void {
+  emit('edit-activated', {
+    rowId: (payload.row._recordId as string | undefined) ?? '',
+    field: payload.column.field,
+  })
+}
+
+function handleEditClosed(payload: { row: Record<string, unknown>; column: { field: string }; value: unknown }): void {
+  emit('edit-closed', {
+    rowId: (payload.row._recordId as string | undefined) ?? '',
+    field: payload.column.field,
+    value: payload.value,
+  })
+}
+
 function handleRelationClick({ row, column }: { row: Record<string, unknown>; column: any }): void {
   const field = column.field
   const fieldSchema = props.schema.fields.find(f => f.key === field)
@@ -213,11 +232,19 @@ function handleRowAction(payload: { row: Record<string, unknown>; actionId: stri
   const rowId = payload.row._recordId as string
   emit('row-action', { rowId, field: payload.actionId, actionId: payload.actionId })
 }
+
+const wrapperRef = ref<InstanceType<typeof VxeTableWrapper> | null>(null)
+
+/** 暴露底层 vxe-table 实例（docs/19 B2） */
+defineExpose({
+  getTableInstance: () => wrapperRef.value?.getTableInstance() ?? null,
+})
 </script>
 
 <template>
   <div class="schema-table">
     <VxeTableWrapper
+      ref="wrapperRef"
       :module-id="schema.id"
       :data="tableData"
       :columns="columns"
@@ -229,12 +256,16 @@ function handleRowAction(payload: { row: Record<string, unknown>; actionId: stri
       :fixed-row-count="fixedRowCount"
       :filter-clauses="filterClauses"
       :show-selection="showSelection"
+      :cell-slots="cellSlots"
+      :header-slots="headerSlots"
       :sort-config="sortState ? { field: sortState.field, order: sortState.order } : undefined"
       :column-draggable="true"
       @sort-change="handleSortChange"
       @filter-change="(payload: { field: string; clause: FilterClause | null }) => emit('filter-change', payload)"
       @row-click="handleRowClick"
       @cell-click="handleCellClick"
+      @edit-activated="handleEditActivated"
+      @edit-closed="handleEditClosed"
       @inline-edit="handleInlineEdit"
       @cell-dblclick="handleCellDblclick"
       @relation-click="handleRelationClick"

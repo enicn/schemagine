@@ -39,6 +39,23 @@ export type { IUserViewConfigService } from './services/api/userViewConfigServic
 export type { IRelationService } from './services/api/relationService'
 export type { IMediaService, MediaAsset, MediaListParams, MediaListResponse } from './services/api/mediaService'
 
+// === 扩展注册表（自定义字段类型 / 自定义弹窗，docs/19 批次 B） ===
+export {
+  registerFieldType,
+  unregisterFieldType,
+  getFieldTypeDefinition,
+  isRegisteredFieldType,
+  isBuiltinFieldType,
+} from './engine/registry/fieldTypeRegistry'
+export type { CustomFieldTypeDefinition, FieldRenderContext } from './engine/registry/fieldTypeRegistry'
+export {
+  registerDialog,
+  unregisterDialog,
+  getDialogComponent,
+  BUILTIN_DIALOG_TYPES,
+} from './engine/registry/dialogRegistry'
+export type { BuiltinDialogType, ExtendedDialogType } from './engine/registry/dialogRegistry'
+
 // === 媒体图片（mediaImage 字段）：选择器与媒体 id 解析 ===
 export { default as MediaPickerDialog } from './components/media/MediaPickerDialog.vue'
 export { default as MediaImageCell } from './components/field/MediaImageCell.vue'

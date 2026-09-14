@@ -1,6 +1,9 @@
 import type { SortParam, FilterClause } from './service'
 import type { ListAction } from './schema'
 import type { CellEditPayload, DraftRecord } from './record'
+import type { ExtendedDialogType } from '@/engine/registry/dialogRegistry'
+
+export type { BuiltinDialogType, ExtendedDialogType } from '@/engine/registry/dialogRegistry'
 
 /**
  * 标准数据操作契约(宿主执行):
@@ -78,7 +81,7 @@ export interface DialogResult {
 }
 
 export interface RequestOpenDialogEvent {
-  dialogType: DialogType
+  dialogType: ExtendedDialogType
   payload: Record<string, unknown>
 }
 

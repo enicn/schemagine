@@ -81,4 +81,6 @@ export type {
   LockColumnEvent,
   RowActionEvent,
   ActionTriggerEvent,
+  BuiltinDialogType,
+  ExtendedDialogType,
 } from './events'

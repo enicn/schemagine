@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FieldSchema } from '@/types'
-import TextEditor from './editors/TextEditor.vue'
-import NumberEditor from './editors/NumberEditor.vue'
-import DateEditor from './editors/DateEditor.vue'
-import BooleanEditor from './editors/BooleanEditor.vue'
-import SelectEditor from './editors/SelectEditor.vue'
-import FkSelector from './editors/FkSelector.vue'
+import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import { builtinEditorForType } from './editorMap'
 import RelationEditor from './editors/RelationEditor.vue'
-import MediaImageEditor from './editors/MediaImageEditor.vue'
 import ValueRenderer from './editors/ValueRenderer.vue'
 
 const props = defineProps<{
@@ -39,42 +34,13 @@ const editorComponent = computed(() => {
     return ValueRenderer
   }
 
-  const type = props.fieldSchema.type
-  switch (type) {
-    case 'text':
-    case 'email':
-    case 'url':
-    case 'phone':
-      return TextEditor
-    case 'number':
-    case 'currency':
-    case 'money':
-    case 'percent':
-      return NumberEditor
-    case 'date':
-    case 'datetime':
-      return DateEditor
-    case 'boolean':
-      return BooleanEditor
-    case 'select':
-    case 'multi-select':
-    case 'status':
-      return SelectEditor
-    case 'fk':
-      return FkSelector
-    case 'mediaImage':
-      return MediaImageEditor
-    case 'one-to-many':
-    case 'many-to-many':
-    case 'reverse-ref':
-      return RelationEditor
-    case 'formula':
-    case 'image':
-    case 'attachment':
-    case 'json':
-    default:
-      return ValueRenderer
+  // 自定义字段类型（docs/19 B1）：注册了编辑器组件的自定义类型优先
+  const customDef = getFieldTypeDefinition(props.fieldSchema.type)
+  if (customDef?.editor) {
+    return customDef.editor
   }
+  // 内置映射;未注册的未知类型回退只读渲染
+  return builtinEditorForType(props.fieldSchema.type) ?? ValueRenderer
 })
 
 function handleUpdate(value: unknown): void {

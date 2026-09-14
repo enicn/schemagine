@@ -17,6 +17,8 @@ import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
 import type { CandidateOption, Condition, FilterClause, FieldValueCandidateOption } from '@/types'
 import { evaluateCondition } from '@/utils/condition'
+import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import type { Component } from 'vue'
 
 export interface WrapperColumn {
   field: string
@@ -59,6 +61,8 @@ export interface WrapperColumn {
   decimal?: number
   decimalMode?: 'fixed' | 'max' | 'range'
   maxDecimal?: number
+  /** 字段 Schema 引用:自定义字段渲染器/插槽上下文使用(独立使用 VxeTableWrapper 时可缺省) */
+  fieldSchema?: import('@/types').FieldSchema
 }
 
 const ROW_HEIGHT = 44
@@ -85,6 +89,10 @@ const props = withDefaults(defineProps<{
   filterClauses?: FilterClause[]
   /** 是否渲染行首复选框列（用于批量操作，如批量删除） */
   showSelection?: boolean
+  /** 单元格插槽透传（docs/19 B2）：field → 插槽名，命中后该列单元格由宿主插槽渲染 */
+  cellSlots?: Record<string, string>
+  /** 表头插槽透传（docs/19 B2）：field → 插槽名，命中后该列表头由宿主插槽渲染 */
+  headerSlots?: Record<string, string>
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -112,6 +120,19 @@ const emit = defineEmits<{
 }>()
 
 const tableRef = ref<VxeTableInstance | null>(null)
+
+/** 插槽透传（docs/19 B2）：field → 宿主插槽名 */
+function cellSlotName(col: WrapperColumn): string | undefined {
+  return props.cellSlots?.[col.field]
+}
+function headerSlotName(col: WrapperColumn): string | undefined {
+  return props.headerSlots?.[col.field]
+}
+
+/** 暴露底层 vxe-table 实例与操作(docs/19 B2):宿主可调用 clearSort/scrollTo 等 vxe API */
+function getTableInstance(): VxeTableInstance | null {
+  return tableRef.value
+}
 
 const visibleColumns = computed(() => props.columns.filter(c => c.visible))
 const relationColumns = computed(() => visibleColumns.value.filter(c => c.isRelation))
@@ -478,6 +499,9 @@ function clearHeaderFilter(field: string): void {
 const editingRowId = ref<string | null>(null)
 const editingField = ref<string | null>(null)
 const editValue = ref<any>('')
+/** 当前编辑会话上下文（B5：edit-closed 事件需要 row/column，Esc 取消路径无入参，从这里取） */
+const activeEditRow = ref<Record<string, unknown> | null>(null)
+const activeEditCol = ref<WrapperColumn | null>(null)
 const fkOptions = ref<CandidateOption[]>([])
 const fkOptionsCache = ref<Map<string, CandidateOption[]>>(new Map())
 const resolvingFkIds = ref<Set<string>>(new Set())
@@ -657,19 +681,32 @@ function validateDecimal(value: unknown, col: WrapperColumn): string | null {
   return `最多允许${maxDec}位小数，当前${actualPlaces}位`
 }
 
-async function startEdit(row: Record<string, unknown>, col: WrapperColumn): Promise<void> {
+/** 自定义字段类型（docs/19 B1）：返回注册的编辑器组件，未注册返回 undefined */
+function customEditorDef(col: WrapperColumn): Component | undefined {
+  if (!col.fieldType) return undefined
+  return getFieldTypeDefinition(col.fieldType)?.editor
+}
+
+async function startEdit(row: Record<string, unknown>, col: WrapperColumn, rowIndex?: number): Promise<void> {
   // 双保险：绝对只读/有限编辑字段不进编辑态（正常路径已在 handleCellDblclick 拦截）
   if (col.readonly || col.editMode === 'limited') return
   const rowId = row[props.rowKey] as string
   editingRowId.value = rowId
   editingField.value = col.field
+  activeEditRow.value = row
+  activeEditCol.value = col
   if (col.fieldType === 'percent') {
     editValue.value = getPercentageDisplayValue(row[col.field])
+  } else if (col.fieldType && col.fieldSchema) {
+    // 自定义字段类型（docs/19 B1）：经 toEditorValue 适配回显，缺省原样透传
+    const def = getFieldTypeDefinition(col.fieldType)
+    editValue.value = def?.toEditorValue ? def.toEditorValue(row[col.field], col.fieldSchema) : row[col.field]
   } else {
     editValue.value = row[col.field]
   }
   fkDropdownOpen.value = false
   fkSearchText.value = ''
+  emit('edit-activated', { row, column: col, rowIndex: rowIndex ?? -1 })
 
   const debugEnabled = typeof window !== 'undefined' && (
     (window as any).__SCHEMAGINE_VXE_DEBUG__ === true
@@ -719,6 +756,10 @@ function confirmEdit(row: Record<string, unknown>, col: WrapperColumn): void {
   let val = editValue.value
   if (col.fieldType === 'percent') {
     val = Number(val) / 100
+  } else if (col.fieldType && col.fieldSchema) {
+    // 自定义字段类型（docs/19 B1）：经 toRecordValue 适配保存值，缺省原样透传
+    const def = getFieldTypeDefinition(col.fieldType)
+    if (def?.toRecordValue) val = def.toRecordValue(val, col.fieldSchema)
   }
   const error = validateDecimal(val, col)
   if (error) {
@@ -734,8 +775,11 @@ function confirmEdit(row: Record<string, unknown>, col: WrapperColumn): void {
     emit('inline-edit', { row, field, value: val, oldValue })
     row[field] = val
   }
+  emit('edit-closed', { row, column: col, value: val })
   editingRowId.value = null
   editingField.value = null
+  activeEditRow.value = null
+  activeEditCol.value = null
 }
 
 function onTextareaEnter(e: KeyboardEvent, row: Record<string, unknown>, col: WrapperColumn): void {
@@ -747,8 +791,13 @@ function onTextareaEnter(e: KeyboardEvent, row: Record<string, unknown>, col: Wr
 }
 
 function cancelEdit(): void {
+  if (activeEditRow.value && activeEditCol.value) {
+    emit('edit-closed', { row: activeEditRow.value, column: activeEditCol.value, value: editValue.value })
+  }
   editingRowId.value = null
   editingField.value = null
+  activeEditRow.value = null
+  activeEditCol.value = null
   fkSearchText.value = ''
   fkDropdownOpen.value = false
 }
@@ -1035,7 +1084,7 @@ function handleCellDblclick(params: any): void {
     return
   }
   if (props.editable) {
-    startEdit(params.row, col)
+    startEdit(params.row, col, params.rowIndex)
     return
   }
   emit('cell-dblclick', { row: params.row, column: col, rowIndex: params.rowIndex })
@@ -1337,6 +1386,13 @@ function formatDisplay(value: unknown, col: WrapperColumn): string {
     return col.formatter({ cellValue: value })
   }
   if (value == null) return ''
+  // 自定义字段类型（docs/19 批次 B1）：命中注册渲染器时按注册渲染（经 v-html 信任输出）
+  if (col.fieldType && col.fieldSchema) {
+    const customDef = getFieldTypeDefinition(col.fieldType)
+    if (customDef?.renderToHtml) {
+      return customDef.renderToHtml({ value, field: col.fieldSchema })
+    }
+  }
   if (col.fieldType === 'boolean') {
     return value ? (col.trueLabel || '是') : (col.falseLabel || '否')
   }
@@ -1385,6 +1441,7 @@ function openImage(src: unknown): void {
 defineExpose({
   clearSort,
   getTableRef,
+  getTableInstance,
 })
 </script>
 
@@ -1421,6 +1478,10 @@ defineExpose({
       <template v-if="loading" #loading>
         <VxeLoading />
       </template>
+      <!-- 空数据插槽透传（docs/19 B2）：宿主可自定义空状态 -->
+      <template v-if="$slots.empty" #empty>
+        <slot name="empty" />
+      </template>
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
       <!-- 数据列：view 模式显示值，edit 模式显示编辑器 -->
@@ -1436,7 +1497,8 @@ defineExpose({
         :align="col.align || 'left'"
       >
         <template #header="hdrParams">
-          <div class="schema-header-cell" @click.stop>
+          <slot v-if="headerSlotName(col)" :name="headerSlotName(col)" :column="col" :field-schema="col.fieldSchema" />
+          <div v-else class="schema-header-cell" @click.stop>
             <span class="schema-header-cell__title">{{ col.title }}</span>
             <!-- vxe-table 固定列会把整份表头克隆到 fixed-wrapper（isHidden 列仅 visibility:hidden 但保留布局坐标），
                  克隆份若也挂 popover，受控 visible 会两份同开，且克隆份定位偏移到表格外侧 -->
@@ -1610,12 +1672,31 @@ defineExpose({
           </div>
         </template>
         <template #default="{ row }">
-          <template v-if="isEditing(row[props.rowKey], col.field)">
+          <!-- 单元格插槽透传（docs/19 B2）：宿主命中时覆盖内置渲染 -->
+          <slot
+            v-if="cellSlotName(col)"
+            :name="cellSlotName(col)"
+            :row="row"
+            :value="row[col.field]"
+            :column="col"
+            :field-schema="col.fieldSchema"
+          />
+          <template v-else-if="isEditing(row[props.rowKey], col.field)">
             <div class="edit-inline" @click.stop>
               <div class="edit-inline__editor">
+                <!-- 自定义字段类型（docs/19 B1）：注册了编辑器组件的自定义类型 -->
+                <component
+                  :is="customEditorDef(col)"
+                  v-if="customEditorDef(col)"
+                  :value="editValue"
+                  :model-value="editValue"
+                  :field-schema="col.fieldSchema"
+                  @update:model-value="editValue = $event"
+                  @update:value="editValue = $event"
+                />
                 <!-- text / email / url / phone -->
                 <input
-                  v-if="!col.fieldType || col.fieldType === 'text' || col.fieldType === 'email' || col.fieldType === 'url' || col.fieldType === 'phone'"
+                  v-if="!customEditorDef(col) && (!col.fieldType || col.fieldType === 'text' || col.fieldType === 'email' || col.fieldType === 'url' || col.fieldType === 'phone')"
                   v-model="editValue"
                   class="edit-inline__input"
                   @keydown.enter="confirmEdit(row, col)"

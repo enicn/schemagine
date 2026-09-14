@@ -1,5 +1,5 @@
 import { ref, computed, reactive, inject, type InjectionKey, type Ref, type ComputedRef } from 'vue'
-import type { ModuleSchema, UserViewConfig, ModulePermissions, FieldSchema, FieldPermission, RecordEntity, DraftRecord, UndoEntry, QueryState, PaginationState, FieldError, DialogType } from '@/types'
+import type { ModuleSchema, UserViewConfig, ModulePermissions, FieldSchema, FieldPermission, RecordEntity, DraftRecord, UndoEntry, QueryState, PaginationState, FieldError, ExtendedDialogType } from '@/types'
 import type { ViewMode } from '@/constants'
 
 // ============================================================
@@ -313,17 +313,17 @@ export interface UiState {
   selectedRowIds: Ref<string[]>['value']
   globalMessage: Ref<string | null>['value']
   globalMessageType: Ref<'info' | 'warning' | 'error' | 'success'>['value']
-  dialogState: Ref<{ visible: boolean; type: DialogType | null; payload: Record<string, unknown> | null }>['value']
+  dialogState: Ref<{ visible: boolean; type: ExtendedDialogType | null; payload: Record<string, unknown> | null }>['value']
   isLoading: Ref<boolean>['value']
   isEditing: ComputedRef<boolean>['value']
   dialogVisible: ComputedRef<boolean>['value']
-  dialogType: ComputedRef<DialogType | null>['value']
+  dialogType: ComputedRef<ExtendedDialogType | null>['value']
   setViewMode: (mode: ViewMode) => void
   setEditingCell: (cell: { rowId: string; field: string } | null) => void
   setSelectedRows: (ids: string[]) => void
   toggleRowSelection: (id: string) => void
   clearSelection: () => void
-  openDialog: (type: DialogType, payload?: Record<string, unknown>) => void
+  openDialog: (type: ExtendedDialogType, payload?: Record<string, unknown>) => void
   closeDialog: () => void
   showMessage: (message: string, type?: 'info' | 'warning' | 'error' | 'success') => void
   clearMessage: () => void
@@ -339,7 +339,7 @@ export function createUiState() {
   const globalMessageType = ref<'info' | 'warning' | 'error' | 'success'>('info')
   const dialogState = ref<{
     visible: boolean
-    type: DialogType | null
+    type: ExtendedDialogType | null
     payload: Record<string, unknown> | null
   }>({
     visible: false,
@@ -377,7 +377,7 @@ export function createUiState() {
     selectedRowIds.value = []
   }
 
-  function openDialog(type: DialogType, payload: Record<string, unknown> = {}): void {
+  function openDialog(type: ExtendedDialogType, payload: Record<string, unknown> = {}): void {
     dialogState.value = { visible: true, type, payload }
   }
 

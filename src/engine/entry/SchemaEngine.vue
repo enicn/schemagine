@@ -19,7 +19,7 @@ import CardCreateView from '@/engine/containers/CardCreateView.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
-import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, SortParam, RowActionEvent, ActionTriggerEvent } from '@/types'
+import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
 
 const props = defineProps<{
   moduleId: string
@@ -36,10 +36,12 @@ const emit = defineEmits<{
   'view-mode-change': [payload: { mode: 'list' | 'card' | 'create' }]
   'data-changed': [payload: { moduleId: string }]
   error: [payload: { moduleId: string; code: string; message: string }]
-  'request-open-dialog': [payload: { dialogType: DialogType; payload: Record<string, unknown> }]
+  'request-open-dialog': [payload: { dialogType: ExtendedDialogType; payload: Record<string, unknown> }]
   'action-trigger': [payload: ActionTriggerEvent]
   'row-action': [payload: RowActionEvent]
   'cell-click': [payload: { field: string; rowId: string | null }]
+  'edit-activated': [payload: { rowId: string; field: string }]
+  'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
 }>()
 
 const schemaMeta = createSchemaMetaState()
@@ -546,6 +548,8 @@ defineExpose({
                 @open-relation-editor="handleOpenRelationEditor"
                 @action-trigger="(p) => emit('action-trigger', p)"
                 @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
+                @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"
+                @edit-closed="(p: { rowId: string; field: string; value: unknown }) => emit('edit-closed', p)"
               />
             </ErrorBoundary>
           </template>

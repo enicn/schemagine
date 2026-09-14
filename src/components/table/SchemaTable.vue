@@ -68,16 +68,19 @@ const columns = computed<WrapperColumn[]>(() => {
     result.push({
       field: field.key,
       title: isAction ? (field.rowAction?.label || field.label) : field.label,
-      // action 列宽 = 单个操作按钮宽（OP_BUTTON_WIDTH，见 VxeTableWrapper）；
-      // 操作列总宽由 VxeTableWrapper 按「按钮数 × 按钮宽 + 两侧留白」统一计算
-      width: isAction ? (field.width ?? 48) : (config?.width ?? field.width ?? 120),
+      // action 的 width 仅作占位：操作列总宽由 VxeTableWrapper 按按钮实测文本自适应计价，不读本值。
+      // 数据列未声明 width 时走 min-width 通道：vxe 只把表格剩余宽度分给带 min-width 的列
+      //（仅省略 width 得到 120 默认宽 + 右侧空白），宽表至少声明一个无 width 字段吃满容器
+      width: isAction ? (field.width ?? 48) : (config?.width ?? field.width),
+      minWidth: !isAction && !(config?.width ?? field.width) ? 120 : undefined,
       fixed: config?.fixed ?? field.fixed,
       sortable: isAction ? false : (field.sortable && config?.sortable !== false),
       visible: isVisible && (config?.visible ?? true),
       align: 'center',
       formatter,
       isAction,
-      actionDanger: isAction && field.rowAction?.type === 'delete',
+      actionDanger: isAction && (field.rowAction?.type === 'delete' || field.rowAction?.danger === true),
+      actionVisibleWhen: field.rowAction?.visibleWhen,
       isRelation,
       cellClass: booleanCellClass,
       fieldType: field.type,

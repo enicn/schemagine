@@ -166,7 +166,7 @@ function ensureViewConfigCompatibility(
       maxOrder++
       cleanColumns.push({
         field: field.key,
-        width: field.width ?? 120,
+        width: field.width,
         visible: true,
         order: maxOrder,
         sortable: !!field.sortable,

@@ -27,6 +27,8 @@ const props = defineProps<{
   embedded?: boolean
   readonly?: boolean
   globalContext?: Record<string, unknown>
+  /** 列表表格高度（vxe height）：传 '100%' 等让表体内部滚动、表头固定 */
+  tableHeight?: string | number
 }>()
 
 const emit = defineEmits<{
@@ -510,7 +512,7 @@ defineExpose({
                     列表视图
                   </ElButton>
                   <ElButton
-                    v-if="uiState.viewMode !== 'card' && permission.canView.value"
+                    v-if="uiState.viewMode !== 'card' && permission.canView.value && schemaMeta.schema?.moduleType !== 'list'"
                     size="small"
                     @click="handleViewModeChange('card')"
                   >
@@ -535,6 +537,7 @@ defineExpose({
                 v-if="schemaMeta.schema"
                 :schema="schemaMeta.schema"
                 :view-config="schemaMeta.viewConfig?.columns ?? []"
+                :table-height="tableHeight"
                 @cell-edit="handleCellEdit"
                 @query-change="handleQueryChange"
                 @formula-detail-open="handleFormulaDetailOpen"

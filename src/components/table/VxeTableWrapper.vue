@@ -15,7 +15,8 @@ import { mediaService } from '@/services/api/mediaService'
 import MediaImageCell from '@/components/field/MediaImageCell.vue'
 import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
-import type { CandidateOption, FilterClause, FieldValueCandidateOption } from '@/types'
+import type { CandidateOption, Condition, FilterClause, FieldValueCandidateOption } from '@/types'
+import { evaluateCondition } from '@/utils/condition'
 
 export interface WrapperColumn {
   field: string
@@ -29,6 +30,10 @@ export interface WrapperColumn {
   isAction?: boolean
   /** 危险操作样式（如标准删除操作） */
   actionDanger?: boolean
+  /** 行级显隐条件：逐行以行数据为 record 上下文求值，false 时该行不渲染此操作按钮 */
+  actionVisibleWhen?: Condition
+  /** 未声明 width 的数据列携带 min-width：vxe 把表格剩余宽度平均分给带 min-width 的列（仅省略 width 不参与分配） */
+  minWidth?: number
   isRelation?: boolean
   cellClass?: (params: { value: unknown }) => string
   fieldType?: string
@@ -114,21 +119,59 @@ const relationColumns = computed(() => visibleColumns.value.filter(c => c.isRela
 const opColumns = computed(() => visibleColumns.value.filter(c => c.isAction))
 const dataColumns = computed(() => visibleColumns.value.filter(c => !c.isRelation && !c.isAction))
 /**
- * 操作列宽度 = 两侧留白 + 各按钮宽之和。
+ * 操作列宽度 = 两侧留白 + 各按钮实测文本宽之和 + 按钮间距。
  *
- * 旧实现按「字段 width 之和」累加且默认 80/按钮，两个 2 字按钮就吃掉 160px，
- * 而实际文字仅占约 26px，大量空间被浪费。现按按钮实际占位计价：
- * 基准 48px（2 字中文按钮，居中后两侧各约 11px 视觉留白，按钮之间不再需要 gap），
- * 字段显式配了更大 width 的（如「调整积分」这类 4 字按钮）按 max 取大值保留。
+ * 历史两版都是静态估算（先 80/按钮，后 48/按钮与字段显式 width 取大），短文案按钮
+ * 实际只有 2~4 字，静态值让操作列长期比内容宽出一倍。现按 canvas measureText 以
+ * .op-link 实际字体逐按钮测宽（中英混排皆准），字段显式 width 不再参与计价；
+ * 行级 visibleWhen 只会隐藏按钮，计价恒按全量按钮集合（最坏行）取值。
  */
-const OP_BUTTON_WIDTH = 48
-/** 操作列左右内边距 */
-const OP_COLUMN_PADDING = 20
+const OP_COLUMN_PADDING = 16
+/** 操作按钮间距 */
+const OP_LINK_GAP = 12
 
-const opColumnWidth = computed(() =>
-  OP_COLUMN_PADDING * 2 +
-  opColumns.value.reduce((w, c) => w + Math.max(OP_BUTTON_WIDTH, c.width ?? OP_BUTTON_WIDTH), 0),
-)
+let opTextCtx: CanvasRenderingContext2D | null | undefined
+/** 以 .op-link 实际字体（token：--sg-font-size-md + --sg-font-family）测按钮文本宽 */
+function measureOpTextWidth(text: string): number {
+  if (!text) return 0
+  if (opTextCtx === undefined) {
+    opTextCtx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+  }
+  if (!opTextCtx) return text.length * 13
+  const s = getComputedStyle((tableRef.value?.$el as HTMLElement | undefined) ?? document.documentElement)
+  opTextCtx.font = `${s.getPropertyValue('--sg-font-size-md').trim() || '13px'} ${s.getPropertyValue('--sg-font-family').trim() || 'sans-serif'}`
+  return opTextCtx.measureText(text).width
+}
+
+const opColumnWidth = computed(() => {
+  const buttons = opColumns.value
+  if (buttons.length === 0) return 0
+  // 计价取「行内实际同时可见按钮集合」中的最宽者：行级 visibleWhen 让多数行只渲染
+  // 全量按钮的子集（如账号行恒为 重置密码+冻结|解冻+解锁、不含解绑微信），按全量
+  // 集合计价会让操作列在每行都空出一截。无数据行时回退全量集合（旧的最坏行口径）。
+  let priced = buttons
+  if (props.data.length > 0) {
+    let maxWidth = -1
+    for (const row of props.data) {
+      const ops = visibleOps(row)
+      const width = ops.reduce((s, c) => s + measureOpTextWidth(c.title), 0)
+      if (width > maxWidth) {
+        maxWidth = width
+        priced = ops
+      }
+    }
+    if (priced.length === 0) priced = buttons
+  }
+  const content = priced.reduce((w, c) => w + measureOpTextWidth(c.title), 0)
+  return Math.ceil(OP_COLUMN_PADDING * 2 + OP_LINK_GAP * (priced.length - 1) + content)
+})
+
+/** 逐行求值操作按钮显隐：声明了 visibleWhen 的按钮按行数据过滤，未声明的恒可见 */
+function visibleOps(row: Record<string, unknown>): WrapperColumn[] {
+  return opColumns.value.filter(
+    c => !c.actionVisibleWhen || evaluateCondition(c.actionVisibleWhen, { record: row, global: {} }),
+  )
+}
 
 const headerMenuField = ref<string | null>(null)
 const headerMenuKeyword = ref('')
@@ -1387,6 +1430,7 @@ defineExpose({
         :field="col.field"
         :title="col.title"
         :width="col.width"
+        :min-width="col.minWidth"
         :fixed="col.fixed"
         :sortable="col.sortable"
         :align="col.align || 'left'"
@@ -1795,7 +1839,8 @@ defineExpose({
             class="cell-value cell-enum"
             v-html="getEnumCellHtml(row[col.field], col)"
           ></span>
-            <span v-else class="cell-value" :class="[col.fieldType === 'select' || (col.fieldType === 'fk' && row[col.field] != null && row[col.field] !== '') ? 'cell-tag' : '', col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', getBooleanStateClass(row[col.field]), row[col.field] ? col.trueLabelClass : col.falseLabelClass] : '', hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="getCellHighlightHtml(row[col.field], col)"></span>
+            <!-- select/fk 空值不挂 cell-tag：否则空单元格渲染出空胶囊占位 -->
+            <span v-else class="cell-value" :class="[(col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', getBooleanStateClass(row[col.field]), row[col.field] ? col.trueLabelClass : col.falseLabelClass] : '', hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="getCellHighlightHtml(row[col.field], col)"></span>
         </template>
       </VxeColumn>
 
@@ -1833,7 +1878,7 @@ defineExpose({
         <template #default="{ row }">
           <span class="op-cell">
             <button
-              v-for="op in opColumns"
+              v-for="op in visibleOps(row)"
               :key="op.field"
               type="button"
               class="op-link"
@@ -1882,6 +1927,13 @@ defineExpose({
 <style scoped>
 .vxe-table-wrapper {
   width: 100%;
+}
+/* 列宽分配兜底：vxe 的 fit 剩余宽度分配在部分挂载时序下不会被重算（首次 calc 时
+   容器尚窄则 meanWidth=0 永久定格），主层表格声明 min-width:100% 交给浏览器
+   fixed 布局把差额均摊到各列，表头/表体同 colgroup 天然对齐。
+   列总宽超出容器（横向滚动）时 vxe 内联 width 生效、min-width 不参与，固定列层不在选择域内不受影响 */
+.vxe-table-wrapper :deep(.vxe-table--render-default .vxe-table--main-wrapper table) {
+  min-width: 100%;
 }
 .vxe-table-wrapper.is-auto-fill {
   flex: 1;
@@ -1981,12 +2033,12 @@ defineExpose({
 :deep(.op-column) {
   background: var(--sg-fill-color-lighter);
 }
-/* 按钮自身已按 OP_BUTTON_WIDTH 预留左右留白，单元格不再叠加 gap，否则列宽被重复计价 */
+/* 按钮为内容宽（列宽由 opColumnWidth 按实测文本计价），单元格 gap 与 OP_LINK_GAP 保持一致 */
 .op-cell {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 12px;
 }
 .op-link {
   padding: 0;
@@ -1997,9 +2049,6 @@ defineExpose({
   font-size: var(--sg-font-size-md);
   line-height: 22px;
   user-select: none;
-  /* 定宽居中：短文案（如「详情」「删除」）撑满 48px，视觉留白均匀 */
-  min-width: 48px;
-  text-align: center;
   white-space: nowrap;
 }
 .op-link:hover {

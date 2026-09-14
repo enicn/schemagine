@@ -217,6 +217,10 @@ export interface RowActionConfig {
   type: RowActionType
   label: string
   icon?: string
+  /** 按行显隐：逐行以行数据为 record 上下文求值，false 时该行不渲染此按钮（如「停用」仅启用行可见） */
+  visibleWhen?: Condition
+  /** 危险操作红字样式；不改变 type 语义（custom 也可标红） */
+  danger?: boolean
   target?: ActionTargetConfig
 }
 

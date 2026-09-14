@@ -80,8 +80,7 @@ export function applyBuiltinOperations(
     required: false,
     readonly: true,
     order: Number.MAX_SAFE_INTEGER,
-    // 48 = 操作列按钮基准宽（见 VxeTableWrapper OP_BUTTON_WIDTH）。
-    // 删除按钮固定 2 字，按基准宽渲染即可，无需给整列预留更多空间。
+    // action 字段 width 不参与操作列计价（VxeTableWrapper 按按钮实测文本自适应），仅作占位
     width: 48,
     visible: true,
     sortable: false,

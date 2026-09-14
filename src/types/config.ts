@@ -13,7 +13,8 @@ export interface UserViewConfig {
 
 export interface ColumnConfig {
   field: string
-  width: number
+  /** 未声明 = 弹性列（吃满容器剩余宽度） */
+  width?: number
   visible: boolean
   fixed?: 'left' | 'right'
   order: number

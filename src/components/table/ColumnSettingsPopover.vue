@@ -68,8 +68,9 @@ function moveDown(index: number): void {
   localColumns.value = [...localColumns.value]
 }
 
-function updateWidth(col: ColumnConfig, width: number): void {
-  col.width = Math.max(40, Math.min(600, width || 120))
+function updateWidth(col: ColumnConfig, width: number | undefined): void {
+  // 清空 = 弹性列（未声明 width，吃满容器剩余宽度）
+  col.width = width == null ? undefined : Math.max(40, Math.min(600, width))
 }
 
 const defaultColumns = computed(() => {
@@ -77,7 +78,7 @@ const defaultColumns = computed(() => {
     .filter(f => f.type !== 'action')
     .map((f, i) => ({
       field: f.key,
-      width: f.width || 120,
+      width: f.width,
       visible: f.visible !== false,
       order: i,
       sortable: !!f.sortable,
@@ -173,7 +174,7 @@ function getFieldType(fieldKey: string): string {
               :step="10"
               size="small"
               controls-position="right"
-              @update:model-value="(val: number | undefined) => updateWidth(col, val ?? 120)"
+              @update:model-value="(val: number | undefined) => updateWidth(col, val)"
             />
           </span>
           <span class="h-fixed">

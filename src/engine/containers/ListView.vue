@@ -22,6 +22,8 @@ const props = defineProps<{
   initialQueryState?: Partial<QueryState>
   infiniteScroll?: boolean
   externalFilters?: FilterClause[] | null
+  /** 透传给 SchemaTable 的表格高度（vxe height），不传保持自然高度 */
+  tableHeight?: string | number
 }>()
 
 const emit = defineEmits<{
@@ -181,6 +183,11 @@ function handleClearAll(): void {
 
 function handlePageChange(payload: { page: number; pageSize: number }): void {
   currentPage.value = payload.page
+  pageSize.value = payload.pageSize
+}
+
+function handlePageSizeChange(payload: { pageSize: number }): void {
+  currentPage.value = 1
   pageSize.value = payload.pageSize
 }
 
@@ -476,7 +483,7 @@ function handleBottomTabChange(tabId: string): void {
 
     <SchemaTable :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []" :sort-state="currentSort"
       :filter-clauses="filters" :editable="tableEditable" :selected-row-id="selectedRowId"
-      :show-selection="showSelection" :loading="recordStore.isLoading" @sort-change="handleSortChange"
+      :show-selection="showSelection" :loading="recordStore.isLoading" :height="tableHeight" @sort-change="handleSortChange"
       @filter-change="handleHeaderFilterChange" @row-click="handleRowClick" @cell-edit="handleCellEdit"
       @open-quick-create="handleOpenQuickCreate" @formula-detail-open="handleFormulaDetailOpen"
       @row-action="handleRowAction" @open-relation-editor="handleOpenRelationEditor"
@@ -509,7 +516,7 @@ function handleBottomTabChange(tabId: string): void {
       <span v-if="bottomTabsField && filterTabs.length > 1" class="footer-divider" />
       <SchemaPagination :page="recordStore.queryState.pagination.page"
         :page-size="recordStore.queryState.pagination.pageSize" :total="recordStore.totalRecords"
-        :loading="recordStore.isLoading" @page-change="handlePageChange" />
+        :loading="recordStore.isLoading" @page-change="handlePageChange" @page-size-change="handlePageSizeChange" />
     </div>
   </div>
 </template>

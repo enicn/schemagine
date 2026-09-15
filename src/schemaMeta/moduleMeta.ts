@@ -18,6 +18,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   formulaConfig: true,
   listActions: true,
   operations: true,
+  treeConfig: true,
   migrations: true,
   status: true,
 }
@@ -109,6 +110,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: '引擎内置标准操作配置(当前仅 delete):{ delete: { enabled, batch, label, batchLabel, confirmTitle, confirmMessage, batchConfirmTitle, batchConfirmMessage } };启用后渲染行级/批量删除入口(需同时满足 permissions.delete),确认后引擎发标准化事件、由宿主执行。',
     example: { delete: { enabled: true, batch: true } },
+  },
+  {
+    key: 'treeConfig', target: 'module', label: '树形数据', group: 'display', appliesTo: 'all', kind: 'object',
+    surfaces: ['render'],
+    description: '树形数据声明(docs/19 F2):{ childrenField, parentField, expandAll }。childrenField 为嵌套子记录字段名(默认 children);声明 parentField 时记录以该字段存父记录主键,引擎组树后按树渲染;expandAll 默认展开全部层级。',
+    example: { parentField: 'parentId', childrenField: 'children', expandAll: false },
   },
   {
     key: 'migrations', target: 'module', label: '迁移链', group: 'basic', appliesTo: 'all', kind: 'none',

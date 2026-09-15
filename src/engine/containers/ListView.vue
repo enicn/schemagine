@@ -30,6 +30,8 @@ const props = defineProps<{
   externalFilters?: FilterClause[] | null
   /** 透传给 SchemaTable 的表格高度（vxe height），不传保持自然高度 */
   tableHeight?: string | number
+  /** 密度档位（docs/19 F1）：透传 SchemaTable → VxeTableWrapper */
+  density?: 'compact' | 'default' | 'large'
 }>()
 
 const emit = defineEmits<{
@@ -724,7 +726,7 @@ function handleBottomTabChange(tabId: string): void {
     <SchemaTable ref="schemaTableRef" :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []"
       :sort-state="currentSort" :filter-clauses="flatFilterClauses" :editable="tableEditable"
       :selected-row-id="selectedRowId" :show-selection="showSelection" :loading="recordStore.isLoading"
-      :height="tableHeight" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
+      :height="tableHeight" :density="density" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
       @row-click="handleRowClick" @cell-edit="handleCellEdit"
       @column-drag-end="handleColumnDragEnd"
       @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"

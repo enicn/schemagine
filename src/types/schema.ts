@@ -12,9 +12,26 @@ export interface ModuleSchema {
   listActions?: ListAction[]
   /** 标准数据操作配置：由引擎内置渲染与交互，宿主仅消费标准化事件执行业务 */
   operations?: DataOperationsConfig
+  /** 树形数据声明（docs/19 F2）：声明后列表按树形渲染（vxe tree-config） */
+  treeConfig?: TreeConfig
   /** @since 2.0 版本迁移列表：按 fromVersion 升序排列 */
   migrations?: SchemaMigration[]
   status: 'active' | 'disabled' | 'error'
+}
+
+/**
+ * 树形数据声明（docs/19 批次 F2）。
+ * 宿主二选一提供数据形态：
+ *  - 记录自带嵌套：children 数组直接挂在记录上（childrenField 声明字段名，默认 'children'）；
+ *  - 平铺 + 父引用：记录以 parentField 存父记录主键，由引擎组树（utils/recordTree buildRecordTree）。
+ */
+export interface TreeConfig {
+  /** 嵌套子记录所在字段名，默认 'children' */
+  childrenField?: string
+  /** 平铺记录组树：记录上存父记录主键的字段名（值 = 父记录 id）；声明后引擎自动组树 */
+  parentField?: string
+  /** 是否默认展开全部层级，默认 false */
+  expandAll?: boolean
 }
 
 /** 标准数据操作 —— 删除（行级删除 + 批量删除） */

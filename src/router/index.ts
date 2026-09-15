@@ -11,6 +11,7 @@ const moduleRoutes = [
   { path: '/receivable', name: 'receivable', moduleId: 'module-receivable' },
   { path: '/user', name: 'user', moduleId: 'module-user' },
   { path: '/workshop', name: 'workshop', moduleId: 'module-workshop' },
+  { path: '/dept', name: 'dept', moduleId: 'module-dept' },
   { path: '/empty', name: 'empty', moduleId: 'module-empty' },
   { path: '/no-perm', name: 'no-perm', moduleId: 'module-no-perm' },
 ]

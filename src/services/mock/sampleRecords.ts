@@ -365,3 +365,55 @@ receivableRecords.push({
   createdAt: '2026-05-10T08:00:00Z',
   updatedAt: '2026-05-10T08:00:00Z',
 })
+
+/** 部门记录 — 树形演示（docs/19 批次 F2）：parentId 指向父记录 id，引擎组树后渲染 */
+export const deptRecords: RecordEntity[] = [
+  {
+    id: 'rec-dept-001',
+    moduleId: 'module-dept',
+    fields: { name: '总经办', code: 'D000', head: '王总', parentId: null },
+    version: 1,
+    createdAt: '2026-04-01T08:00:00Z',
+    updatedAt: '2026-04-01T08:00:00Z',
+  },
+  {
+    id: 'rec-dept-002',
+    moduleId: 'module-dept',
+    fields: { name: '技术部', code: 'D100', head: '张工', parentId: 'rec-dept-001' },
+    version: 1,
+    createdAt: '2026-04-01T08:05:00Z',
+    updatedAt: '2026-04-01T08:05:00Z',
+  },
+  {
+    id: 'rec-dept-003',
+    moduleId: 'module-dept',
+    fields: { name: '前端组', code: 'D110', head: '李雷', parentId: 'rec-dept-002' },
+    version: 1,
+    createdAt: '2026-04-01T08:06:00Z',
+    updatedAt: '2026-04-01T08:06:00Z',
+  },
+  {
+    id: 'rec-dept-004',
+    moduleId: 'module-dept',
+    fields: { name: '后端组', code: 'D120', head: '韩梅梅', parentId: 'rec-dept-002' },
+    version: 1,
+    createdAt: '2026-04-01T08:07:00Z',
+    updatedAt: '2026-04-01T08:07:00Z',
+  },
+  {
+    id: 'rec-dept-005',
+    moduleId: 'module-dept',
+    fields: { name: '市场部', code: 'D200', head: '赵敏', parentId: 'rec-dept-001' },
+    version: 1,
+    createdAt: '2026-04-01T08:08:00Z',
+    updatedAt: '2026-04-01T08:08:00Z',
+  },
+  {
+    id: 'rec-dept-006',
+    moduleId: 'module-dept',
+    fields: { name: '财务部', code: 'D300', head: '钱会计', parentId: 'rec-dept-001' },
+    version: 1,
+    createdAt: '2026-04-01T08:09:00Z',
+    updatedAt: '2026-04-01T08:09:00Z',
+  },
+]

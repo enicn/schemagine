@@ -16,6 +16,10 @@ const modulePathMap: Record<string, string> = {}
 moduleRoutes.forEach(r => { modulePathMap[r.moduleId] = r.path })
 
 const currentModuleId = ref(props.moduleId ?? 'module-voucher')
+// 密度档位演示入口（docs/19 F1）：/module/xxx?density=compact|large 透传给表格引擎
+const density = ref<'compact' | 'default' | 'large'>(
+  route.query.density === 'compact' || route.query.density === 'large' ? route.query.density : 'default',
+)
 const availableModules = [
   { id: 'module-voucher', label: '凭证管理' },
   { id: 'module-ap', label: '应付账款' },
@@ -24,6 +28,7 @@ const availableModules = [
   { id: 'module-receivable', label: '应收账单' },
   { id: 'module-user', label: '用户管理' },
   { id: 'module-workshop', label: '车间管理' },
+  { id: 'module-dept', label: '部门管理' },
   { id: 'module-empty', label: '空模块' },
   { id: 'module-no-perm', label: '无权限' },
 ]
@@ -99,6 +104,7 @@ function onError(payload: { moduleId: string; code: string; message: string }): 
       <SchemaEngine
         :key="currentModuleId"
         :module-id="currentModuleId"
+        :density="density"
         @module-loaded="onModuleLoaded"
         @error="onError"
       />

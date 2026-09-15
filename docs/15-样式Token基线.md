@@ -46,6 +46,7 @@
 | 字体 | `font-family` | 引擎默认继承宿主，演示壳使用该 token |
 | 间距 | `spacing-1`=2px 起步的 2px 网格（1/2/3/4/5/6/7/8/10/12/16/20/24） | token 数值 = px ÷ 2 |
 | 控件高度 | `size-sm/md/lg` = 24/28/32px | 新控件从档位取值 |
+| 表格密度 | `table-row-height-{compact,default,large}` = 36/44/52px；`table-header-height-{compact,default,large}` = 41/49/57px；生效值别名 `table-row-height` / `table-header-height` | docs/19 F1；vxe 实际行高由 `tableDensity.ts` 数值表驱动，默认值由单测钉住 |
 | 圆角 | `radius-xs/sm/md/lg/xl` = 2/3/4/6/8px；`round`=9999px；`circle`=50% | 默认 `md`=4px |
 | 阴影 | `shadow-sm/md/lg/xl` | 见 tokens.css |
 | focus 光晕 | `shadow-focus` / `shadow-focus-strong` | 随主色联动 |

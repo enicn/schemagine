@@ -108,6 +108,19 @@
   --sg-size-md: 28px;
   --sg-size-lg: 32px;
 
+  /* ========== 7.1 表格密度（docs/19 批次 F1；三档行高/表头高） ==========
+   * vxe 的实际行高由 tableDensity.ts 数值表驱动（虚拟滚动要求数字），
+   * 本组 token 供 CSS 消费与宿主按档位覆盖；两处默认值由单测钉住。 */
+  --sg-table-row-height-compact: 36px;
+  --sg-table-row-height-default: 44px;
+  --sg-table-row-height-large: 52px;
+  --sg-table-header-height-compact: 41px;
+  --sg-table-header-height-default: 49px;
+  --sg-table-header-height-large: 57px;
+  /* 当前生效档位（VxeTableWrapper 按 density prop 切换为对应档位值） */
+  --sg-table-row-height: var(--sg-table-row-height-default);
+  --sg-table-header-height: var(--sg-table-header-height-default);
+
   /* ========== 8. 圆角 ========== */
   --sg-radius-xs: 2px;
   --sg-radius-sm: 3px;

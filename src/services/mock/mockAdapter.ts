@@ -23,7 +23,7 @@ import { compareVersions } from '@/composables/useMigration'
 import {
   voucherSchema, apSchema, emptyModuleSchema, NoPermissionSchema,
   invoiceSchema, receivableSchema, userSchema, workshopSchema,
-  salesOrderSchema,
+  salesOrderSchema, deptSchema,
 } from './sampleSchemas'
 import {
   voucherRecords as seedVoucherRecords,
@@ -34,6 +34,7 @@ import {
   receivableRecords as seedReceivableRecords,
   salesOrderRecords as seedSalesOrderRecords,
   receivableCandidates as seedReceivableCandidates,
+  deptRecords as seedDeptRecords,
 } from './sampleRecords'
 
 const RECORDS_KEY_PREFIX = 'records:'
@@ -76,6 +77,8 @@ function seedRecordsIfNeeded(moduleId: string): RecordEntity[] {
       records = seedReceivableRecords.map(r => ({ ...r, fields: { ...r.fields } }))
     } else if (moduleId === 'module-sales-order') {
       records = seedSalesOrderRecords.map(r => ({ ...r, fields: { ...r.fields } }))
+    } else if (moduleId === 'module-dept') {
+      records = seedDeptRecords.map(r => ({ ...r, fields: { ...r.fields } }))
     }
     if (records.length > 0) {
       writeStorage(key, records)
@@ -376,6 +379,7 @@ export class MockSchemaService implements ISchemaService {
       'module-user': userSchema,
       'module-workshop': workshopSchema,
       'module-sales-order': salesOrderSchema,
+      'module-dept': deptSchema,
     }
   }
 
@@ -429,6 +433,7 @@ export class MockSchemaService implements ISchemaService {
       'module-user': { view: true, create: true, edit: true, delete: true, export: true, configure: true },
       'module-workshop': { view: true, create: true, edit: true, delete: true, export: true, configure: true },
       'module-sales-order': { view: true, create: true, edit: true, delete: true, export: true, configure: true },
+      'module-dept': { view: true, create: true, edit: true, delete: true, export: true, configure: true },
     }
     const perms = permissionsMap[moduleId]
     if (!perms) return createErrorResponse('NOT_FOUND', '模块权限数据不存在')
@@ -488,6 +493,7 @@ export class MockUserViewConfigService implements IUserViewConfigService {
       'module-user': userSchema,
       'module-workshop': workshopSchema,
       'module-sales-order': salesOrderSchema,
+      'module-dept': deptSchema,
     }
     const s = schemaMap[moduleId]
     const columns: ColumnConfig[] = s
@@ -716,7 +722,7 @@ export function initMockServices(): void {
 
   if (!isStorageInitialized()) {
     const configService = new MockUserViewConfigService()
-    const modules = ['module-voucher', 'module-ap', 'module-empty', 'module-invoice', 'module-receivable', 'module-user', 'module-workshop', 'module-sales-order']
+    const modules = ['module-voucher', 'module-ap', 'module-empty', 'module-invoice', 'module-receivable', 'module-user', 'module-workshop', 'module-sales-order', 'module-dept']
     modules.forEach(m => {
       const key = getConfigKey(m)
       const existing = readStorage<UserViewConfig | null>(key, null)

@@ -30,6 +30,8 @@ const props = defineProps<{
   globalContext?: Record<string, unknown>
   /** 列表表格高度（vxe height）：传 '100%' 等让表体内部滚动、表头固定 */
   tableHeight?: string | number
+  /** 列表密度档位（docs/19 F1）：compact/default/large，透传 ListView → SchemaTable → VxeTableWrapper */
+  density?: 'compact' | 'default' | 'large'
 }>()
 
 const emit = defineEmits<{
@@ -586,6 +588,7 @@ defineExpose({
                 :schema="schemaMeta.schema"
                 :view-config="schemaMeta.viewConfig?.columns ?? []"
                 :table-height="tableHeight"
+                :density="density"
                 @cell-edit="handleCellEdit"
                 @query-change="handleQueryChange"
                 @formula-detail-open="handleFormulaDetailOpen"

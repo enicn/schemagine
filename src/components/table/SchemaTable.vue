@@ -3,9 +3,11 @@ import { computed, ref } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import VxeTableWrapper from './VxeTableWrapper.vue'
 import type { WrapperColumn } from './VxeTableWrapper.vue'
+import type { TableDensity } from './tableDensity'
 import type { ModuleSchema, FieldSchema, ColumnConfig, RecordEntity, SortParam, FilterClause } from '@/types'
 import { relationService } from '@/services/api/relationService'
 import { flattenRecordRow } from '@/utils/recordRow'
+import { buildRecordTree } from '@/utils/recordTree'
 
 const props = defineProps<{
   schema: ModuleSchema
@@ -25,6 +27,8 @@ const props = defineProps<{
   cellSlots?: Record<string, string>
   /** 表头插槽透传（docs/19 B2）：field → 插槽名 */
   headerSlots?: Record<string, string>
+  /** 密度档位（docs/19 F1）：compact/default/large */
+  density?: TableDensity
 }>()
 
 const emit = defineEmits<{
@@ -120,7 +124,7 @@ const tableData = computed(() => {
     f => f.type === 'one-to-many' || f.type === 'many-to-many' || f.type === 'reverse-ref',
   )
 
-  return props.rows.map(r => {
+  const flatRows = props.rows.map(r => {
     const row: Record<string, unknown> = flattenRecordRow(r)
 
     for (const rf of relationFields) {
@@ -155,6 +159,17 @@ const tableData = computed(() => {
 
     return row
   })
+
+  // 树形数据（docs/19 F2）：schema 声明 parentField 时由平铺行组树（children 挂 childrenField）
+  const tree = props.schema.treeConfig
+  if (tree?.parentField) {
+    return buildRecordTree(flatRows, {
+      idKey: '_recordId',
+      parentField: tree.parentField,
+      childrenField: tree.childrenField ?? 'children',
+    })
+  }
+  return flatRows
 })
 
 function handleSortChange(payload: { field: string; order: 'asc' | 'desc' | null }): void {
@@ -258,6 +273,10 @@ defineExpose({
       :show-selection="showSelection"
       :cell-slots="cellSlots"
       :header-slots="headerSlots"
+      :density="density"
+      :tree-config="schema.treeConfig
+        ? { children: schema.treeConfig.childrenField ?? 'children', expandAll: schema.treeConfig.expandAll ?? false }
+        : undefined"
       :sort-config="sortState ? { field: sortState.field, order: sortState.order } : undefined"
       :column-draggable="true"
       @sort-change="handleSortChange"

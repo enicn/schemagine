@@ -18,6 +18,8 @@ import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
 import type { FilterClause } from '@/types'
 import { resolveScrollY } from './virtualScroll'
+import { resolveDensityHeights } from './tableDensity'
+import type { TableDensity } from './tableDensity'
 import { useColumnBuilding } from './useColumnBuilding'
 import { useFkOptions } from './useFkOptions'
 import { useCellRendering } from './useCellRendering'
@@ -26,8 +28,6 @@ import { useInlineEdit } from './useInlineEdit'
 import { useCellDetail } from './useCellDetail'
 import type { WrapperColumn } from './wrapperTypes'
 
-const ROW_HEIGHT = 44
-const HEADER_HEIGHT = 49
 const BORDER_HEIGHT = 1
 
 const props = withDefaults(defineProps<{
@@ -54,6 +54,13 @@ const props = withDefaults(defineProps<{
   cellSlots?: Record<string, string>
   /** 表头插槽透传（docs/19 B2）：field → 插槽名，命中后该列表头由宿主插槽渲染 */
   headerSlots?: Record<string, string>
+  /** 密度档位（docs/19 F1）：compact/default/large，驱动行高与表头高（token 见 styles/tokens.css §7.1） */
+  density?: TableDensity
+  /** 树形数据（docs/19 F2）：声明后列表按树形渲染；children 为嵌套字段名（与数据对齐） */
+  treeConfig?: {
+    children?: string
+    expandAll?: boolean
+  }
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -63,6 +70,7 @@ const props = withDefaults(defineProps<{
   columnDraggable: false,
   fixedRowCount: undefined,
   showSelection: false,
+  density: 'default',
 })
 
 const emit = defineEmits<{
@@ -350,9 +358,21 @@ watch(() => props.data, () => {
   fk.preloadFkOptions()
 })
 
+/**
+ * 密度（docs/19 F1）：行高/表头高数字源（vxe cell-config / fixedRowCount 测算），
+ * 模板据此挂 density--* class 把 --sg-table-row-height/-header-height 切到对应档位。
+ */
+const densityHeights = computed(() => resolveDensityHeights(props.density))
+
+/** 树形配置（docs/19 F2）：透传 vxe tree-config；未声明返回 undefined（普通平铺列表） */
+const vxeTreeConfig = computed(() => {
+  if (!props.treeConfig) return undefined
+  return { childrenField: props.treeConfig.children ?? 'children', expandAll: props.treeConfig.expandAll ?? false }
+})
+
 const tableHeight = computed(() => {
   if (props.fixedRowCount) {
-    return HEADER_HEIGHT + props.fixedRowCount * ROW_HEIGHT + BORDER_HEIGHT
+    return densityHeights.value.header + props.fixedRowCount * densityHeights.value.row + BORDER_HEIGHT
   }
   if (isObserving.value && observerHeight.value > 0) {
     return observerHeight.value
@@ -416,7 +436,7 @@ defineExpose({
   <div
     ref="wrapperRef"
     class="vxe-table-wrapper"
-    :class="{ 'is-auto-fill': !fixedRowCount }"
+    :class="[`density--${density}`, { 'is-auto-fill': !fixedRowCount }]"
   >
     <VxeTable
       ref="tableRef"
@@ -424,6 +444,9 @@ defineExpose({
       :height="tableHeight"
       :max-height="tableMaxHeight"
       :row-config="{ keyField: rowKey, isHover: true }"
+      :cell-config="{ height: densityHeights.row }"
+      :header-cell-config="{ height: densityHeights.header, padding: false }"
+      :tree-config="vxeTreeConfig"
       :scroll-y="tableScrollY"
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
@@ -452,9 +475,10 @@ defineExpose({
       </template>
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
-      <!-- 数据列：view 模式显示值，edit 模式显示编辑器 -->
+      <!-- 数据列：view 模式显示值，edit 模式显示编辑器；
+           树形模式（docs/19 F2）下首个数据列承载树节点缩进与展开按钮 -->
       <VxeColumn
-        v-for="col in dataColumns"
+        v-for="(col, colIndex) in dataColumns"
         :key="col.field"
         :field="col.field"
         :title="col.title"
@@ -463,6 +487,7 @@ defineExpose({
         :fixed="col.fixed"
         :sortable="col.sortable"
         :align="col.align || 'left'"
+        :tree-node="vxeTreeConfig ? colIndex === 0 : false"
       >
         <template #header="hdrParams">
           <slot v-if="headerSlotName(col)" :name="headerSlotName(col)" :column="col" :field-schema="col.fieldSchema" />
@@ -976,6 +1001,21 @@ defineExpose({
 <style scoped>
 .vxe-table-wrapper {
   width: 100%;
+}
+/* 密度档位（docs/19 F1）：把生效行高/表头高 token 切到对应档位。
+   vxe 实际行高走 cell-config 数值（tableDensity.ts），这里供 CSS 消费方
+   （如行内编辑器、单元格内容自适应）与宿主按档位覆盖 token 使用 */
+.vxe-table-wrapper.density--compact {
+  --sg-table-row-height: var(--sg-table-row-height-compact);
+  --sg-table-header-height: var(--sg-table-header-height-compact);
+}
+.vxe-table-wrapper.density--default {
+  --sg-table-row-height: var(--sg-table-row-height-default);
+  --sg-table-header-height: var(--sg-table-header-height-default);
+}
+.vxe-table-wrapper.density--large {
+  --sg-table-row-height: var(--sg-table-row-height-large);
+  --sg-table-header-height: var(--sg-table-header-height-large);
 }
 /* 列宽分配兜底：vxe 的 fit 剩余宽度分配在部分挂载时序下不会被重算（首次 calc 时
    容器尚窄则 meanWidth=0 永久定格），主层表格声明 min-width:100% 交给浏览器

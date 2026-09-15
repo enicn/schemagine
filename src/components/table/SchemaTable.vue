@@ -107,6 +107,7 @@ const columns = computed<WrapperColumn[]>(() => {
       decimal: field.decimal,
       decimalMode: field.decimalMode,
       maxDecimal: field.maxDecimal,
+      headerGroup: field.group,
       fieldSchema: field,
     })
   })

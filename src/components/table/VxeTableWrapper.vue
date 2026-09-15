@@ -7,13 +7,11 @@ export type { WrapperColumn } from './wrapperTypes'
 import { formatDateTimeCell } from '@/utils/recordRow'
 import { reorderColumnsByDrag } from '@/utils/columnDrag'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { VxeTable, VxeColumn } from 'vxe-table'
+import { VxeTable, VxeColumn, VxeColgroup } from 'vxe-table'
 import { VxeLoading, getI18n } from 'vxe-pc-ui'
 import 'vxe-table/lib/style.css'
 import 'vxe-pc-ui/lib/style.css'
 import type { VxeTableInstance } from 'vxe-table'
-import { ElPopover, ElInput, ElCheckbox, ElCheckboxGroup, ElButton, ElSwitch } from 'element-plus'
-import MediaImageCell from '@/components/field/MediaImageCell.vue'
 import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
 import type { FilterClause } from '@/types'
@@ -26,6 +24,9 @@ import { useCellRendering } from './useCellRendering'
 import { useHeaderFilter } from './useHeaderFilter'
 import { useInlineEdit } from './useInlineEdit'
 import { useCellDetail } from './useCellDetail'
+import { createCellCtx } from './cellCtx'
+import WrapperHeaderCell from './WrapperHeaderCell.vue'
+import WrapperCellContent from './WrapperCellContent.vue'
 import type { WrapperColumn } from './wrapperTypes'
 
 const BORDER_HEIGHT = 1
@@ -182,7 +183,6 @@ const {
   clearFkSelection,
   mediaPickerVisible,
   mediaUploading,
-  mediaFileInput,
   openMediaPicker,
   onMediaPicked,
   triggerMediaUpload,
@@ -370,6 +370,96 @@ const vxeTreeConfig = computed(() => {
   return { childrenField: props.treeConfig.children ?? 'children', expandAll: props.treeConfig.expandAll ?? false }
 })
 
+/** 树形模式下承载展开按钮的首个数据列字段 */
+const treeNodeField = computed(() => (vxeTreeConfig.value ? dataColumns.value[0]?.field ?? null : null))
+
+/**
+ * 多级表头分块（docs/19 F3）：相邻且 headerGroup 相同的数据列合并为一个
+ * VxeColgroup（表头标题 = headerGroup），未分组的列保持顶层平铺。
+ */
+interface ColumnBlock {
+  key: string
+  group?: string
+  columns: WrapperColumn[]
+}
+const columnBlocks = computed<ColumnBlock[]>(() => {
+  const blocks: ColumnBlock[] = []
+  for (const col of dataColumns.value) {
+    const group = col.headerGroup?.trim() || undefined
+    const last = blocks[blocks.length - 1]
+    if (group && last && last.group === group) {
+      last.columns.push(col)
+    } else if (group) {
+      blocks.push({ key: `group:${group}:${col.field}`, group, columns: [col] })
+    } else {
+      blocks.push({ key: `col:${col.field}`, columns: [col] })
+    }
+  }
+  return blocks
+})
+
+/**
+ * 列头/单元格插槽内容共享上下文（docs/19 F3）：ref 经 reactive 解包后，
+ * 子组件模板可直接 v-model / 读值，与原先同作用域模板等价。
+ */
+const cellCtx = createCellCtx({
+  headerMenuField,
+  headerMenuKeyword,
+  headerMenuOptions,
+  headerMenuSelectedKeys,
+  headerMenuLoading,
+  headerFilterMode,
+  headerFilterRange,
+  isCandidateMode,
+  onRangePick,
+  RANGE_PRESETS,
+  applyRangePreset,
+  isDatetimeCol,
+  isDateOnlyCol,
+  modeSwitchable,
+  facetValueKey,
+  getHeaderFilterClause,
+  handleHeaderPopoverVisibleChange,
+  headerSelectAll,
+  headerSelectIndeterminate,
+  toggleHeaderSelectAll,
+  loadMoreHeaderMenuOptions,
+  applyHeaderSort,
+  applyHeaderFilter,
+  clearHeaderFilter,
+  sortConfig: computed(() => props.sortConfig),
+  rowKey: computed(() => props.rowKey),
+  isEditing,
+  customEditorDef,
+  editValue,
+  confirmEdit,
+  cancelEdit,
+  onTextareaEnter,
+  toggleEditValue,
+  fkDropdownOpen,
+  toggleFkDropdown,
+  closeFkDropdown,
+  getFkLabel,
+  clearFkSelection,
+  fkLoading,
+  fkSearchText,
+  fkFilteredOptions,
+  selectFkOption,
+  openFkQuickCreate,
+  mediaUploading,
+  openMediaPicker,
+  triggerMediaUpload,
+  onMediaFileChange,
+  clearMediaSelection,
+  hasEnumTagStyle,
+  isEnumColumn,
+  getEnumCellHtml,
+  getBooleanStateClass,
+  hasFilterMatch,
+  getCellHighlightHtml,
+  openImage,
+})
+
 const tableHeight = computed(() => {
   if (props.fixedRowCount) {
     return densityHeights.value.header + props.fixedRowCount * densityHeights.value.row + BORDER_HEIGHT
@@ -475,448 +565,55 @@ defineExpose({
       </template>
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
-      <!-- 数据列：view 模式显示值，edit 模式显示编辑器；
-           树形模式（docs/19 F2）下首个数据列承载树节点缩进与展开按钮 -->
-      <VxeColumn
-        v-for="(col, colIndex) in dataColumns"
-        :key="col.field"
-        :field="col.field"
-        :title="col.title"
-        :width="col.width"
-        :min-width="col.minWidth"
-        :fixed="col.fixed"
-        :sortable="col.sortable"
-        :align="col.align || 'left'"
-        :tree-node="vxeTreeConfig ? colIndex === 0 : false"
-      >
-        <template #header="hdrParams">
-          <slot v-if="headerSlotName(col)" :name="headerSlotName(col)" :column="col" :field-schema="col.fieldSchema" />
-          <div v-else class="schema-header-cell" @click.stop>
-            <span class="schema-header-cell__title">{{ col.title }}</span>
-            <!-- vxe-table 固定列会把整份表头克隆到 fixed-wrapper（isHidden 列仅 visibility:hidden 但保留布局坐标），
-                 克隆份若也挂 popover，受控 visible 会两份同开，且克隆份定位偏移到表格外侧 -->
-            <ElPopover
-              v-if="!hdrParams?.isHidden"
-              trigger="click"
-              placement="bottom-start"
-              :width="320"
-              :teleported="true"
-              popper-class="schemagine-header-popover"
-              :z-index="4000"
-              :visible="headerMenuField === col.field"
-              @update:visible="(v: boolean) => handleHeaderPopoverVisibleChange(col.field, v)"
-            >
-              <template #reference>
-                <button
-                  type="button"
-                  class="schema-header-cell__arrow"
-                  :class="{ 'is-active': !!getHeaderFilterClause(col.field) || (sortConfig?.field === col.field) }"
-                  aria-label="筛选与排序"
-                  @click.stop
-                >▼</button>
-              </template>
-
-              <div class="header-popover">
-                <div class="header-popover__sort">
-                  <ElButton size="small" type="success" plain @click="applyHeaderSort(col.field, 'asc')">
-                    <span class="sort-icon sort-icon--asc">↑</span>
-                    升序
-                  </ElButton>
-                  <ElButton size="small" type="danger" plain @click="applyHeaderSort(col.field, 'desc')">
-                    <span class="sort-icon sort-icon--desc">↓</span>
-                    降序
-                  </ElButton>
-                  <ElButton size="small" text type="info" @click="applyHeaderSort(col.field, null)">
-                    <span class="sort-icon sort-icon--clear">×</span>
-                    清除排序
-                  </ElButton>
-                </div>
-
-                <div class="header-popover__filter">
-                  <div class="header-popover__filter-title">
-                    <span>{{ isCandidateMode ? '候选值筛选' : (isDatetimeCol(col) ? '时间段筛选' : '内容筛选') }}</span>
-                    <label v-if="modeSwitchable(col)" class="header-popover__mode-switch" @click.stop>
-                      <span class="header-popover__mode-label">候选值模式</span>
-                      <ElSwitch v-model="isCandidateMode" size="small" />
-                    </label>
-                  </div>
-                  <!-- 时间段筛选（range 模式，date/datetime 列专用）：起止闭区间，between 子句。
-                       显式 filterCandidates 的日期列默认候选值模式，经开关切回 range 才渲染此分支 -->
-                  <template v-if="headerFilterMode === 'range'">
-                    <ElDatePicker
-                      :model-value="headerFilterRange"
-                      :type="isDateOnlyCol(col) ? 'daterange' : 'datetimerange'"
-                      :format="isDateOnlyCol(col) ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm:ss'"
-                      :value-format="isDateOnlyCol(col) ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm:ss'"
-                      range-separator="至"
-                      :start-placeholder="isDateOnlyCol(col) ? '开始日期' : '开始时间'"
-                      :end-placeholder="isDateOnlyCol(col) ? '结束日期' : '结束时间'"
-                      :default-time="isDateOnlyCol(col) ? undefined : [new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]"
-                      size="small"
-                      clearable
-                      :teleported="false"
-                      style="width: 280px"
-                      @update:model-value="onRangePick"
-                    />
-                    <!-- 时间段快捷预设：一键填充起止并应用 -->
-                    <div class="header-popover__presets">
-                      <ElButton
-                        v-for="p in RANGE_PRESETS"
-                        :key="p.key"
-                        size="small"
-                        text
-                        type="primary"
-                        @click="applyRangePreset(col.field, p.key)"
-                      >{{ p.label }}</ElButton>
-                    </div>
-                    <div class="header-popover__filter-actions">
-                      <span class="header-popover__mode-hint">按起止时间筛选（含边界）</span>
-                      <ElButton
-                        v-if="getHeaderFilterClause(col.field)"
-                        size="small"
-                        text
-                        type="danger"
-                        @click="clearHeaderFilter(col.field)"
-                      >清除筛选</ElButton>
-                    </div>
-                  </template>
-                  <template v-else>
-                  <ElInput
-                    v-model="headerMenuKeyword"
-                    size="small"
-                    clearable
-                    :placeholder="isCandidateMode ? '搜索候选值' : '输入关键词，回车筛选'"
-                    :title="isCandidateMode ? undefined : '关键词对列内容做包含匹配；外键列匹配关联对象的名称'"
-                    @keyup.enter="() => { if (!isCandidateMode) applyHeaderFilter(col.field) }"
-                  />
-
-                  <!-- 关键词模式（默认）：直接以输入内容作为 like 条件 -->
-                  <template v-if="!isCandidateMode">
-                    <div
-                      v-if="getHeaderFilterClause(col.field)"
-                      class="header-popover__filter-actions"
-                    >
-                      <span class="header-popover__mode-hint">
-                        当前：包含「{{ typeof getHeaderFilterClause(col.field)!.value === 'string' ? getHeaderFilterClause(col.field)!.value : '' }}」
-                      </span>
-                      <ElButton
-                        size="small"
-                        text
-                        type="danger"
-                        @click="clearHeaderFilter(col.field)"
-                      >清除筛选</ElButton>
-                    </div>
-                    <div v-else class="header-popover__filter-actions">
-                      <span class="header-popover__mode-hint">外键列将按关联对象的名称匹配</span>
-                    </div>
-                  </template>
-
-                  <!-- 候选值模式：勾选具体值（in 条件） -->
-                  <template v-else>
-                    <div
-                      v-if="headerMenuOptions.length > 0 || getHeaderFilterClause(col.field)"
-                      class="header-popover__filter-actions"
-                    >
-                      <ElCheckbox
-                        v-if="headerMenuOptions.length > 0"
-                        :model-value="headerSelectAll"
-                        :indeterminate="headerSelectIndeterminate"
-                        @update:model-value="(v: any) => toggleHeaderSelectAll(!!v)"
-                      >全选</ElCheckbox>
-                      <ElButton
-                        v-if="getHeaderFilterClause(col.field)"
-                        size="small"
-                        text
-                        type="danger"
-                        @click="clearHeaderFilter(col.field)"
-                      >清除筛选</ElButton>
-                    </div>
-
-                    <!-- 无候选值时不渲染空选项区（加载中除外） -->
-                    <div
-                      v-if="headerMenuLoading || headerMenuOptions.length > 0"
-                      class="header-popover__options"
-                      @scroll.passive="(e: Event) => { const el = e.target as HTMLElement; if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) loadMoreHeaderMenuOptions() }"
-                    >
-                      <div v-if="headerMenuLoading && headerMenuOptions.length === 0" class="header-popover__loading">加载中...</div>
-                      <ElCheckboxGroup v-model="headerMenuSelectedKeys">
-                        <ElCheckbox
-                          v-for="opt in headerMenuOptions"
-                          :key="facetValueKey(opt.value)"
-                          :value="facetValueKey(opt.value)"
-                          :disabled="opt.disabled"
-                        >
-                          <span class="header-popover__opt-label">{{ opt.label }}</span>
-                          <span class="header-popover__opt-count">({{ opt.count }})</span>
-                        </ElCheckbox>
-                      </ElCheckboxGroup>
-                      <div v-if="headerMenuLoading && headerMenuOptions.length > 0" class="header-popover__loading-more">加载中...</div>
-                    </div>
-                  </template>
-                  </template>
-
-                  <div class="header-popover__footer">
-                    <ElButton size="small" type="primary" @click="applyHeaderFilter(col.field)">确定</ElButton>
-                    <ElButton size="small" @click="headerMenuField = null">取消</ElButton>
-                  </div>
-                </div>
-              </div>
-            </ElPopover>
-          </div>
+      <!-- 数据列（docs/19 F3 多级表头）：FieldSchema.group 相同的相邻字段合并为
+           VxeColgroup 分组表头；列头/单元格内容抽至 WrapperHeaderCell / WrapperCellContent -->
+      <template v-for="block in columnBlocks" :key="block.key">
+        <VxeColgroup v-if="block.group" :title="block.group">
+          <VxeColumn
+            v-for="col in block.columns"
+            :key="col.field"
+            :field="col.field"
+            :title="col.title"
+            :width="col.width"
+            :min-width="col.minWidth"
+            :fixed="col.fixed"
+            :sortable="col.sortable"
+            :align="col.align || 'left'"
+          >
+            <template #header="hdrParams">
+              <slot v-if="headerSlotName(col)" :name="headerSlotName(col)" :column="col" :field-schema="col.fieldSchema" />
+              <WrapperHeaderCell v-else :col="col" :ctx="cellCtx" :hdr="hdrParams" />
+            </template>
+            <template #default="{ row }">
+              <slot v-if="cellSlotName(col)" :name="cellSlotName(col)" :row="row" :value="row[col.field]" :column="col" :field-schema="col.fieldSchema" />
+              <WrapperCellContent v-else :col="col" :row="row" :ctx="cellCtx" />
+            </template>
+          </VxeColumn>
+        </VxeColgroup>
+        <template v-else>
+          <VxeColumn
+            v-for="col in block.columns"
+            :key="col.field"
+            :field="col.field"
+            :title="col.title"
+            :width="col.width"
+            :min-width="col.minWidth"
+            :fixed="col.fixed"
+            :sortable="col.sortable"
+            :align="col.align || 'left'"
+            :tree-node="col.field === treeNodeField"
+          >
+            <template #header="hdrParams">
+              <slot v-if="headerSlotName(col)" :name="headerSlotName(col)" :column="col" :field-schema="col.fieldSchema" />
+              <WrapperHeaderCell v-else :col="col" :ctx="cellCtx" :hdr="hdrParams" />
+            </template>
+            <template #default="{ row }">
+              <slot v-if="cellSlotName(col)" :name="cellSlotName(col)" :row="row" :value="row[col.field]" :column="col" :field-schema="col.fieldSchema" />
+              <WrapperCellContent v-else :col="col" :row="row" :ctx="cellCtx" />
+            </template>
+          </VxeColumn>
         </template>
-        <template #default="{ row }">
-          <!-- 单元格插槽透传（docs/19 B2）：宿主命中时覆盖内置渲染 -->
-          <slot
-            v-if="cellSlotName(col)"
-            :name="cellSlotName(col)"
-            :row="row"
-            :value="row[col.field]"
-            :column="col"
-            :field-schema="col.fieldSchema"
-          />
-          <template v-else-if="isEditing(row[props.rowKey], col.field)">
-            <div class="edit-inline" @click.stop>
-              <div class="edit-inline__editor">
-                <!-- 自定义字段类型（docs/19 B1）：注册了编辑器组件的自定义类型 -->
-                <component
-                  :is="customEditorDef(col)"
-                  v-if="customEditorDef(col)"
-                  :value="editValue"
-                  :model-value="editValue"
-                  :field-schema="col.fieldSchema"
-                  @update:model-value="editValue = $event"
-                  @update:value="editValue = $event"
-                />
-                <!-- text / email / url / phone -->
-                <input
-                  v-if="!customEditorDef(col) && (!col.fieldType || col.fieldType === 'text' || col.fieldType === 'email' || col.fieldType === 'url' || col.fieldType === 'phone')"
-                  v-model="editValue"
-                  class="edit-inline__input"
-                  @keydown.enter="confirmEdit(row, col)"
-                  @keydown.escape="cancelEdit"
-                />
-                <!-- number / currency / percent -->
-                <div
-                  v-else-if="col.fieldType === 'number' || col.fieldType === 'currency' || col.fieldType === 'money' || col.fieldType === 'percent'"
-                  class="edit-inline__number-wrapper"
-                  :class="{ 'has-suffix': col.fieldType === 'percent' }"
-                >
-                  <input
-                    v-model.number="editValue"
-                    type="number"
-                    class="edit-inline__input"
-                    @keydown.enter="confirmEdit(row, col)"
-                    @keydown.escape="cancelEdit"
-                  />
-                  <span
-                    v-if="col.fieldType === 'percent'"
-                    class="edit-inline__suffix"
-                  >%</span>
-                </div>
-                <!-- date -->
-                <input
-                  v-else-if="col.fieldType === 'date'"
-                  v-model="editValue"
-                  type="date"
-                  class="edit-inline__input"
-                  @keydown.enter="confirmEdit(row, col)"
-                  @keydown.escape="cancelEdit"
-                />
-                <!-- datetime -->
-                <input
-                  v-else-if="col.fieldType === 'datetime'"
-                  v-model="editValue"
-                  type="datetime-local"
-                  class="edit-inline__input"
-                  @keydown.enter="confirmEdit(row, col)"
-                  @keydown.escape="cancelEdit"
-                />
-                <!-- textarea -->
-                <textarea
-                  v-else-if="col.fieldType === 'textarea'"
-                  v-model="editValue"
-                  class="edit-inline__input edit-inline__textarea"
-                  @keydown.enter.prevent="onTextareaEnter($event, row, col)"
-                  @keydown.escape="cancelEdit"
-                />
-                <!-- boolean：toggle switch 切换预览，确认后才保存 -->
-                <button
-                  v-else-if="col.fieldType === 'boolean'"
-                  type="button"
-                  class="toggle-switch"
-                  :class="{ 'toggle-switch--on': editValue }"
-                  :aria-checked="!!editValue"
-                  role="switch"
-                  @click="toggleEditValue()"
-                >
-                  <span class="toggle-switch__label toggle-switch__label--yes" :class="{ 'is-active': editValue }">{{ col.trueLabel || '是' }}</span>
-                  <span class="toggle-switch__thumb"></span>
-                  <span class="toggle-switch__label toggle-switch__label--no" :class="{ 'is-active': !editValue }">{{ col.falseLabel || '否' }}</span>
-                </button>
-                <!-- select / status -->
-                <select
-                  v-else-if="(col.fieldType === 'select' || col.fieldType === 'status') && col.selectOptions"
-                  v-model="editValue"
-                  class="edit-inline__select"
-                >
-                  <option
-                    v-for="o in col.selectOptions"
-                    :key="String(o.value)"
-                    :value="o.value"
-                  >
-                    {{ o.label }}
-                  </option>
-                </select>
-                <!-- fk -->
-                <div
-                  v-else-if="col.fieldType === 'fk'"
-                  class="fk-edit-wrapper"
-                >
-                  <div
-                    class="fk-edit-trigger"
-                    :class="{ 'is-open': fkDropdownOpen }"
-                    @click="toggleFkDropdown"
-                  >
-                    <span v-if="getFkLabel(editValue)" class="fk-edit-tag">
-                      <span class="fk-edit-tag-text">{{ getFkLabel(editValue) }}</span>
-                      <button
-                        class="fk-edit-tag-close"
-                        @click.stop="clearFkSelection"
-                        title="清除"
-                        aria-label="清除选择"
-                      >&#10005;</button>
-                    </span>
-                    <span v-else class="fk-edit-placeholder">
-                      {{ fkLoading ? '加载中...' : '点击选择关联...' }}
-                    </span>
-                    <svg class="fk-edit-arrow" width="12" height="12" viewBox="0 0 12 12">
-                      <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </div>
-                  <div v-if="fkDropdownOpen" class="fk-edit-dropdown" @click.stop>
-                    <div class="fk-edit-dropdown-search">
-                      <input
-                        v-model="fkSearchText"
-                        class="fk-edit-search-input"
-                        type="text"
-                        placeholder="搜索..."
-                        @keydown.escape="closeFkDropdown"
-                      />
-                    </div>
-                    <div class="fk-edit-dropdown-list">
-                      <div
-                        v-for="o in fkFilteredOptions"
-                        :key="String(o.value)"
-                        class="fk-edit-dropdown-item"
-                        :class="{
-                          'is-selected': o.value === editValue,
-                          'is-disabled': o.disabled,
-                        }"
-                        @click="selectFkOption(o)"
-                      >
-                        <span class="fk-edit-dropdown-label">{{ o.label }}</span>
-                        <svg
-                          v-if="o.value === editValue"
-                          class="fk-edit-dropdown-check"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 14 14"
-                        >
-                          <path d="M2.5 7l3 3 6-6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </div>
-                      <div v-if="fkFilteredOptions.length === 0" class="fk-edit-dropdown-empty">
-                        {{ fkSearchText ? '无匹配结果' : '暂无可选项' }}
-                      </div>
-                    </div>
-                    <button
-                      v-if="col.quickCreate"
-                      type="button"
-                      class="fk-edit-quick-create"
-                      @click="openFkQuickCreate"
-                    >+ 新建{{ col.title }}</button>
-                  </div>
-                </div>
-                <!-- mediaImage：媒体库选择 / 上传新资源 / 清除，确认后才保存媒体 id -->
-                <div v-else-if="col.fieldType === 'mediaImage'" class="media-edit">
-                  <span class="media-edit__thumb">
-                    <MediaImageCell :value="editValue" :preview="false" />
-                  </span>
-                  <button
-                    type="button"
-                    class="edit-inline__btn media-edit__btn"
-                    @click="openMediaPicker"
-                  >媒体库</button>
-                  <button
-                    type="button"
-                    class="edit-inline__btn media-edit__btn"
-                    :disabled="mediaUploading"
-                    @click="triggerMediaUpload($event)"
-                  >{{ mediaUploading ? '上传中...' : '上传' }}</button>
-                  <button
-                    type="button"
-                    class="edit-inline__btn media-edit__btn media-edit__btn--clear"
-                    @click="clearMediaSelection"
-                  >清除</button>
-                  <!-- 关键：不能用 hidden/display:none，否则内嵌 webview/部分浏览器下 .click() 无法唤起系统文件框 -->
-                  <input ref="mediaFileInput" type="file" accept="image/*" class="media-edit__file" @change="onMediaFileChange" />
-                </div>
-                <!-- fallback -->
-                <input
-                  v-else
-                  v-model="editValue"
-                  class="edit-inline__input"
-                  @keydown.enter="confirmEdit(row, col)"
-                  @keydown.escape="cancelEdit"
-                />
-              </div>
-
-              <div class="edit-inline__actions">
-                <button
-                  class="edit-inline__btn edit-inline__btn--confirm"
-                  @click="confirmEdit(row, col)"
-                  title="保存"
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                </button>
-                <button
-                  class="edit-inline__btn edit-inline__btn--cancel"
-                  @click="cancelEdit"
-                  title="取消"
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </template>
-          <MediaImageCell
-            v-else-if="col.fieldType === 'mediaImage' && row[col.field]"
-            :value="row[col.field]"
-          />
-          <img
-            v-else-if="(col.fieldType === 'image' || col.fieldType === 'attachment') && row[col.field]"
-            :src="String(row[col.field])"
-            class="cell-image"
-            alt=""
-            loading="lazy"
-            @click="openImage(row[col.field])"
-          />
-          <span v-else-if="col.fieldType === 'datetime' || col.fieldType === 'date'" class="cell-value cell-datetime">{{ formatDateTimeCell(row[col.field], col.fieldType) }}</span>
-          <!-- 枚举彩色标签：任一取值声明了颜色（options[].color / statusMap）时逐值渲染带色标签 -->
-          <span
-            v-else-if="isEnumColumn(col) && hasEnumTagStyle(row[col.field], col)"
-            class="cell-value cell-enum"
-            v-html="getEnumCellHtml(row[col.field], col)"
-          ></span>
-            <!-- select/fk 空值不挂 cell-tag：否则空单元格渲染出空胶囊占位 -->
-            <span v-else class="cell-value" :class="[(col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', getBooleanStateClass(row[col.field]), row[col.field] ? col.trueLabelClass : col.falseLabelClass] : '', hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="getCellHighlightHtml(row[col.field], col)"></span>
-        </template>
-      </VxeColumn>
+      </template>
 
       <!-- 关联列：单击打开对话框，不可编辑 -->
       <VxeColumn
@@ -1040,7 +737,7 @@ defineExpose({
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.schema-header-cell__arrow {
+:deep(.schema-header-cell__arrow) {
   width: 18px;
   height: 18px;
   padding: 0;
@@ -1052,11 +749,11 @@ defineExpose({
   border-radius: var(--sg-radius-sm);
   cursor: pointer;
 }
-.schema-header-cell__arrow:hover {
+:deep(.schema-header-cell__arrow:hover) {
   background: var(--sg-fill-color-light);
   border-color: var(--sg-border-color-light);
 }
-.schema-header-cell__arrow.is-active {
+:deep(.schema-header-cell__arrow.is-active) {
   color: var(--sg-color-primary);
   border-color: var(--sg-color-primary-light-7);
   background: var(--sg-color-primary-light-9);
@@ -1151,7 +848,7 @@ defineExpose({
   color: var(--sg-color-danger-light-3);
 }
 
-.edit-inline {
+:deep(.edit-inline) {
   position: relative;
   display: flex;
   flex-direction: row;
@@ -1167,7 +864,7 @@ defineExpose({
   max-width: 100%;
   box-sizing: border-box;
 }
-.edit-inline__editor {
+:deep(.edit-inline__editor) {
   display: flex;
   align-items: center;
   gap: var(--sg-spacing-2);
@@ -1177,7 +874,7 @@ defineExpose({
   border-radius: var(--sg-radius-md);
   background: var(--sg-color-primary-light-9);
 }
-.edit-inline__actions {
+:deep(.edit-inline__actions) {
   display: flex;
   align-items: stretch;
   gap: var(--sg-spacing-2);
@@ -1187,7 +884,7 @@ defineExpose({
   flex: 1;
   margin-left: auto;
 }
-.edit-inline__input {
+:deep(.edit-inline__input) {
   flex: 1;
   min-width: 0;
   height: 28px;
@@ -1198,7 +895,7 @@ defineExpose({
   font-size: var(--sg-font-size-md);
   background: var(--sg-bg-color);
 }
-.edit-inline__textarea {
+:deep(.edit-inline__textarea) {
   height: auto;
   min-height: 28px;
   padding: var(--sg-spacing-2) var(--sg-spacing-3);
@@ -1206,7 +903,7 @@ defineExpose({
   line-height: 1.4;
   font-family: inherit;
 }
-.edit-inline__select {
+:deep(.edit-inline__select) {
   flex: 1;
   min-width: 0;
   height: 28px;
@@ -1218,7 +915,7 @@ defineExpose({
   line-height: 1;
   padding: 0 var(--sg-spacing-3);
 }
-.edit-inline__btn {
+:deep(.edit-inline__btn) {
   flex: 1;
   width: 28px;
   padding: 0;
@@ -1233,10 +930,10 @@ defineExpose({
   align-items: center;
 }
 /* mediaImage 行内编辑：缩略图置顶 + 按钮竖排，严格约束在列宽内（右侧固定列不遮挡） */
-.edit-inline__editor:has(.media-edit) {
+:deep(.edit-inline__editor:has(.media-edit)) {
   flex-basis: 100%;
 }
-.media-edit {
+:deep(.media-edit) {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1246,7 +943,7 @@ defineExpose({
   min-width: 0;
 }
 /* 视觉隐藏但保留渲染，保证 mediaFileInput.click() 在各类浏览器/内嵌 webview 中都能唤起系统文件框 */
-.media-edit__file {
+:deep(.media-edit__file) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1258,7 +955,7 @@ defineExpose({
   border: 0;
   pointer-events: none;
 }
-.media-edit__thumb {
+:deep(.media-edit__thumb) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1268,11 +965,11 @@ defineExpose({
   background: var(--sg-fill-color-light);
   overflow: hidden;
 }
-.media-edit__thumb :deep(.media-image-cell) {
+:deep(.media-edit__thumb :deep(.media-image-cell)) {
   max-width: 100%;
   max-height: 100%;
 }
-.media-edit__btn {
+:deep(.media-edit__btn) {
   width: 100%;
   height: 24px;
   padding: 0 var(--sg-spacing-3);
@@ -1280,41 +977,41 @@ defineExpose({
   border-color: var(--sg-color-primary-light-7);
   flex: none;
 }
-.media-edit__btn:hover {
+:deep(.media-edit__btn:hover) {
   color: var(--sg-color-white);
   background: var(--sg-color-primary);
 }
-.media-edit__btn:disabled {
+:deep(.media-edit__btn:disabled) {
   color: var(--sg-color-primary-light-5);
   border-color: var(--sg-color-primary-light-8);
   background: var(--sg-color-primary-light-9);
   cursor: not-allowed;
 }
-.media-edit__btn--clear {
+:deep(.media-edit__btn--clear) {
   color: var(--sg-text-color-secondary);
   border-color: var(--sg-border-color);
 }
-.media-edit__btn--clear:hover {
+:deep(.media-edit__btn--clear:hover) {
   color: var(--sg-color-white);
   background: var(--sg-color-info);
 }
-.edit-inline__btn--confirm {
+:deep(.edit-inline__btn--confirm) {
   color: var(--sg-color-success);
   border-color: var(--sg-color-success);
 }
-.edit-inline__btn--confirm:hover {
+:deep(.edit-inline__btn--confirm:hover) {
   color: var(--sg-color-white);
   background: var(--sg-color-success);
 }
-.edit-inline__btn--cancel {
+:deep(.edit-inline__btn--cancel) {
   color: var(--sg-color-danger);
   border-color: var(--sg-color-danger);
 }
-.edit-inline__btn--cancel:hover {
+:deep(.edit-inline__btn--cancel:hover) {
   color: var(--sg-color-white);
   background: var(--sg-color-danger);
 }
-.toggle-switch {
+:deep(.toggle-switch) {
   flex: 1 1 auto;
   min-width: 0;
   display: inline-flex;
@@ -1329,11 +1026,11 @@ defineExpose({
   outline: none;
   font-size: var(--sg-font-size-base);
 }
-.toggle-switch:focus-visible {
+:deep(.toggle-switch:focus-visible) {
   box-shadow: var(--sg-shadow-focus-strong);
   border-radius: var(--sg-radius-md);
 }
-.toggle-switch__thumb {
+:deep(.toggle-switch__thumb) {
   flex-shrink: 0;
   position: relative;
   width: 22px;
@@ -1342,7 +1039,7 @@ defineExpose({
   background: var(--sg-text-color-placeholder);
   transition: background var(--sg-duration-normal) ease;
 }
-.toggle-switch__thumb::after {
+:deep(.toggle-switch__thumb::after) {
   content: '';
   position: absolute;
   top: 2px;
@@ -1355,13 +1052,13 @@ defineExpose({
   transform: translateX(8px);
   transition: transform var(--sg-duration-normal) ease;
 }
-.toggle-switch--on .toggle-switch__thumb {
+:deep(.toggle-switch--on .toggle-switch__thumb) {
   background: var(--sg-color-primary);
 }
-.toggle-switch--on .toggle-switch__thumb::after {
+:deep(.toggle-switch--on .toggle-switch__thumb::after) {
   transform: translateX(0);
 }
-.toggle-switch__label {
+:deep(.toggle-switch__label) {
   flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
@@ -1369,19 +1066,19 @@ defineExpose({
   color: var(--sg-text-color-placeholder);
   transition: color var(--sg-duration-normal) ease, font-weight var(--sg-duration-normal) ease;
 }
-.toggle-switch__label.is-active {
+:deep(.toggle-switch__label.is-active) {
   color: var(--sg-text-color-primary);
   font-weight: 600;
 }
 
-.cell-value {
+:deep(.cell-value) {
   display: inline-block;
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.cell-image {
+:deep(.cell-image) {
   display: inline-block;
   max-width: 64px;
   max-height: 64px;
@@ -1392,10 +1089,10 @@ defineExpose({
   vertical-align: middle;
   transition: box-shadow var(--sg-duration-fast) ease;
 }
-.cell-image:hover {
+:deep(.cell-image:hover) {
   box-shadow: var(--sg-shadow-md);
 }
-.cell-tag {
+:deep(.cell-tag) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1411,13 +1108,13 @@ defineExpose({
   font-weight: 500;
   border: 1px solid var(--sg-color-primary-light-8);
 }
-.cell-boolean {
+:deep(.cell-boolean) {
   display: inline-flex;
   align-items: center;
   gap: var(--sg-spacing-2);
   font-weight: 500;
 }
-.cell-boolean::before {
+:deep(.cell-boolean::before) {
   content: '';
   display: inline-block;
   width: 8px;
@@ -1428,33 +1125,33 @@ defineExpose({
 }
 /* boolean 状态默认配色：是=绿、否=红；自定义走 trueLabelClass/falseLabelClass
    （span 经 :class 绑定带 scoped 属性，预设类可直接命中；自定义色同样以此方式覆盖 color 即可） */
-.cell-boolean--yes {
+:deep(.cell-boolean--yes) {
   color: var(--sg-color-success);
 }
-.cell-boolean--no {
+:deep(.cell-boolean--no) {
   color: var(--sg-color-danger);
 }
 /* 预设：否/是无关紧要的中性灰（如「支持积分支付=否」）。
    固定色值不走 --el-color-info——宿主主题会把它映射成品牌蓝，失去「中性」语义 */
-.cell-boolean--neutral {
+:deep(.cell-boolean--neutral) {
   color: var(--sg-text-color-secondary);
 }
 
-.cell-tag--fk {
+:deep(.cell-tag--fk) {
   background: var(--sg-color-primary-light-9);
   color: var(--sg-color-primary);
   border-color: var(--sg-color-primary-light-7);
 }
 /* 枚举彩色标签：span 经 v-html 注入拿不到 scoped 属性，几何样式在此重述；
    背景文字描边由 getEnumCellHtml 内联样式逐值覆盖，未声明颜色的取值即默认蓝标签 */
-.cell-enum {
+:deep(.cell-enum) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--sg-spacing-2);
   flex-wrap: wrap;
 }
-.cell-enum :deep(.cell-tag) {
+:deep(.cell-enum :deep(.cell-tag)) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1471,13 +1168,13 @@ defineExpose({
 }
 
 /* FK 编辑组件 */
-.fk-edit-wrapper {
+:deep(.fk-edit-wrapper) {
   flex: 1;
   min-width: 0;
   position: relative;
 }
 
-.fk-edit-trigger {
+:deep(.fk-edit-trigger) {
   display: flex;
   align-items: center;
   gap: var(--sg-spacing-2);
@@ -1491,16 +1188,16 @@ defineExpose({
   user-select: none;
 }
 
-.fk-edit-trigger:hover {
+:deep(.fk-edit-trigger:hover) {
   border-color: var(--sg-color-primary-light-3);
 }
 
-.fk-edit-trigger.is-open {
+:deep(.fk-edit-trigger.is-open) {
   border-color: var(--sg-color-primary);
   box-shadow: var(--sg-shadow-focus);
 }
 
-.fk-edit-tag {
+:deep(.fk-edit-tag) {
   display: inline-flex;
   align-items: center;
   gap: var(--sg-spacing-2);
@@ -1514,13 +1211,13 @@ defineExpose({
   overflow: hidden;
 }
 
-.fk-edit-tag-text {
+:deep(.fk-edit-tag-text) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fk-edit-tag-close {
+:deep(.fk-edit-tag-close) {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -1538,12 +1235,12 @@ defineExpose({
   transition: background var(--sg-duration-fast) ease, color var(--sg-duration-fast) ease;
 }
 
-.fk-edit-tag-close:hover {
+:deep(.fk-edit-tag-close:hover) {
   background: var(--sg-color-primary);
   color: var(--sg-color-white);
 }
 
-.fk-edit-placeholder {
+:deep(.fk-edit-placeholder) {
   flex: 1;
   font-size: var(--sg-font-size-base);
   color: var(--sg-text-color-placeholder);
@@ -1552,18 +1249,18 @@ defineExpose({
   white-space: nowrap;
 }
 
-.fk-edit-arrow {
+:deep(.fk-edit-arrow) {
   flex-shrink: 0;
   color: var(--sg-text-color-secondary);
   transition: transform var(--sg-duration-normal) ease;
 }
 
-.is-open .fk-edit-arrow {
+:deep(.is-open .fk-edit-arrow) {
   transform: rotate(180deg);
   color: var(--sg-color-primary);
 }
 
-.fk-edit-dropdown {
+:deep(.fk-edit-dropdown) {
   position: absolute;
   top: 100%;
   left: 0;
@@ -1578,12 +1275,12 @@ defineExpose({
   overflow: hidden;
 }
 
-.fk-edit-dropdown-search {
+:deep(.fk-edit-dropdown-search) {
   padding: var(--sg-spacing-3);
   border-bottom: 1px solid var(--sg-border-color-extra-light);
 }
 
-.fk-edit-search-input {
+:deep(.fk-edit-search-input) {
   width: 100%;
   height: 28px;
   padding: 0 var(--sg-spacing-4);
@@ -1595,21 +1292,21 @@ defineExpose({
   box-sizing: border-box;
 }
 
-.fk-edit-search-input:focus {
+:deep(.fk-edit-search-input:focus) {
   border-color: var(--sg-color-primary);
 }
 
-.fk-edit-search-input::placeholder {
+:deep(.fk-edit-search-input::placeholder) {
   color: var(--sg-text-color-placeholder);
 }
 
-.fk-edit-dropdown-list {
+:deep(.fk-edit-dropdown-list) {
   max-height: 180px;
   overflow-y: auto;
   padding: var(--sg-spacing-2) 0;
 }
 
-.fk-edit-dropdown-item {
+:deep(.fk-edit-dropdown-item) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1620,35 +1317,35 @@ defineExpose({
   transition: background-color var(--sg-duration-fast) ease;
 }
 
-.fk-edit-dropdown-item:hover {
+:deep(.fk-edit-dropdown-item:hover) {
   background-color: var(--sg-fill-color-light);
 }
 
-.fk-edit-dropdown-item.is-selected {
+:deep(.fk-edit-dropdown-item.is-selected) {
   color: var(--sg-color-primary);
   font-weight: 500;
   background-color: var(--sg-color-primary-light-9);
 }
 
-.fk-edit-dropdown-item.is-disabled {
+:deep(.fk-edit-dropdown-item.is-disabled) {
   color: var(--sg-text-color-placeholder);
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.fk-edit-dropdown-label {
+:deep(.fk-edit-dropdown-label) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fk-edit-dropdown-check {
+:deep(.fk-edit-dropdown-check) {
   flex-shrink: 0;
   color: var(--sg-color-primary);
   margin-left: var(--sg-spacing-3);
 }
 
-.fk-edit-dropdown-empty {
+:deep(.fk-edit-dropdown-empty) {
   padding: var(--sg-spacing-6) var(--sg-spacing-5);
   text-align: center;
   font-size: var(--sg-font-size-base);
@@ -1656,7 +1353,7 @@ defineExpose({
 }
 
 /* fk 下拉底部快速新建（col.quickCreate）：与候选列表分隔的常驻入口 */
-.fk-edit-quick-create {
+:deep(.fk-edit-quick-create) {
   display: block;
   width: 100%;
   padding: var(--sg-spacing-4) var(--sg-spacing-5);
@@ -1669,12 +1366,12 @@ defineExpose({
   text-align: center;
   cursor: pointer;
 }
-.fk-edit-quick-create:hover {
+:deep(.fk-edit-quick-create:hover) {
   background: var(--sg-color-primary-light-9);
   color: var(--sg-color-primary-dark-2);
 }
 
-.sort-icon {
+:deep(.sort-icon) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1689,7 +1386,7 @@ defineExpose({
   display: inline;
 }
 
-.edit-inline__number-wrapper {
+:deep(.edit-inline__number-wrapper) {
   display: flex;
   align-items: center;
   flex: 1;
@@ -1700,17 +1397,17 @@ defineExpose({
   overflow: hidden;
 }
 
-.edit-inline__number-wrapper .edit-inline__input {
+:deep(.edit-inline__number-wrapper .edit-inline__input) {
   flex: 1;
   border: none;
   border-radius: 0;
 }
 
-.edit-inline__number-wrapper.has-suffix .edit-inline__input {
+:deep(.edit-inline__number-wrapper.has-suffix .edit-inline__input) {
   border-right: 1px solid var(--sg-border-color-light);
 }
 
-.edit-inline__suffix {
+:deep(.edit-inline__suffix) {
   flex-shrink: 0;
   display: flex;
   align-items: center;

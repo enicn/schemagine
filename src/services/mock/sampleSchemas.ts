@@ -995,6 +995,7 @@ export const deptSchema: ModuleSchema = {
       visible: true,
       sortable: true,
       filterable: true,
+      group: '部门信息',
     },
     {
       id: 'fld-dept-head',
@@ -1009,6 +1010,7 @@ export const deptSchema: ModuleSchema = {
       visible: true,
       sortable: false,
       filterable: true,
+      group: '部门信息',
     },
     {
       id: 'fld-dept-parent',

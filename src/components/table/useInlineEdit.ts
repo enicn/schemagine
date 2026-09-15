@@ -66,7 +66,7 @@ export function useInlineEdit(
     return fkOptions.value.filter(o => o.label.toLowerCase().includes(search))
   })
 
-  function isEditing(rowId: string, field: string): boolean {
+  function isEditing(rowId: unknown, field: string): boolean {
     return editingRowId.value === rowId && editingField.value === field
   }
 
@@ -487,7 +487,6 @@ export function useInlineEdit(
     clearFkSelection,
     mediaPickerVisible,
     mediaUploading,
-    mediaFileInput,
     openMediaPicker,
     onMediaPicked,
     triggerMediaUpload,

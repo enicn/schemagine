@@ -93,4 +93,22 @@ test.describe('docs/19 批次 F：展示形态', () => {
     await editor.press('Enter')
     await expect(rows.filter({ hasText: '前端组' })).toContainText('李雷2', { timeout: 8000 })
   })
+
+  // ===== F3 多级表头（module-dept：编码/负责人归入「部门信息」分组） =====
+
+  test('F3.1 相同 group 字段合并为分组表头，未分组列保持顶层', async ({ page }) => {
+    await page.goto('/module/module-dept')
+    await page.waitForTimeout(2000)
+    // 分组表头行：出现「部门信息」colgroup 单元格
+    const groupHeader = page.locator('.vxe-header--row').first().locator('.vxe-header--column', { hasText: '部门信息' })
+    await expect(groupHeader).toBeVisible({ timeout: 8000 })
+    // 子列表头：部门编码 / 负责人仍在第二层表头
+    const secondHeaderRow = page.locator('.vxe-header--row').nth(1)
+    await expect(secondHeaderRow).toBeVisible()
+    await expect(secondHeaderRow.locator('.vxe-header--column', { hasText: '部门编码' })).toBeVisible()
+    await expect(secondHeaderRow.locator('.vxe-header--column', { hasText: '负责人' })).toBeVisible()
+    // 数据行渲染不受分组影响
+    const rows = page.locator('.vxe-body--row')
+    await expect(rows.filter({ hasText: '总经办' })).toBeVisible()
+  })
 })

@@ -49,4 +49,6 @@ export interface WrapperColumn {
   maxDecimal?: number
   /** 字段 Schema 引用:自定义字段渲染器/插槽上下文使用(独立使用 VxeTableWrapper 时可缺省) */
   fieldSchema?: FieldSchema
+  /** 多级表头分组标题（docs/19 F3）：相邻同名列合并为一个 VxeColgroup */
+  headerGroup?: string
 }

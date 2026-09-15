@@ -51,4 +51,6 @@ export interface WrapperColumn {
   fieldSchema?: FieldSchema
   /** 多级表头分组标题（docs/19 F3）：相邻同名列合并为一个 VxeColgroup */
   headerGroup?: string
+  /** 相同值合并单元格（docs/19 F5）：声明后该列相邻同值行纵向合并 */
+  mergeCells?: boolean
 }

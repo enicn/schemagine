@@ -68,6 +68,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   quickCreate: true,
   displayField: true,
   group: true,
+  mergeCells: true,
   category: true,
   nullableFilter: true,
   rowAction: true,
@@ -284,9 +285,16 @@ export const FIELD_META: PropertyMeta[] = [
     related: ['relationConfig'],
   },
   {
-    key: 'group', target: 'field', label: '分组(预留)', group: 'basic', appliesTo: ALL, kind: 'string',
-    surfaces: [],
-    description: '预留配置:当前版本引擎未消费(改进计划批次 F 多级表头的规划挂点)。',
+    key: 'group', target: 'field', label: '表头分组', group: 'basic', appliesTo: ALL, kind: 'string',
+    surfaces: ['render'],
+    description: '多级表头分组标题(docs/19 F3):声明后与相邻同组字段合并为一个分组表头(colgroup),标题即本值;未声明字段的表头保持单层。',
+    example: '金额信息',
+  },
+  {
+    key: 'mergeCells', target: 'field', label: '相同值合并', group: 'display', appliesTo: ALL, kind: 'boolean',
+    surfaces: ['render'],
+    description: '相同值合并单元格(docs/19 F5):声明后列表中相邻同值行在该列纵向合并(rowspan),树形模块暂不支持;适合状态、地区等低基数列。',
+    example: true,
   },
   {
     key: 'category', target: 'field', label: '分类(预留)', group: 'basic', appliesTo: ALL, kind: 'string',

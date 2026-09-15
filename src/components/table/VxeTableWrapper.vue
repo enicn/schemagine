@@ -62,6 +62,10 @@ const props = withDefaults(defineProps<{
     children?: string
     expandAll?: boolean
   }
+  /** 行展开插槽（docs/19 F4）：声明后渲染行首 expand 列，展开区由宿主同名插槽渲染 */
+  expandSlot?: string
+  /** 合并单元格（docs/19 F5）：vxe span-method 透传 */
+  spanMethod?: (params: any) => { rowspan: number; colspan: number } | undefined
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -537,6 +541,7 @@ defineExpose({
       :cell-config="{ height: densityHeights.row }"
       :header-cell-config="{ height: densityHeights.header, padding: false }"
       :tree-config="vxeTreeConfig"
+      :span-method="spanMethod"
       :scroll-y="tableScrollY"
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
@@ -565,6 +570,12 @@ defineExpose({
       </template>
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
+      <!-- 行展开列（docs/19 F4）：展开区内容经宿主插槽渲染（B2 插槽透传机制） -->
+      <VxeColumn v-if="expandSlot" type="expand" width="48" fixed="left">
+        <template #content="{ row }">
+          <slot :name="expandSlot" :row="row" />
+        </template>
+      </VxeColumn>
       <!-- 数据列（docs/19 F3 多级表头）：FieldSchema.group 相同的相邻字段合并为
            VxeColgroup 分组表头；列头/单元格内容抽至 WrapperHeaderCell / WrapperCellContent -->
       <template v-for="block in columnBlocks" :key="block.key">

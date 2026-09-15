@@ -8,6 +8,7 @@ import type { ModuleSchema, FieldSchema, ColumnConfig, RecordEntity, SortParam, 
 import { relationService } from '@/services/api/relationService'
 import { flattenRecordRow } from '@/utils/recordRow'
 import { buildRecordTree } from '@/utils/recordTree'
+import { buildSameValueSpanMethod } from '@/utils/mergeCells'
 
 const props = defineProps<{
   schema: ModuleSchema
@@ -29,6 +30,8 @@ const props = defineProps<{
   headerSlots?: Record<string, string>
   /** 密度档位（docs/19 F1）：compact/default/large */
   density?: TableDensity
+  /** 行展开插槽名（docs/19 F4）：声明后渲染行首展开列，展开区由宿主同名插槽渲染 */
+  expandSlot?: string
 }>()
 
 const emit = defineEmits<{
@@ -108,6 +111,7 @@ const columns = computed<WrapperColumn[]>(() => {
       decimalMode: field.decimalMode,
       maxDecimal: field.maxDecimal,
       headerGroup: field.group,
+      mergeCells: field.mergeCells,
       fieldSchema: field,
     })
   })
@@ -120,12 +124,12 @@ const columns = computed<WrapperColumn[]>(() => {
   return result
 })
 
-const tableData = computed(() => {
+const flatRows = computed<Record<string, unknown>[]>(() => {
   const relationFields = props.schema.fields.filter(
     f => f.type === 'one-to-many' || f.type === 'many-to-many' || f.type === 'reverse-ref',
   )
 
-  const flatRows = props.rows.map(r => {
+  return props.rows.map(r => {
     const row: Record<string, unknown> = flattenRecordRow(r)
 
     for (const rf of relationFields) {
@@ -160,17 +164,29 @@ const tableData = computed(() => {
 
     return row
   })
+})
 
+const tableData = computed<Record<string, unknown>[]>(() => {
   // 树形数据（docs/19 F2）：schema 声明 parentField 时由平铺行组树（children 挂 childrenField）
   const tree = props.schema.treeConfig
   if (tree?.parentField) {
-    return buildRecordTree(flatRows, {
+    return buildRecordTree(flatRows.value, {
       idKey: '_recordId',
       parentField: tree.parentField,
       childrenField: tree.childrenField ?? 'children',
     })
   }
-  return flatRows
+  return flatRows.value
+})
+
+/**
+ * 相同值合并（docs/19 F5）：声明 mergeCells 的字段构建 span-method；
+ * 树形模块行集为「可见根行」，与平铺数据语义不同，暂不启用。
+ */
+const spanMethod = computed(() => {
+  const mergeFields = props.schema.fields.filter(f => f.mergeCells).map(f => f.key)
+  if (mergeFields.length === 0 || props.schema.treeConfig?.parentField) return undefined
+  return buildSameValueSpanMethod(mergeFields, flatRows.value)
 })
 
 function handleSortChange(payload: { field: string; order: 'asc' | 'desc' | null }): void {
@@ -275,6 +291,8 @@ defineExpose({
       :cell-slots="cellSlots"
       :header-slots="headerSlots"
       :density="density"
+      :expand-slot="expandSlot"
+      :span-method="spanMethod"
       :tree-config="schema.treeConfig
         ? { children: schema.treeConfig.childrenField ?? 'children', expandAll: schema.treeConfig.expandAll ?? false }
         : undefined"
@@ -292,7 +310,11 @@ defineExpose({
       @column-drag-end="(payload: { columns: any[]; newOrder: string[] }) => emit('column-drag-end', payload)"
       @row-action="handleRowAction"
       @selection-change="(ids: string[]) => emit('selection-change', ids)"
-    />
+    >
+      <template v-if="expandSlot" #[expandSlot]="{ row }">
+        <slot :name="expandSlot" :row="row" />
+      </template>
+    </VxeTableWrapper>
   </div>
 </template>
 

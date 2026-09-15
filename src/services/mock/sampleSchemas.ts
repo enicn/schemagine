@@ -954,6 +954,7 @@ export const workshopSchema: ModuleSchema = {
       visible: true,
       sortable: true,
       filterable: true,
+      mergeCells: true,
     },
   ],
   permissions: { view: true, create: true, edit: true, delete: true, export: true, configure: true },

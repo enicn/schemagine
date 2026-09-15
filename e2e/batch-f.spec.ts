@@ -111,4 +111,25 @@ test.describe('docs/19 批次 F：展示形态', () => {
     const rows = page.locator('.vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible()
   })
+
+  // ===== F5 合并单元格（module-workshop：location 声明 mergeCells） =====
+
+  test('F5.1 相同值相邻行纵向合并', async ({ page }) => {
+    await page.goto('/module/module-workshop')
+    // workshop 无种子记录：先注入三条（两条相邻同位置）再刷新
+    await page.evaluate(() => {
+      localStorage.setItem('schemagine:records:module-workshop', JSON.stringify([
+        { id: 'rec-ws-101', moduleId: 'module-workshop', fields: { name: '三车间', location: 'A栋1层' }, version: 1, createdAt: '2026-04-02T08:00:00Z', updatedAt: '2026-04-02T08:00:00Z' },
+        { id: 'rec-ws-102', moduleId: 'module-workshop', fields: { name: '四车间', location: 'A栋1层' }, version: 1, createdAt: '2026-04-02T08:01:00Z', updatedAt: '2026-04-02T08:01:00Z' },
+        { id: 'rec-ws-103', moduleId: 'module-workshop', fields: { name: '五车间', location: 'B栋2层' }, version: 1, createdAt: '2026-04-02T08:02:00Z', updatedAt: '2026-04-02T08:02:00Z' },
+      ]))
+    })
+    await page.reload()
+    const rows = page.locator('.vxe-body--row')
+    await expect(rows.filter({ hasText: '三车间' })).toBeVisible({ timeout: 8000 })
+    // 位置列相邻同值（A栋1层/A栋1层）合并：rowspan=2 的 td 恰好 1 个
+    await expect(page.locator('td[rowspan="2"]')).toHaveCount(1)
+    // 五车间位置不同,不参与合并
+    await expect(rows.filter({ hasText: '五车间' })).toContainText('B栋2层')
+  })
 })

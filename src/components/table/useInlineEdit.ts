@@ -9,6 +9,7 @@ import type { Component } from 'vue'
 import { mediaService } from '@/services/api/mediaService'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue } from '@/utils/fieldValidation'
+import { t } from '@/locales'
 import type { CandidateOption } from '@/types'
 import type { WrapperColumn } from './wrapperTypes'
 import type { useFkOptions } from './useFkOptions'
@@ -208,7 +209,7 @@ export function useInlineEdit(
     const mode = col.decimalMode ?? 'fixed'
     const maxDec = mode === 'range' ? (col.maxDecimal ?? col.decimal) : col.decimal
     if (actualPlaces <= maxDec) return null
-    return `最多允许${maxDec}位小数，当前${actualPlaces}位`
+    return t('table.edit.decimalMax', { max: maxDec, actual: actualPlaces })
   }
 
   /** 自定义字段类型（docs/19 B1）：返回注册的编辑器组件，未注册返回 undefined */

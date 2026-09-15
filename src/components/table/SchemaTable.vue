@@ -10,6 +10,7 @@ import { flattenRecordRow } from '@/utils/recordRow'
 import { buildRecordTree } from '@/utils/recordTree'
 import { buildSameValueSpanMethod } from '@/utils/mergeCells'
 import { buildGroupedRows } from '@/utils/recordGroup'
+import { t } from '@/locales'
 
 const props = defineProps<{
   schema: ModuleSchema
@@ -198,7 +199,7 @@ const footerMethod = computed(() => {
       if (!c.field) return ''
       if (!labelPlaced) {
         labelPlaced = true
-        return '合计'
+        return t('table.summary.total')
       }
       if (!sumFields.includes(c.field)) return ''
       const sum = flatRows.value.reduce((acc, r) => {

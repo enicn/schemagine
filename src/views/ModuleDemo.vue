@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElRadioGroup, ElRadioButton, ElMessage } from 'element-plus'
 import SchemaEngine from '@/engine/entry/SchemaEngine.vue'
+import { registerLocale } from '@/locales'
 import { moduleRoutes } from '@/router'
 
 const props = defineProps<{
@@ -16,10 +17,30 @@ const modulePathMap: Record<string, string> = {}
 moduleRoutes.forEach(r => { modulePathMap[r.moduleId] = r.path })
 
 const currentModuleId = ref(props.moduleId ?? 'module-voucher')
+// 演示英文语言包（docs/19 G1）：仅覆盖部分表格文案，未覆盖 key 回退 zh-CN；真实宿主应提供完整包
+registerLocale('en-US', {
+  table: {
+    operationsTitle: 'Actions',
+    view: 'View',
+    filter: {
+      asc: 'Ascending', desc: 'Descending', clearSort: 'Clear sort',
+      candidatesTitle: 'Filter by values', rangeTitle: 'Filter by range', contentTitle: 'Filter by keyword',
+      selectAll: 'Select all', clearFilter: 'Clear filter',
+      ok: 'OK', cancel: 'Cancel', loading: 'Loading...', loadingMore: 'Loading...',
+      keywordPlaceholder: 'Type keyword, press Enter', searchPlaceholder: 'Search values',
+      fkKeywordHint: 'FK columns match related record names', rangeHint: 'Filter by start/end time (inclusive)',
+    },
+    preset: { today: 'Today', yesterday: 'Yesterday', last7: 'Last 7 days', week: 'This week', lastweek: 'Last week', month: 'This month', lastmonth: 'Last month' },
+    summary: { total: 'Total' },
+  },
+})
+
 // 密度档位演示入口（docs/19 F1）：/module/xxx?density=compact|large 透传给表格引擎
 const density = ref<'compact' | 'default' | 'large'>(
   route.query.density === 'compact' || route.query.density === 'large' ? route.query.density : 'default',
 )
+// 语言演示入口（docs/19 G1）：/module/xxx?locale=en-US 注入引擎
+const localeParam = typeof route.query.locale === 'string' ? route.query.locale : undefined
 const availableModules = [
   { id: 'module-voucher', label: '凭证管理' },
   { id: 'module-ap', label: '应付账款' },
@@ -105,6 +126,7 @@ function onError(payload: { moduleId: string; code: string; message: string }): 
         :key="currentModuleId"
         :module-id="currentModuleId"
         :density="density"
+        :locale="localeParam"
         @module-loaded="onModuleLoaded"
         @error="onError"
       />

@@ -5,6 +5,7 @@
  * 多级表头（colgroup）子列复用。状态与动作经 TableCtx 注入（cellCtx.ts）。
  */
 import { formatDateTimeCell } from '@/utils/recordRow'
+import { t } from '@/locales'
 import MediaImageCell from '@/components/field/MediaImageCell.vue'
 import type { WrapperColumn } from './wrapperTypes'
 import type { TableCtx } from './cellCtx'
@@ -129,12 +130,12 @@ const ctx = props.ctx
               <button
                 class="fk-edit-tag-close"
                 @click.stop="ctx.clearFkSelection"
-                title="清除"
-                aria-label="清除选择"
+                :title="t('table.edit.clear')"
+                :aria-label="t('table.edit.clearSelected')"
               >&#10005;</button>
             </span>
             <span v-else class="fk-edit-placeholder">
-              {{ ctx.fkLoading ? '加载中...' : '点击选择关联...' }}
+              {{ ctx.fkLoading ? t('table.edit.loading') : t('table.edit.selectRelated') }}
             </span>
             <svg class="fk-edit-arrow" width="12" height="12" viewBox="0 0 12 12">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -146,7 +147,7 @@ const ctx = props.ctx
                 v-model="ctx.fkSearchText"
                 class="fk-edit-search-input"
                 type="text"
-                placeholder="搜索..."
+                :placeholder="t('table.edit.searchPlaceholder')"
                 @keydown.escape="ctx.closeFkDropdown"
               />
             </div>
@@ -173,7 +174,7 @@ const ctx = props.ctx
                 </svg>
               </div>
               <div v-if="ctx.fkFilteredOptions.length === 0" class="fk-edit-dropdown-empty">
-                {{ ctx.fkSearchText ? '无匹配结果' : '暂无可选项' }}
+                {{ ctx.fkSearchText ? t('table.edit.noMatch') : t('table.edit.noOptions') }}
               </div>
             </div>
             <button
@@ -181,7 +182,7 @@ const ctx = props.ctx
               type="button"
               class="fk-edit-quick-create"
               @click="ctx.openFkQuickCreate"
-            >+ 新建{{ col.title }}</button>
+            >{{ t('table.edit.quickCreate', { title: col.title }) }}</button>
           </div>
         </div>
         <!-- mediaImage：媒体库选择 / 上传新资源 / 清除，确认后才保存媒体 id -->
@@ -193,13 +194,13 @@ const ctx = props.ctx
             type="button"
             class="edit-inline__btn media-edit__btn"
             @click="ctx.openMediaPicker"
-          >媒体库</button>
+          >{{ t('table.edit.mediaLibrary') }}</button>
           <button
             type="button"
             class="edit-inline__btn media-edit__btn"
             :disabled="ctx.mediaUploading"
             @click="ctx.triggerMediaUpload($event)"
-          >{{ ctx.mediaUploading ? '上传中...' : '上传' }}</button>
+          >{{ ctx.mediaUploading ? t('table.edit.uploading') : t('table.edit.upload') }}</button>
           <button
             type="button"
             class="edit-inline__btn media-edit__btn media-edit__btn--clear"
@@ -223,7 +224,7 @@ const ctx = props.ctx
         <button
           class="edit-inline__btn edit-inline__btn--confirm"
           @click="ctx.confirmEdit(row, col)"
-          title="保存"
+          :title="t('table.edit.saveTitle')"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"/>
@@ -232,7 +233,7 @@ const ctx = props.ctx
         <button
           class="edit-inline__btn edit-inline__btn--cancel"
           @click="ctx.cancelEdit"
-          title="取消"
+          :title="t('table.edit.cancelTitle')"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/>

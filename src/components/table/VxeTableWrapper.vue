@@ -25,6 +25,7 @@ import { useHeaderFilter } from './useHeaderFilter'
 import { useInlineEdit } from './useInlineEdit'
 import { useCellDetail } from './useCellDetail'
 import { createCellCtx } from './cellCtx'
+import { t } from '@/locales'
 import { GROUP_ROW_FLAG, isGroupRow } from '@/utils/recordGroup'
 import WrapperHeaderCell from './WrapperHeaderCell.vue'
 import WrapperCellContent from './WrapperCellContent.vue'
@@ -673,7 +674,7 @@ defineExpose({
       <VxeColumn
         v-if="opColumns.length > 0"
         field="__operations__"
-        title="操作"
+        :title="t('table.operationsTitle')"
         :width="opColumnWidth"
         fixed="right"
         align="center"

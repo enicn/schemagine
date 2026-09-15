@@ -5,6 +5,7 @@
  * 状态与动作经 TableCtx 注入（见 cellCtx.ts），与原先同作用域模板等价。
  */
 import { ElPopover, ElInput, ElCheckbox, ElCheckboxGroup, ElButton, ElSwitch, ElDatePicker } from 'element-plus'
+import { t } from '@/locales'
 import type { WrapperColumn } from './wrapperTypes'
 import type { TableCtx } from './cellCtx'
 
@@ -38,7 +39,7 @@ const ctx = props.ctx
           type="button"
           class="schema-header-cell__arrow"
           :class="{ 'is-active': !!ctx.getHeaderFilterClause(col.field) || (ctx.sortConfig?.field === col.field) }"
-          aria-label="筛选与排序"
+          :aria-label="t('table.filter.filterSortLabel')"
           @click.stop
         >▼</button>
       </template>
@@ -47,23 +48,23 @@ const ctx = props.ctx
         <div class="header-popover__sort">
           <ElButton size="small" type="success" plain @click="ctx.applyHeaderSort(col.field, 'asc')">
             <span class="sort-icon sort-icon--asc">↑</span>
-            升序
+            {{ t('table.filter.asc') }}
           </ElButton>
           <ElButton size="small" type="danger" plain @click="ctx.applyHeaderSort(col.field, 'desc')">
             <span class="sort-icon sort-icon--desc">↓</span>
-            降序
+            {{ t('table.filter.desc') }}
           </ElButton>
           <ElButton size="small" text type="info" @click="ctx.applyHeaderSort(col.field, null)">
             <span class="sort-icon sort-icon--clear">×</span>
-            清除排序
+            {{ t('table.filter.clearSort') }}
           </ElButton>
         </div>
 
         <div class="header-popover__filter">
           <div class="header-popover__filter-title">
-            <span>{{ ctx.isCandidateMode ? '候选值筛选' : (ctx.isDatetimeCol(col) ? '时间段筛选' : '内容筛选') }}</span>
+            <span>{{ ctx.isCandidateMode ? t('table.filter.candidatesTitle') : (ctx.isDatetimeCol(col) ? t('table.filter.rangeTitle') : t('table.filter.contentTitle')) }}</span>
             <label v-if="ctx.modeSwitchable(col)" class="header-popover__mode-switch" @click.stop>
-              <span class="header-popover__mode-label">候选值模式</span>
+              <span class="header-popover__mode-label">{{ t('table.filter.candidateMode') }}</span>
               <ElSwitch v-model="ctx.isCandidateMode" size="small" />
             </label>
           </div>
@@ -75,9 +76,9 @@ const ctx = props.ctx
               :type="ctx.isDateOnlyCol(col) ? 'daterange' : 'datetimerange'"
               :format="ctx.isDateOnlyCol(col) ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm:ss'"
               :value-format="ctx.isDateOnlyCol(col) ? 'YYYY-MM-DD' : 'YYYY-MM-DD HH:mm:ss'"
-              range-separator="至"
-              :start-placeholder="ctx.isDateOnlyCol(col) ? '开始日期' : '开始时间'"
-              :end-placeholder="ctx.isDateOnlyCol(col) ? '结束日期' : '结束时间'"
+              :range-separator="t('table.filter.rangeSeparator')"
+              :start-placeholder="ctx.isDateOnlyCol(col) ? t('table.filter.startPlaceholderDate') : t('table.filter.startPlaceholderTime')"
+              :end-placeholder="ctx.isDateOnlyCol(col) ? t('table.filter.endPlaceholderDate') : t('table.filter.endPlaceholderTime')"
               :default-time="ctx.isDateOnlyCol(col) ? undefined : [new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]"
               size="small"
               clearable
@@ -94,17 +95,17 @@ const ctx = props.ctx
                 text
                 type="primary"
                 @click="ctx.applyRangePreset(col.field, p.key)"
-              >{{ p.label }}</ElButton>
+              >{{ t('table.preset.' + p.key) }}</ElButton>
             </div>
             <div class="header-popover__filter-actions">
-              <span class="header-popover__mode-hint">按起止时间筛选（含边界）</span>
+              <span class="header-popover__mode-hint">{{ t('table.filter.rangeHint') }}</span>
               <ElButton
                 v-if="ctx.getHeaderFilterClause(col.field)"
                 size="small"
                 text
                 type="danger"
                 @click="ctx.clearHeaderFilter(col.field)"
-              >清除筛选</ElButton>
+              >{{ t('table.filter.clearFilter') }}</ElButton>
             </div>
           </template>
           <template v-else>
@@ -112,8 +113,8 @@ const ctx = props.ctx
               v-model="ctx.headerMenuKeyword"
               size="small"
               clearable
-              :placeholder="ctx.isCandidateMode ? '搜索候选值' : '输入关键词，回车筛选'"
-              :title="ctx.isCandidateMode ? undefined : '关键词对列内容做包含匹配；外键列匹配关联对象的名称'"
+              :placeholder="ctx.isCandidateMode ? t('table.filter.searchPlaceholder') : t('table.filter.keywordPlaceholder')"
+              :title="ctx.isCandidateMode ? undefined : t('table.filter.keywordTitle')"
               @keyup.enter="() => { if (!ctx.isCandidateMode) ctx.applyHeaderFilter(col.field) }"
             />
 
@@ -124,17 +125,17 @@ const ctx = props.ctx
                 class="header-popover__filter-actions"
               >
                 <span class="header-popover__mode-hint">
-                  当前：包含「{{ typeof ctx.getHeaderFilterClause(col.field)!.value === 'string' ? ctx.getHeaderFilterClause(col.field)!.value : '' }}」
+                  {{ t('table.filter.currentKeywordPrefix', { value: typeof ctx.getHeaderFilterClause(col.field)!.value === 'string' ? (ctx.getHeaderFilterClause(col.field)!.value as string) : '' }) }}
                 </span>
                 <ElButton
                   size="small"
                   text
                   type="danger"
                   @click="ctx.clearHeaderFilter(col.field)"
-                >清除筛选</ElButton>
+                >{{ t('table.filter.clearFilter') }}</ElButton>
               </div>
               <div v-else class="header-popover__filter-actions">
-                <span class="header-popover__mode-hint">外键列将按关联对象的名称匹配</span>
+                <span class="header-popover__mode-hint">{{ t('table.filter.fkKeywordHint') }}</span>
               </div>
             </template>
 
@@ -149,14 +150,14 @@ const ctx = props.ctx
                   :model-value="ctx.headerSelectAll"
                   :indeterminate="ctx.headerSelectIndeterminate"
                   @update:model-value="(v: any) => ctx.toggleHeaderSelectAll(!!v)"
-                >全选</ElCheckbox>
+                >{{ t('table.filter.selectAll') }}</ElCheckbox>
                 <ElButton
                   v-if="ctx.getHeaderFilterClause(col.field)"
                   size="small"
                   text
                   type="danger"
                   @click="ctx.clearHeaderFilter(col.field)"
-                >清除筛选</ElButton>
+                >{{ t('table.filter.clearFilter') }}</ElButton>
               </div>
 
               <!-- 无候选值时不渲染空选项区（加载中除外） -->
@@ -165,7 +166,7 @@ const ctx = props.ctx
                 class="header-popover__options"
                 @scroll.passive="(e: Event) => { const el = e.target as HTMLElement; if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) ctx.loadMoreHeaderMenuOptions() }"
               >
-                <div v-if="ctx.headerMenuLoading && ctx.headerMenuOptions.length === 0" class="header-popover__loading">加载中...</div>
+                <div v-if="ctx.headerMenuLoading && ctx.headerMenuOptions.length === 0" class="header-popover__loading">{{ t('table.filter.loading') }}</div>
                 <ElCheckboxGroup v-model="ctx.headerMenuSelectedKeys">
                   <ElCheckbox
                     v-for="opt in ctx.headerMenuOptions"
@@ -177,14 +178,14 @@ const ctx = props.ctx
                     <span class="header-popover__opt-count">({{ opt.count }})</span>
                   </ElCheckbox>
                 </ElCheckboxGroup>
-                <div v-if="ctx.headerMenuLoading && ctx.headerMenuOptions.length > 0" class="header-popover__loading-more">加载中...</div>
+                <div v-if="ctx.headerMenuLoading && ctx.headerMenuOptions.length > 0" class="header-popover__loading-more">{{ t('table.filter.loadingMore') }}</div>
               </div>
             </template>
           </template>
 
           <div class="header-popover__footer">
-            <ElButton size="small" type="primary" @click="ctx.applyHeaderFilter(col.field)">确定</ElButton>
-            <ElButton size="small" @click="ctx.headerMenuField = null">取消</ElButton>
+            <ElButton size="small" type="primary" @click="ctx.applyHeaderFilter(col.field)">{{ t('table.filter.ok') }}</ElButton>
+            <ElButton size="small" @click="ctx.headerMenuField = null">{{ t('table.filter.cancel') }}</ElButton>
           </div>
         </div>
       </div>

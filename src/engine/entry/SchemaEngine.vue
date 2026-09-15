@@ -2,6 +2,7 @@
 import { onMounted, watch, computed, ref, provide, nextTick } from 'vue'
 import { ElButton, ElTag, ElTooltip, ElMessage } from 'element-plus'
 import type { ViewMode } from '@/constants'
+import { setLocale } from '@/locales'
 import { useSchema } from '@/composables/useSchema'
 import { usePermission } from '@/composables/usePermission'
 import { useCellEdit } from '@/composables/useCellEdit'
@@ -32,7 +33,14 @@ const props = defineProps<{
   tableHeight?: string | number
   /** 列表密度档位（docs/19 F1）：compact/default/large，透传 ListView → SchemaTable → VxeTableWrapper */
   density?: 'compact' | 'default' | 'large'
+  /** 引擎语言（docs/19 G1）：语言包须先经 registerLocale 注册；未传保持当前语言 */
+  locale?: string
 }>()
+
+// 引擎语言注入（docs/19 G1）：宿主经 locale prop 切换（语言包先 registerLocale 注册）
+watch(() => props.locale, (loc) => {
+  if (loc) setLocale(loc)
+}, { immediate: true })
 
 const emit = defineEmits<{
   'module-loaded': [payload: { moduleId: string }]

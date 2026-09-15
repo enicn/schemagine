@@ -11,6 +11,7 @@
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { VxeTableInstance } from 'vxe-table'
+import { t } from '@/locales'
 import type { WrapperColumn } from './wrapperTypes'
 
 const CELL_DETAIL_GAP = 6
@@ -94,7 +95,7 @@ export function useCellDetail(deps: CellDetailDeps) {
     const { ElMessage } = await import('element-plus')
     try {
       await navigator.clipboard.writeText(text)
-      ElMessage.success('已复制')
+      ElMessage.success(t('table.detail.copied'))
     } catch {
       // 非安全上下文（http 内网部署）无 navigator.clipboard，回落隐藏 textarea + execCommand
       const ta = document.createElement('textarea')
@@ -105,12 +106,12 @@ export function useCellDetail(deps: CellDetailDeps) {
       ta.select()
       try {
         if (document.execCommand('copy')) {
-          ElMessage.success('已复制')
+          ElMessage.success(t('table.detail.copied'))
         } else {
-          ElMessage.error('复制失败，请手动选择复制')
+          ElMessage.error(t('table.detail.copyFailed'))
         }
       } catch {
-        ElMessage.error('复制失败，请手动选择复制')
+        ElMessage.error(t('table.detail.copyFailed'))
       } finally {
         ta.remove()
       }

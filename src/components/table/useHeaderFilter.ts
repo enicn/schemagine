@@ -38,15 +38,15 @@ export function useHeaderFilter(
     headerFilterRange.value = val
   }
 
-  /** 时间段快捷预设：一键填充并应用（订单管理等按天/周/月看数据的最高频动作） */
+  /** 时间段快捷预设：一键填充并应用（订单管理等按天/周/月看数据的最高频动作）；文案经 t('table.preset.<key>') 取 */
   const RANGE_PRESETS = [
-    { key: 'today', label: '本日' },
-    { key: 'yesterday', label: '昨日' },
-    { key: 'last7', label: '近7天' },
-    { key: 'week', label: '本周' },
-    { key: 'lastweek', label: '上周' },
-    { key: 'month', label: '本月' },
-    { key: 'lastmonth', label: '上月' },
+    { key: 'today' },
+    { key: 'yesterday' },
+    { key: 'last7' },
+    { key: 'week' },
+    { key: 'lastweek' },
+    { key: 'month' },
+    { key: 'lastmonth' },
   ] as const
 
   function pad2(n: number): string {

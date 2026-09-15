@@ -5,6 +5,7 @@
 import { resolveEnumColor, resolveEnumTagStyle } from '@/utils/enumTag'
 import { formatMoney } from '@/utils/formatMoney'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import { t } from '@/locales'
 import type { CandidateOption, FilterClause } from '@/types'
 import type { WrapperColumn } from './wrapperTypes'
 
@@ -155,7 +156,7 @@ export function useCellRendering(deps: CellRenderingDeps) {
 
   /** 关联列固定文案：宿主传了 formatter 就用之，否则「查看」 */
   function relationFormatter(col: WrapperColumn): string {
-    return col.formatter ? col.formatter({ cellValue: undefined, row: {}, column: col }) : '查看'
+    return col.formatter ? col.formatter({ cellValue: undefined, row: {}, column: col }) : t('table.view')
   }
 
   function openImage(src: unknown): void {

@@ -23,7 +23,7 @@ export function createCellCtx(entries: {
   headerFilterRange: Ref<[string, string] | null>
   isCandidateMode: ComputedRef<boolean>
   onRangePick: (val: [string, string] | null) => void
-  RANGE_PRESETS: readonly { key: string; label: string }[]
+  RANGE_PRESETS: readonly { key: string }[]
   applyRangePreset: (field: string, key: string) => void
   isDatetimeCol: (col: { fieldType?: string }) => boolean
   isDateOnlyCol: (col: { fieldType?: string }) => boolean

@@ -1,0 +1,71 @@
+/**
+ * 引擎内置文案：zh-CN（简体中文，docs/19 批次 G1 基准语言包）。
+ * 按域分组（table/filter/list/...），key 用点路径引用（如 `table.filter.asc`）。
+ * 宿主可经 registerLocale 注册其他语言包覆盖同结构 key（见 locales/index.ts）。
+ */
+export default {
+  table: {
+    operationsTitle: '操作',
+    view: '查看',
+    filter: {
+      asc: '升序',
+      desc: '降序',
+      clearSort: '清除排序',
+      candidatesTitle: '候选值筛选',
+      rangeTitle: '时间段筛选',
+      contentTitle: '内容筛选',
+      candidateMode: '候选值模式',
+      selectAll: '全选',
+      clearFilter: '清除筛选',
+      ok: '确定',
+      cancel: '取消',
+      loading: '加载中...',
+      loadingMore: '加载中...',
+      keywordPlaceholder: '输入关键词，回车筛选',
+      searchPlaceholder: '搜索候选值',
+      keywordTitle: '关键词对列内容做包含匹配；外键列匹配关联对象的名称',
+      currentKeywordPrefix: '当前：包含「{value}」',
+      fkKeywordHint: '外键列将按关联对象的名称匹配',
+      rangeHint: '按起止时间筛选（含边界）',
+      startPlaceholderDate: '开始日期',
+      endPlaceholderDate: '结束日期',
+      startPlaceholderTime: '开始时间',
+      endPlaceholderTime: '结束时间',
+      rangeSeparator: '至',
+      filterSortLabel: '筛选与排序',
+    },
+    preset: {
+      today: '本日',
+      yesterday: '昨日',
+      last7: '近7天',
+      week: '本周',
+      lastweek: '上周',
+      month: '本月',
+      lastmonth: '上月',
+    },
+    edit: {
+      loading: '加载中...',
+      selectRelated: '点击选择关联...',
+      searchPlaceholder: '搜索...',
+      noMatch: '无匹配结果',
+      noOptions: '暂无可选项',
+      quickCreate: '+ 新建{title}',
+      clear: '清除',
+      clearSelected: '清除选择',
+      mediaLibrary: '媒体库',
+      upload: '上传',
+      uploading: '上传中...',
+      saveTitle: '保存',
+      cancelTitle: '取消',
+      decimalMax: '最多允许{max}位小数，当前{actual}位',
+    },
+    summary: {
+      total: '合计',
+    },
+    detail: {
+      copy: '复制',
+      copied: '已复制',
+      copyFailed: '复制失败，请手动选择复制',
+    },
+  },
+} as const

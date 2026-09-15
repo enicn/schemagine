@@ -1,4 +1,4 @@
-import type { SortParam, FilterClause } from './service'
+import type { SortParam, FilterCondition } from './service'
 
 export interface UserViewConfig {
   moduleId: string
@@ -36,5 +36,10 @@ export interface CardLayoutConfig {
 export interface FilterPreset {
   id: string
   name: string
-  filters: FilterClause[]
+  /** 保存的过滤条件（可含 FilterGroup 组合，docs/19 批次 E2/E3） */
+  filters: FilterCondition[]
+  /** 保存时的排序；未保存排序 = 应用视图时不动当前排序 */
+  sort?: SortParam
+  /** 默认视图：进入模块时自动应用（docs/19 批次 E3） */
+  isDefault?: boolean
 }

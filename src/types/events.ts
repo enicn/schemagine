@@ -1,4 +1,4 @@
-import type { SortParam, FilterClause } from './service'
+import type { SortParam, FilterCondition } from './service'
 import type { ListAction } from './schema'
 import type { CellEditPayload, DraftRecord } from './record'
 import type { ExtendedDialogType } from '@/engine/registry/dialogRegistry'
@@ -51,7 +51,7 @@ export interface SortChangeEvent {
 }
 
 export interface QueryChangeEvent {
-  filters: FilterClause[]
+  filters: FilterCondition[]
   sort: SortParam | null
   pagination: {
     page: number

@@ -1,38 +1,39 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch } from 'vue'
 import { ElInput, ElSelect, ElOption, ElButton, ElDatePicker, ElButtonGroup, ElTooltip, ElPopover, ElTag } from 'element-plus'
-import type { FieldSchema, FilterClause, FilterOperator, CandidateOption } from '@/types'
+import type { FieldSchema, FilterClause, FilterCondition, FilterOperator, CandidateOption } from '@/types'
 import { candidateService } from '@/services/api/candidateService'
+import { composeBarConditions, splitBarConditions, flattenFilterConditions, type FilterMatchType } from '@/utils/filterConditions'
 
 const props = defineProps<{
   fields: FieldSchema[]
-  modelValue: FilterClause[]
+  modelValue: FilterCondition[]
   infiniteScroll?: boolean
   showFilterStatus?: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: FilterClause[]]
-  search: [payload: FilterClause[]]
+  'update:modelValue': [value: FilterCondition[]]
+  search: [payload: FilterCondition[]]
   reset: [payload: void]
   'remove-filter': [fieldKey: string]
 }>()
 
 type DateFilterMode = 'single' | 'range'
 
-export interface FilterSummaryItem {
-  fieldKey: string
-  label: string
-  operator: FilterOperator
-  operatorLabel: string
-  valueLabel: string
-}
-
 const supportedFilterTypes = new Set<FieldSchema['type']>(['text', 'select', 'multi-select', 'date', 'datetime', 'boolean', 'fk'])
 
 const filterableFields = computed(() => props.fields.filter(f => f.filterable && supportedFilterTypes.has(f.type)))
 
-const localClauses = ref<FilterClause[]>([...props.modelValue])
+// 本栏草稿只含「本栏可管理」的条件(受支持的可筛选字段);其余条件(如表头筛选产生的
+// 其他字段子句)作为 foreign 原样透传,不参与本栏编辑(docs/19 批次 E1/E2)
+const localClauses = ref<FilterClause[]>([])
+const foreignClauses = ref<FilterClause[]>([])
+const matchType = ref<FilterMatchType>('all')
+
+function isBarManagedClause(clause: FilterClause): boolean {
+  return filterableFields.value.some(f => f.key === clause.field)
+}
 
 const dateFilterModes = reactive<Record<string, DateFilterMode>>({})
 
@@ -80,6 +81,11 @@ function resetFilters(): void {
   for (const key of Object.keys(nullFilterStates)) {
     delete nullFilterStates[key]
   }
+}
+
+/** 组装要上抛的完整条件列表(外来子句 + 本栏草稿按匹配方式组合) */
+function buildEmitConditions(): FilterCondition[] {
+  return composeBarConditions(foreignClauses.value, localClauses.value, matchType.value)
 }
 
 function setClause(fieldKey: string, clause: FilterClause | null): void {
@@ -266,90 +272,22 @@ function handleNullFilterToggle(field: FieldSchema): void {
 }
 
 function applyFilter(): void {
-  emit('update:modelValue', [...localClauses.value])
-  emit('search', [...localClauses.value])
+  const next = buildEmitConditions()
+  emit('update:modelValue', next)
+  emit('search', next)
 }
 
-function formatDateValue(value: unknown, isDateTime: boolean): string {
-  if (value == null || value === '') return ''
-  const d = value instanceof Date ? value : new Date(String(value))
-  if (isNaN(d.getTime())) return String(value)
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  if (isDateTime) {
-    const hh = String(d.getHours()).padStart(2, '0')
-    const min = String(d.getMinutes()).padStart(2, '0')
-    const ss = String(d.getSeconds()).padStart(2, '0')
-    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`
-  }
-  return `${yyyy}-${mm}-${dd}`
-}
+import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterSummary'
 
-function getOptionLabel(field: FieldSchema, value: unknown): string {
-  if (!field.options) return String(value ?? '')
-  const opt = field.options.find(o => o.value === value)
-  return opt ? opt.label : String(value ?? '')
-}
+/** 摘要类型随共享工具走(兼容原组件导出) */
+export type { FilterSummaryItem }
 
-function getFkOptionLabel(field: FieldSchema, value: unknown): string {
-  const options = fkOptions[field.key] || []
-  const opt = options.find(o => o.value === value)
-  return opt ? opt.label : String(value ?? '')
-}
-
-import { getOperatorLabel } from '@/utils/filterLabels'
-
-function buildFilterSummary(clauses?: FilterClause[]): FilterSummaryItem[] {
-  const items = clauses ?? localClauses.value
-  const fieldMap = new Map<string, FieldSchema>()
-  for (const f of props.fields) {
-    fieldMap.set(f.key, f)
-  }
-
-  return items.map((clause) => {
-    const field = fieldMap.get(clause.field)
-    const label = field?.label ?? clause.field
-    const operator = clause.operator
-    const operatorLabel = getOperatorLabel(operator)
-
-    let valueLabel = ''
-
-    if (operator === 'isNull') {
-      valueLabel = '空'
-    } else if (operator === 'isNotNull') {
-      valueLabel = '非空'
-    } else if (operator === 'between' || operator === 'notBetween') {
-      const vals = (clause.values as [string, string]) || []
-      if (field?.type === 'datetime') {
-        valueLabel = `${formatDateValue(vals[0], true)} ~ ${formatDateValue(vals[1], true)}`
-      } else {
-        valueLabel = `${formatDateValue(vals[0], false)} ~ ${formatDateValue(vals[1], false)}`
-      }
-    } else if (operator === 'in' || operator === 'notIn') {
-      const vals = clause.values as unknown[]
-      if (field?.type === 'fk') {
-        valueLabel = vals.map(v => getFkOptionLabel(field, v)).join(', ')
-      } else {
-        valueLabel = vals.map(v => String(v ?? '')).join(', ')
-      }
-    } else {
-      if (field?.type === 'select' || field?.type === 'multi-select') {
-        valueLabel = getOptionLabel(field, clause.value)
-      } else if (field?.type === 'boolean') {
-        valueLabel = clause.value === true ? '是' : '否'
-      } else if (field?.type === 'date') {
-        valueLabel = formatDateValue(clause.value, false)
-      } else if (field?.type === 'datetime') {
-        valueLabel = formatDateValue(clause.value, true)
-      } else if ((operator === 'like' || operator === 'notLike') && clause.value) {
-        valueLabel = String(clause.value)
-      } else {
-        valueLabel = String(clause.value ?? '')
-      }
-    }
-
-    return { fieldKey: clause.field, label, operator, operatorLabel, valueLabel }
+function buildFilterSummary(clauses?: FilterCondition[]): FilterSummaryItem[] {
+  const items = flattenFilterConditions(clauses ?? localClauses.value)
+  return buildFilterSummaryItems(items, props.fields, (field, value) => {
+    const options = fkOptions[field.key] || []
+    const opt = options.find(o => o.value === value)
+    return opt ? opt.label : String(value ?? '')
   })
 }
 
@@ -365,12 +303,16 @@ function getFilterSummaryText(): string {
 function handleRemoveTag(fieldKey: string): void {
   const idx = localClauses.value.findIndex(c => c.field === fieldKey)
   if (idx >= 0) localClauses.value.splice(idx, 1)
-  emit('update:modelValue', [...localClauses.value])
-  emit('search', [...localClauses.value])
+  const foreignIdx = foreignClauses.value.findIndex(c => c.field === fieldKey)
+  if (foreignIdx >= 0) foreignClauses.value.splice(foreignIdx, 1)
+  applyFilter()
 }
 
 function syncCommittedToDraft(): void {
-  localClauses.value = props.modelValue.map(c => ({ ...c }))
+  const { foreign, managed, matchType: parsedMatch } = splitBarConditions(props.modelValue, isBarManagedClause)
+  localClauses.value = managed.map(c => ({ ...c }))
+  foreignClauses.value = foreign.map(c => ({ ...c }))
+  matchType.value = parsedMatch
   for (const key of Object.keys(dateFilterModes)) {
     delete dateFilterModes[key]
   }
@@ -419,7 +361,7 @@ const activeFilterCount = computed(() => localClauses.value.length)
 defineExpose({
   getFilterSummary,
   getFilterSummaryText,
-  getFilterClauses: () => [...props.modelValue],
+  getFilterClauses: () => flattenFilterConditions(props.modelValue),
   resetFilters,
 })
 </script>
@@ -612,8 +554,17 @@ defineExpose({
           </div>
 
           <div class="filter-popover-actions">
-            <ElButton size="small" type="primary" @click="handlePopoverConfirm">搜索</ElButton>
-            <ElButton size="small" @click="handlePopoverReset">重置</ElButton>
+            <div v-if="localClauses.length > 1" class="match-toggle">
+              <span class="match-label">匹配</span>
+              <ElButtonGroup size="small">
+                <ElButton size="small" :type="matchType === 'all' ? 'primary' : ''" @click="matchType = 'all'">全部条件</ElButton>
+                <ElButton size="small" :type="matchType === 'any' ? 'primary' : ''" @click="matchType = 'any'">任一条件</ElButton>
+              </ElButtonGroup>
+            </div>
+            <div class="popover-action-buttons">
+              <ElButton size="small" type="primary" @click="handlePopoverConfirm">搜索</ElButton>
+              <ElButton size="small" @click="handlePopoverReset">重置</ElButton>
+            </div>
           </div>
         </div>
       </ElPopover></div>
@@ -721,11 +672,27 @@ defineExpose({
 }
 .filter-popover-actions {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--sg-spacing-4);
-  justify-content: flex-end;
   padding-top: var(--sg-spacing-4);
   border-top: 1px solid var(--sg-border-color-light);
   margin-top: var(--sg-spacing-4);
+}
+.match-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-spacing-2);
+}
+.match-label {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+  white-space: nowrap;
+}
+.popover-action-buttons {
+  display: flex;
+  gap: var(--sg-spacing-4);
+  margin-left: auto;
 }
 .exclude-btn {
   padding: 0 var(--sg-spacing-2);

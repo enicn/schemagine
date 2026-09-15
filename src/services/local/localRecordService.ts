@@ -11,7 +11,7 @@ import type {
 } from '@/types'
 import type { IRecordService } from '@/services/api/recordService'
 import { createSuccessResponse, createErrorResponse } from '@/services/api/base'
-import { evaluateFilter } from '@/utils/evaluateFilter'
+import { evaluateConditions } from '@/utils/filterConditions'
 
 /**
  * 本地数据源(docs/19 批次 C1):数组进、内存分页/排序/过滤,完整实现 IRecordService。
@@ -84,7 +84,7 @@ export function createLocalRecordService(
 
       const filters = params.filters
       if (filters && filters.length > 0) {
-        pool = pool.filter(record => filters.every(clause => evaluateFilter(clause, record.fields[clause.field])))
+        pool = pool.filter(record => evaluateConditions(filters, record.fields))
       }
 
       const sort = params.sort
@@ -118,7 +118,7 @@ export function createLocalRecordService(
       let pool = visibleRecords(moduleId)
 
       if (filters && filters.length > 0) {
-        pool = pool.filter(record => filters.every(clause => evaluateFilter(clause, record.fields[clause.field])))
+        pool = pool.filter(record => evaluateConditions(filters, record.fields))
       }
 
       const lowerKeyword = (keyword ?? '').toLowerCase().trim()

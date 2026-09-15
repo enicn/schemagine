@@ -19,7 +19,7 @@ import CardCreateView from '@/engine/containers/CardCreateView.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
-import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
+import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
 import { validateFieldValue } from '@/utils/fieldValidation'
 
 const props = defineProps<{
@@ -238,12 +238,31 @@ function handleCardLayoutReset(): void {
   persistViewConfig(config)
 }
 
+/** 保存视图变更(docs/19 批次 E3):presets 增删/设默认 → UserViewConfig.filterPresets */
+function handlePresetsChange(presets: FilterPreset[]): void {
+  const current = schemaMeta.viewConfig
+  if (!current) return
+  persistViewConfig({ ...current, filterPresets: presets })
+}
+
+/** 列拖拽持久化(docs/19 批次 E4):按新列序重排 UserViewConfig.columns(未出现的列保持原序) */
+function handleColumnOrderChange(newOrder: string[]): void {
+  const current = schemaMeta.viewConfig
+  if (!current || newOrder.length === 0) return
+  const orderMap = new Map(newOrder.map((field, index) => [field, index]))
+  const columns = current.columns.map((c) => {
+    const nextOrder = orderMap.get(c.field)
+    return nextOrder === undefined ? c : { ...c, order: nextOrder }
+  })
+  persistViewConfig({ ...current, columns })
+}
+
 function handleCellEdit(payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }): void {
   cellEdit.onCellEdit(payload as any)
   emit('data-changed', { moduleId: props.moduleId })
 }
 
-function handleQueryChange(payload: { filters: FilterClause[]; sort: SortParam | null; pagination: { page: number; pageSize: number } }): void {
+function handleQueryChange(payload: { filters: FilterCondition[]; sort: SortParam | null; pagination: { page: number; pageSize: number } }): void {
   recordStore.setQueryState({ filters: payload.filters, sort: payload.sort })
   recordStore.setPagination(payload.pagination)
 
@@ -572,6 +591,8 @@ defineExpose({
                 @formula-detail-open="handleFormulaDetailOpen"
                 @row-action="handleRowAction"
                 @open-relation-editor="handleOpenRelationEditor"
+                @presets-change="handlePresetsChange"
+                @column-order-change="handleColumnOrderChange"
                 @action-trigger="(p) => emit('action-trigger', p)"
                 @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
                 @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"

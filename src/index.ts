@@ -73,6 +73,19 @@ export { OPERATOR_LABEL_MAP, getOperatorLabel } from './utils/filterLabels'
 export { resolveDataOperations } from './utils/dataOperations'
 export { applyBuiltinOperations } from './utils/dataOperations'
 export type { ResolvedDataOperations } from './utils/dataOperations'
+// 组合过滤(docs/19 批次 E2):FilterGroup 求值/拍平/移除 + FilterBar 草稿装拆
+export {
+  isFilterGroup,
+  evaluateCondition,
+  evaluateConditions,
+  flattenFilterConditions,
+  removeFieldFromConditions,
+  cloneFilterConditions,
+  composeBarConditions,
+  splitBarConditions,
+} from './utils/filterConditions'
+export type { FilterMatchType } from './utils/filterConditions'
+export { reorderColumnsByDrag } from './utils/columnDrag'
 
 // === 展示口径工具（宿主与引擎同源，防两处口径漂移） ===
 export { formatMoney } from './utils/formatMoney'

@@ -78,7 +78,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await page.waitForTimeout(1000)
     const tableEl = page.locator('.vxe-table')
     await expect(tableEl).toBeVisible({ timeout: 8000 })
-    const headerRow = page.locator('.vxe-header--row')
+    // .vxe-header--row 含左右固定列克隆行(docs/18 e2e 经验),取主表首行
+    const headerRow = page.locator('.vxe-header--row').first()
     await expect(headerRow).toBeVisible()
     const headerCells = headerRow.locator('th')
     const cellCount = await headerCells.count()
@@ -194,7 +195,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await amountInput.press('Tab')
     await page.waitForTimeout(500)
 
-    const formulaResult = firstRow.locator('.formula-result-only')
+    // 首行含两个公式列(税额/本币金额),取第一个(税额)避免 strict-mode 冲突
+    const formulaResult = firstRow.locator('.formula-result-only').first()
     await expect(formulaResult).toBeVisible()
     await expect(formulaResult).toHaveText('13')
   })
@@ -219,14 +221,16 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await amountInput.press('Tab')
     await page.waitForTimeout(500)
 
-    await expect(firstRow.locator('.formula-result-only')).toHaveText('26')
+    await expect(firstRow.locator('.formula-result-only').first()).toHaveText('26')
 
+    // 税率字段为 percent(decimal:0):UI 按「整数百分比」输入,存值自动 /100(显示 ×100);
+    // 故填 6(=6% → 存 0.06),联动重算 税额 = 200 * 0.06 = 12
     const taxRateInput = numberInputs.nth(1)
-    await taxRateInput.fill('0.06')
+    await taxRateInput.fill('6')
     await taxRateInput.press('Tab')
     await page.waitForTimeout(500)
 
-    await expect(firstRow.locator('.formula-result-only')).toHaveText('12')
+    await expect(firstRow.locator('.formula-result-only').first()).toHaveText('12')
   })
 
   test('4.7 公式列展开/折叠按钮和公式说明显示', async ({ page }) => {
@@ -237,7 +241,7 @@ test.describe('P2 Schema 引擎高级特性', () => {
 
     await expect(page.locator('.create-view')).toBeVisible({ timeout: 5000 })
 
-    const toggleBtn = page.locator('.formula-toggle-btn')
+    const toggleBtn = page.locator('.formula-toggle-btn').first()
     await expect(toggleBtn).toBeVisible()
     expect(await toggleBtn.textContent()).toContain('公式')
 
@@ -256,8 +260,9 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await toggleBtn.click()
     await page.waitForTimeout(300)
 
-    await expect(firstRow.locator('.formula-chain')).toBeVisible()
-    const chainText = await firstRow.locator('.formula-chain').textContent()
+    // 展开为全局状态,首行两个公式列的 chain 同时出现;断言第一个(税额)
+    await expect(firstRow.locator('.formula-chain').first()).toBeVisible()
+    const chainText = await firstRow.locator('.formula-chain').first().textContent()
     expect(chainText).toContain('税额')
     expect(chainText).toContain('金额')
     expect(chainText).toContain('税率')
@@ -319,10 +324,10 @@ test.describe('P2 Schema 引擎高级特性', () => {
 
   test('6.4 Schema 编辑器 - 字段列表侧边栏渲染', async ({ page }) => {
     await page.goto('/editor')
-    await page.waitForTimeout(2000)
 
     await expect(page.locator('.schema-editor')).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('.editor-sidebar')).toBeVisible()
+    // 字段列表在默认激活的「字段编辑」Tab 内;侧边栏类名为 field-list-sidebar
+    await expect(page.locator('.field-list-sidebar')).toBeVisible({ timeout: 10000 })
     await expect(page.locator('.field-list')).toBeVisible()
 
     const fieldItems = page.locator('.field-list-item')
@@ -332,9 +337,10 @@ test.describe('P2 Schema 引擎高级特性', () => {
 
   test('6.5 Schema 编辑器 - Tab 面板切换', async ({ page }) => {
     await page.goto('/editor')
-    await page.waitForTimeout(2000)
 
     await expect(page.locator('.schema-editor')).toBeVisible({ timeout: 10000 })
+    // 编辑器异步加载 Schema(期间显示「加载中...」),等首个 Tab 渲染后再计数
+    await expect(page.locator('.el-tabs__item').first()).toBeVisible({ timeout: 15000 })
 
     const tabs = page.locator('.el-tabs__item')
     const tabCount = await tabs.count()
@@ -365,7 +371,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await page.waitForTimeout(500)
 
     await expect(page.locator('.field-form-panel')).toBeVisible()
-    await expect(page.locator('.panel-title')).toContainText('字段编辑')
+    // .panel-title 在模块配置与字段编辑两个面板中各有一个,限定字段编辑面板
+    await expect(page.locator('.field-form-panel .panel-title')).toContainText('字段编辑')
   })
 
   test('6.7 Schema 编辑器 - 公式构建Tab', async ({ page }) => {

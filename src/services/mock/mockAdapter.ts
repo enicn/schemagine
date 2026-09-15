@@ -3,7 +3,6 @@ import type {
   ListQueryParams, PatchFieldParams, CreateRecordParams,
   RecordEntity, RecordListResponse, UserViewConfig,
   CandidateQueryParams, CandidateListResponse, ColumnConfig, CandidateOption,
-  FilterClause,
   FieldValueCandidateQueryParams, FieldValueCandidateListResponse, FieldValueCandidateOption,
   RelationEntry,
 } from '@/types'
@@ -19,7 +18,7 @@ import { setUserViewConfigService } from '@/services/api/userViewConfigService'
 import { setCandidateService } from '@/services/api/candidateService'
 import { setRelationService } from '@/services/api/relationService'
 import { readStorage, writeStorage, isStorageInitialized, markStorageInitialized } from './mockStorage'
-import { evaluateFilter } from '@/utils/evaluateFilter'
+import { evaluateConditions } from '@/utils/filterConditions'
 import { compareVersions } from '@/composables/useMigration'
 import {
   voucherSchema, apSchema, emptyModuleSchema, NoPermissionSchema,
@@ -167,7 +166,7 @@ export class MockRecordService implements IRecordService {
 
     const records = seedRecordsIfNeeded(moduleId)
     const filtered = (filters && filters.length > 0)
-      ? records.filter(r => (filters as FilterClause[]).every((c: FilterClause) => evaluateFilter(c, r.fields[c.field])))
+      ? records.filter(r => evaluateConditions(filters, r.fields))
       : records
 
     const lowerKeyword = (keyword ?? '').toLowerCase().trim()
@@ -268,12 +267,7 @@ export class MockRecordService implements IRecordService {
 
     const filters = params.filters
     if (filters && filters.length > 0) {
-      records = records.filter(record => {
-        return filters.every(clause => {
-          const fieldValue = record.fields[clause.field]
-          return evaluateFilter(clause, fieldValue)
-        })
-      })
+      records = records.filter(record => evaluateConditions(filters, record.fields))
     }
 
     const total = records.length

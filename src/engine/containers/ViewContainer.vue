@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ModuleSchema, QueryState, RecordEntity, UserViewConfig, FilterClause } from '@/types'
+import type { ModuleSchema, QueryState, RecordEntity, UserViewConfig, FilterCondition } from '@/types'
 import type { ViewMode } from '@/constants'
 
 const props = defineProps<{
@@ -13,7 +13,7 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  'query-change': [payload: { filters: FilterClause[]; sort: any; pagination: { page: number; pageSize: number } }]
+  'query-change': [payload: { filters: FilterCondition[]; sort: any; pagination: { page: number; pageSize: number } }]
   'cell-edit': [payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }]
   'open-quick-create': [payload: { field: string; targetModuleId: string }]
 }>()

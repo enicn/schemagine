@@ -4,10 +4,12 @@ import { ElTag, ElButton, ElMessageBox, ElDialog, ElSelect, ElOption } from 'ele
 import SchemaTable from '@/components/table/SchemaTable.vue'
 import SchemaPagination from '@/components/table/SchemaPagination.vue'
 import FieldEditorFactory from '@/components/field/FieldEditorFactory.vue'
+import SchemaFilterBar from '@/components/filter/SchemaFilterBar.vue'
 import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue } from '@/utils/fieldValidation'
-import { getOperatorLabel } from '@/utils/filterLabels'
+import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterSummary'
+import { flattenFilterConditions, removeFieldFromConditions, cloneFilterConditions, isFilterGroup } from '@/utils/filterConditions'
 import BottomTabs from '@/components/filter/BottomTabs.vue'
 import type { FilterTab } from '@/components/filter/BottomTabs.vue'
 import ListActionBar from '@/engine/actions/ListActionBar.vue'
@@ -17,7 +19,7 @@ import { usePermission } from '@/composables/usePermission'
 import { recordService } from '@/services/api/recordService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
-import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
+import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
 import type { AggregationItem } from '@/composables/useAggregation'
 
 const props = defineProps<{
@@ -32,7 +34,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'cell-edit': [payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }]
-  'query-change': [payload: { filters: FilterClause[]; sort: SortParam | null; pagination: { page: number; pageSize: number } }]
+  'query-change': [payload: { filters: FilterCondition[]; sort: SortParam | null; pagination: { page: number; pageSize: number } }]
   'open-quick-create': [payload: { field: string; targetModuleId: string }]
   'formula-detail-open': [payload: { field: string; rowId?: string }]
   'cell-click': [payload: { field: string; rowId: string | null }]
@@ -41,21 +43,15 @@ const emit = defineEmits<{
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'action-trigger': [payload: ActionTriggerEvent]
+  /** 保存视图变更(FilterPreset 增删/设默认),由 SchemaEngine 持久化到 UserViewConfig(docs/19 批次 E3) */
+  'presets-change': [presets: FilterPreset[]]
+  /** 列拖拽后的新列序(字段 key 列表),由 SchemaEngine 合并进 UserViewConfig.columns(docs/19 批次 E4) */
+  'column-order-change': [newOrder: string[]]
 }>()
 
-const filterSummaryItems = computed(() => {
-  const activeFilters = filters.value
-  const fieldMap = new Map(props.schema.fields.map(f => [f.key, f]))
-  return activeFilters.map(clause => {
-    const field = fieldMap.get(clause.field)
-    const label = field?.label ?? clause.field
-    const operator = clause.operator
-    const operatorLabel = getOperatorLabel(operator)
-    let valueLabel = String(clause.value ?? clause.values ?? '')
-    if (operator === 'isNull') valueLabel = '空'
-    else if (operator === 'isNotNull') valueLabel = '非空'
-    return { fieldKey: clause.field, label, operator, operatorLabel, valueLabel }
-  })
+// 摘要与 SchemaFilterBar 同一格式化口径(docs/19 批次 E;含组合过滤组拍平)
+const filterSummaryItems = computed<FilterSummaryItem[]>(() => {
+  return buildFilterSummaryItems(flattenFilterConditions(filters.value), props.schema.fields)
 })
 
 const hasActiveFilters = computed(() => filterSummaryItems.value.length > 0)
@@ -143,11 +139,13 @@ async function handleBatchEditConfirm(): Promise<void> {
   try {
     let okCount = 0
     let skipped = 0
+    let notLoaded = 0
     const failedRowIds: string[] = []
     for (const rowId of uiState.selectedRowIds) {
       const record = recordStore.getRecordById(rowId)
       if (!record) {
-        failedRowIds.push(rowId)
+        // 跨页勾选(docs/19 批次 E6)选中的行可能不在当前页数据里(拿不到乐观锁版本)
+        notLoaded++
         continue
       }
       if (record.fields[field.key] === value) {
@@ -168,10 +166,11 @@ async function handleBatchEditConfirm(): Promise<void> {
         failedRowIds.push(rowId)
       }
     }
+    const notLoadedNote = notLoaded > 0 ? `，${notLoaded} 条不在当前页已跳过` : ''
     if (failedRowIds.length > 0) {
-      uiState.showMessage(`已更新 ${okCount} 条，失败 ${failedRowIds.length} 条（可能存在版本冲突）`, 'warning')
+      uiState.showMessage(`已更新 ${okCount} 条，失败 ${failedRowIds.length} 条（可能存在版本冲突）${notLoadedNote}`, 'warning')
     } else {
-      uiState.showMessage(`已更新 ${okCount} 条${skipped > 0 ? `（跳过 ${skipped} 条未变化）` : ''}`, 'success')
+      uiState.showMessage(`已更新 ${okCount} 条${skipped > 0 ? `（跳过 ${skipped} 条未变化）` : ''}${notLoadedNote}`, 'success')
     }
     batchEditVisible.value = false
   } finally {
@@ -179,7 +178,8 @@ async function handleBatchEditConfirm(): Promise<void> {
   }
 }
 
-const filters = ref<FilterClause[]>([])
+// ── 查询状态:pageSize/defaultSort 从 UserViewConfig 恢复(保存侧见 query-change 上抛,docs/19 批次 E5)──
+const filters = ref<FilterCondition[]>([])
 
 watch(() => props.externalFilters, (newFilters) => {
   if (newFilters !== null && newFilters !== undefined) {
@@ -187,9 +187,93 @@ watch(() => props.externalFilters, (newFilters) => {
     currentPage.value = 1
   }
 }, { immediate: true })
-const currentSort = ref<SortParam | null>(null)
+
+const currentSort = ref<SortParam | null>(schemaMeta.viewConfig?.defaultSort ? { ...schemaMeta.viewConfig.defaultSort } : null)
 const currentPage = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(schemaMeta.viewConfig?.pageSize ?? 20)
+
+// ── 保存视图(docs/19 批次 E3):FilterPreset 命名保存当前过滤+排序,经 SchemaEngine 持久化 ──
+const presets = computed<FilterPreset[]>(() => schemaMeta.viewConfig?.filterPresets ?? [])
+const activePresetId = ref('')
+const activePreset = computed<FilterPreset | null>(() => presets.value.find(p => p.id === activePresetId.value) ?? null)
+const hasFilterableFields = computed(() => props.schema.fields.some(f => f.filterable))
+const showFilterControls = computed(() => hasFilterableFields.value || presets.value.length > 0)
+
+function applyPreset(preset: FilterPreset): void {
+  filters.value = cloneFilterConditions(preset.filters)
+  currentSort.value = preset.sort ? { ...preset.sort } : null
+  currentPage.value = 1
+  activePresetId.value = preset.id
+}
+
+function handlePresetSelect(presetId: string): void {
+  const preset = presets.value.find(p => p.id === presetId)
+  if (preset) applyPreset(preset)
+}
+
+function handlePresetClear(): void {
+  activePresetId.value = ''
+}
+
+/** 手动改动查询条件即视为离开视图上下文 */
+function markManualQueryChange(): void {
+  activePresetId.value = ''
+}
+
+async function handleSavePreset(): Promise<void> {
+  const defaultName = `视图 ${presets.value.length + 1}`
+  try {
+    const { value } = await ElMessageBox.prompt('保存当前筛选与排序为命名视图', '保存为视图', {
+      inputValue: defaultName,
+      inputPattern: /\S/,
+      inputErrorMessage: '请输入视图名称',
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+    })
+    const preset: FilterPreset = {
+      id: `preset-${Date.now().toString(36)}`,
+      name: value.trim(),
+      filters: cloneFilterConditions(filters.value),
+      sort: currentSort.value ? { ...currentSort.value } : undefined,
+    }
+    emit('presets-change', [...presets.value, preset])
+    activePresetId.value = preset.id
+    uiState.showMessage(`已保存视图「${preset.name}」`, 'success')
+  } catch {
+    // 用户取消
+  }
+}
+
+function handleToggleDefaultPreset(): void {
+  const target = activePreset.value
+  if (!target) return
+  const nextIsDefault = !target.isDefault
+  emit('presets-change', presets.value.map(p => ({ ...p, isDefault: p.id === target.id ? nextIsDefault : false })))
+  uiState.showMessage(nextIsDefault ? `已将「${target.name}」设为默认视图` : '已取消默认视图', 'success')
+}
+
+async function handleDeletePreset(): Promise<void> {
+  const target = activePreset.value
+  if (!target) return
+  try {
+    await ElMessageBox.confirm(`确定删除视图「${target.name}」？`, '删除视图', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger',
+    })
+  } catch {
+    return
+  }
+  emit('presets-change', presets.value.filter(p => p.id !== target.id))
+  if (activePresetId.value === target.id) activePresetId.value = ''
+}
+
+// 默认视图自动应用(宿主外部筛选优先)
+if (!props.externalFilters?.length) {
+  const defaultPreset = presets.value.find(p => p.isDefault)
+  if (defaultPreset) applyPreset(defaultPreset)
+}
 
 const aggregationSummary = computed<AggregationItem[]>(() => {
   return aggregation.compute(recordStore.records)
@@ -239,14 +323,25 @@ async function fetchData(): Promise<void> {
 
 watch([currentPage, pageSize, filters, currentSort], () => {
   fetchData()
+  // 查询状态上抛:SchemaEngine 据此把 pageSize/defaultSort 持久化到 UserViewConfig(仅真变化时写,docs/19 批次 E5)
+  emit('query-change', {
+    filters: filters.value,
+    sort: currentSort.value,
+    pagination: { page: currentPage.value, pageSize: pageSize.value },
+  })
 }, { immediate: true })
 
-function handleSearch(newFilters: FilterClause[]): void {
+/** 表头筛选状态/列表动作等只消费叶子子句的场景使用拍平视图 */
+const flatFilterClauses = computed<FilterClause[]>(() => flattenFilterConditions(filters.value))
+
+function handleSearch(newFilters: FilterCondition[]): void {
+  markManualQueryChange()
   filters.value = newFilters
   currentPage.value = 1
 }
 
 function handleSortChange(payload: { field: string; order: 'asc' | 'desc' | null }): void {
+  markManualQueryChange()
   if (payload.order) {
     currentSort.value = { field: payload.field, order: payload.order }
   } else {
@@ -256,7 +351,8 @@ function handleSortChange(payload: { field: string; order: 'asc' | 'desc' | null
 }
 
 function handleHeaderFilterChange(payload: { field: string; clause: FilterClause | null }): void {
-  const next = filters.value.filter(c => c.field !== payload.field)
+  // 表头筛选子句平铺在顶层(与组合过滤组整体 AND,docs/19 批次 E2)
+  const next = filters.value.filter(c => isFilterGroup(c) || c.field !== payload.field)
   if (payload.clause) next.push(payload.clause)
   handleSearch(next)
 }
@@ -267,8 +363,8 @@ function handleClearSort(): void {
 }
 
 function handleRemoveFilter(fieldKey: string): void {
-  const next = filters.value.filter(c => c.field !== fieldKey)
-  handleSearch(next)
+  // 组合过滤组(docs/19 批次 E2)内的子句同样按字段移除,组被清空时整组剔除
+  handleSearch(removeFieldFromConditions(filters.value, fieldKey))
 }
 
 function handleClearFilters(): void {
@@ -355,6 +451,20 @@ async function handleBatchDeleteClick(): Promise<void> {
 
 function handleSelectionChange(rowIds: string[]): void {
   uiState.setSelectedRows(rowIds)
+}
+
+// ── 跨页勾选(docs/19 批次 E6):vxe checkbox reserve 保留勾选,此处提供清空入口 ──
+const schemaTableRef = ref<InstanceType<typeof SchemaTable> | null>(null)
+
+function handleClearSelection(): void {
+  const table = schemaTableRef.value?.getTableInstance()
+  table?.clearCheckboxRow?.()
+  uiState.setSelectedRows([])
+}
+
+// ── 列拖拽持久化(docs/19 批次 E4):新列序上抛 SchemaEngine 合并进 UserViewConfig ──
+function handleColumnDragEnd(payload: { columns: unknown[]; newOrder: string[] }): void {
+  emit('column-order-change', payload.newOrder)
 }
 
 function handleOpenRelationEditor(payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }): void {
@@ -472,13 +582,8 @@ function handleRowClick(payload: { rowId: string }): void {
 }
 
 function handleListAction(payload: ActionTriggerEvent): void {
-  // 自定义列表动作上抛给 SchemaEngine -> 宿主
+  // 自定义列表动作上抛给 SchemaEngine -> 宿主(查询状态变化已由 watch 统一上抛)
   emit('action-trigger', payload)
-  emit('query-change', {
-    filters: filters.value,
-    sort: currentSort.value,
-    pagination: { page: currentPage.value, pageSize: pageSize.value },
-  })
 }
 
 const bottomTabsRef = ref<InstanceType<typeof BottomTabs> | null>(null)
@@ -492,14 +597,25 @@ const filterTabs = computed<FilterTab[]>(() => {
   if (!field) return []
   const options = field.options ?? []
 
+  // 计数:全部 = 服务端 total;各选项 = 当前页记录统计(展示口径)
+  const stats: Record<string, number> = {}
+  for (const r of recordStore.records) {
+    const v = r.fields[field.key]
+    if (v !== undefined && v !== null) {
+      const key = String(v)
+      stats[key] = (stats[key] ?? 0) + 1
+    }
+  }
+
   const tabs: FilterTab[] = [
-    { id: '__all__', label: '全部' },
+    { id: '__all__', label: '全部', count: recordStore.totalRecords },
   ]
 
   for (const opt of options) {
     tabs.push({
       id: `f:${field.key}:${String(opt.value)}`,
       label: opt.label,
+      count: stats[String(opt.value)] ?? 0,
       filter: { field: field.key, operator: 'eq', value: opt.value },
     })
   }
@@ -507,7 +623,10 @@ const filterTabs = computed<FilterTab[]>(() => {
 })
 
 const activeTabId = computed(() => {
-  const statusFilter = filters.value.find(f => f.field === bottomTabsField.value?.key && f.operator === 'eq')
+  const fieldKey = bottomTabsField.value?.key
+  const statusFilter = fieldKey
+    ? flatFilterClauses.value.find(f => f.field === fieldKey && f.operator === 'eq')
+    : undefined
   if (statusFilter && statusFilter.value !== undefined) {
     return `f:${statusFilter.field}:${String(statusFilter.value)}`
   }
@@ -515,18 +634,16 @@ const activeTabId = computed(() => {
 })
 
 function handleBottomTabChange(tabId: string): void {
+  const field = bottomTabsField.value
+  if (!field) return
   if (tabId === '__all__') {
-    const field = bottomTabsField.value
-    if (!field) return
-    const newFilters = filters.value.filter(f => f.field !== field.key)
+    const newFilters = filters.value.filter(f => isFilterGroup(f) || f.field !== field.key)
     handleSearch(newFilters)
     return
   }
   const tab = filterTabs.value.find(t => t.id === tabId)
   if (tab?.filter) {
-    const field = bottomTabsField.value
-    if (!field) return
-    const newFilters = filters.value.filter(f => f.field !== field.key)
+    const newFilters = filters.value.filter(f => isFilterGroup(f) || f.field !== field.key)
     newFilters.push(tab.filter)
     handleSearch(newFilters)
   }
@@ -535,12 +652,32 @@ function handleBottomTabChange(tabId: string): void {
 
 <template>
   <div class="list-view">
-    <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport || (canEditRecords && batchEditableFields.length > 0)" class="list-toolbar">
-      <div v-if="listActions.length > 0" class="list-toolbar__left">
-        <ListActionBar :actions="listActions" :active-filters="filters"
+    <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport || (canEditRecords && batchEditableFields.length > 0) || showFilterControls || showSelection"
+      class="list-toolbar">
+      <div v-if="listActions.length > 0 || showFilterControls" class="list-toolbar__left">
+        <SchemaFilterBar v-if="hasFilterableFields" :fields="schema.fields" :model-value="filters"
+          @update:model-value="handleSearch" @search="handleSearch" />
+        <template v-if="showFilterControls">
+          <ElSelect :model-value="activePresetId" placeholder="视图" size="small" clearable class="preset-select"
+            @change="handlePresetSelect" @clear="handlePresetClear">
+            <ElOption v-for="p in presets" :key="p.id" :value="p.id"
+              :label="p.isDefault ? `★ ${p.name}` : p.name" />
+          </ElSelect>
+          <ElButton size="small" text @click="handleSavePreset">存为视图</ElButton>
+          <ElButton v-if="activePreset" size="small" text @click="handleToggleDefaultPreset">
+            {{ activePreset.isDefault ? '取消默认' : '设为默认' }}
+          </ElButton>
+          <ElButton v-if="activePreset" size="small" text type="danger" @click="handleDeletePreset">删除视图</ElButton>
+          <span v-if="activePreset" class="preset-hint">当前视图：{{ activePreset.name }}</span>
+        </template>
+        <ListActionBar v-if="listActions.length > 0" :actions="listActions" :active-filters="flatFilterClauses"
           :selected-row-ids="uiState.selectedRowIds" @action-trigger="handleListAction" />
       </div>
-      <div v-if="canExport || deleteOps.canBatchDelete || (canEditRecords && batchEditableFields.length > 0)" class="list-toolbar__right">
+      <div v-if="canExport || deleteOps.canBatchDelete || (canEditRecords && batchEditableFields.length > 0) || showSelection" class="list-toolbar__right">
+        <ElButton v-if="showSelection && uiState.selectedRowIds.length > 0" size="small" text
+          @click="handleClearSelection">
+          清空选择
+        </ElButton>
         <ElButton v-if="canEditRecords && batchEditableFields.length > 0" size="small" plain
           :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">
           批量编辑{{ uiState.selectedRowIds.length > 0 ? ` (${uiState.selectedRowIds.length})` : '' }}
@@ -584,10 +721,12 @@ function handleBottomTabChange(tabId: string): void {
       </div>
     </div>
 
-    <SchemaTable :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []" :sort-state="currentSort"
-      :filter-clauses="filters" :editable="tableEditable" :selected-row-id="selectedRowId"
-      :show-selection="showSelection" :loading="recordStore.isLoading" :height="tableHeight" @sort-change="handleSortChange"
-      @filter-change="handleHeaderFilterChange" @row-click="handleRowClick" @cell-edit="handleCellEdit"
+    <SchemaTable ref="schemaTableRef" :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []"
+      :sort-state="currentSort" :filter-clauses="flatFilterClauses" :editable="tableEditable"
+      :selected-row-id="selectedRowId" :show-selection="showSelection" :loading="recordStore.isLoading"
+      :height="tableHeight" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
+      @row-click="handleRowClick" @cell-edit="handleCellEdit"
+      @column-drag-end="handleColumnDragEnd"
       @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
       @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"
       @edit-closed="(p: { rowId: string; field: string; value: unknown }) => emit('edit-closed', p)"
@@ -688,6 +827,16 @@ function handleBottomTabChange(tabId: string): void {
 
 .list-toolbar__right {
   margin-left: auto;
+}
+
+.preset-select {
+  width: 132px;
+}
+
+.preset-hint {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+  white-space: nowrap;
 }
 
 :deep(.schema-filter-bar) {

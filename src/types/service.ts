@@ -18,6 +18,18 @@ export interface FilterClause {
   values?: unknown[]
 }
 
+/**
+ * 组合过滤组（docs/19 批次 E2）：将若干条件以 and/or 组合，可嵌套。
+ * type:'group' 为判别字段——JSON 契约中与 FilterClause（无 type 字段）可靠区分。
+ */
+export interface FilterGroup {
+  type: 'group'
+  logic: 'and' | 'or'
+  conditions: FilterCondition[]
+}
+
+export type FilterCondition = FilterClause | FilterGroup
+
 export interface ApiResponse<T = unknown> {
   success: boolean
   data: T
@@ -28,7 +40,8 @@ export interface ApiResponse<T = unknown> {
 
 export interface ListQueryParams {
   moduleId: string
-  filters?: FilterClause[]
+  /** 过滤条件：顶层隐式 AND；组合逻辑（OR/嵌套）用 FilterGroup 表达（docs/19 批次 E2） */
+  filters?: FilterCondition[]
   sort?: SortParam
   page: number
   pageSize: number
@@ -55,7 +68,7 @@ export interface CreateRecordParams {
 }
 
 export interface QueryState {
-  filters: FilterClause[]
+  filters: FilterCondition[]
   sort: SortParam | null
   pagination: PaginationState
 }
@@ -93,7 +106,7 @@ export interface FieldValueCandidateQueryParams {
   keyword?: string
   page: number
   pageSize: number
-  filters?: FilterClause[]
+  filters?: FilterCondition[]
 }
 
 export interface FieldValueCandidateOption {

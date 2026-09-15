@@ -80,6 +80,46 @@ describe('createLocalRecordService list(docs/19 C1)', () => {
     expect(isNotNullResult.data.total).toBe(2)
   })
 
+  it('组合过滤(docs/19 E2):FilterGroup OR 组与顶层 AND 嵌套', async () => {
+    const svc = makeService()
+    // status='disabled' OR status='pending' → C + D
+    const orResult = await svc.list({
+      moduleId: 'module-demo',
+      page: 1,
+      pageSize: 10,
+      filters: [{
+        type: 'group',
+        logic: 'or',
+        conditions: [
+          { field: 'status', operator: 'eq', value: 'disabled' },
+          { field: 'status', operator: 'eq', value: 'pending' },
+        ],
+      }],
+    })
+    expect(orResult.data.total).toBe(2)
+    expect(orResult.data.records.map(r => r.fields.name).sort()).toEqual(['C 公司', 'D 公司'])
+
+    // 顶层 AND:amount=250 AND (status='active' OR status='pending') → B + D
+    const mixed = await svc.list({
+      moduleId: 'module-demo',
+      page: 1,
+      pageSize: 10,
+      filters: [
+        { field: 'amount', operator: 'eq', value: 250 },
+        {
+          type: 'group',
+          logic: 'or',
+          conditions: [
+            { field: 'status', operator: 'eq', value: 'active' },
+            { field: 'status', operator: 'eq', value: 'pending' },
+          ],
+        },
+      ],
+    })
+    expect(mixed.data.total).toBe(2)
+    expect(mixed.data.records.map(r => r.fields.name).sort()).toEqual(['B 公司', 'D 公司'])
+  })
+
   it('模块绑定:其他 moduleId 返回空池', async () => {
     const svc = makeService()
     const r = await svc.list({ moduleId: 'module-other', page: 1, pageSize: 10 })

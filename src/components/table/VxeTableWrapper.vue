@@ -2,6 +2,7 @@
 import { formatDateTimeCell } from '@/utils/recordRow'
 import { formatMoney } from '@/utils/formatMoney'
 import { resolveEnumColor, resolveEnumTagStyle } from '@/utils/enumTag'
+import { reorderColumnsByDrag } from '@/utils/columnDrag'
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { VxeTable, VxeColumn } from 'vxe-table'
 import { VxeLoading, getI18n } from 'vxe-pc-ui'
@@ -1109,7 +1110,17 @@ function handleCellDblclick(params: any): void {
 }
 
 function handleColumnDragEnd(params: any): void {
-  const newOrder: string[] = params.columns.map((col: any) => col.field)
+  // vxe column-dragend 事件参数不含完整列序(仅 old/new/dragColumn + dragPos),
+  // 且事件触发时实例列序尚未完成 nextTick 重排——由旧列序+拖拽信息确定性重建(docs/19 批次 E4)
+  const dragField = params?.dragColumn?.field as string | undefined
+  const targetField = params?.newColumn?.field as string | undefined
+  const dragPos = params?.dragPos as 'left' | 'right' | undefined
+  const newOrder = reorderColumnsByDrag(
+    props.columns.map(c => c.field),
+    dragField,
+    targetField,
+    dragPos,
+  )
   emit('column-drag-end', { columns: props.columns, newOrder })
 }
 
@@ -1119,10 +1130,18 @@ function handleSelectionChange(): void {
     emit('selection-change', [])
     return
   }
-  const records = (table.getCheckboxRecords() as Array<Record<string, unknown>>) ?? []
-  const ids = records
-    .map((r) => r[props.rowKey] as string)
-    .filter((id): id is string => !!id)
+  // checkbox reserve(docs/19 批次 E6):跨页勾选 = 当前页已选 ∪ 保留区已选,按行键去重
+  const current = (table.getCheckboxRecords() as Array<Record<string, unknown>>) ?? []
+  const reserved = ((table.getCheckboxReserveRecords?.() as Array<Record<string, unknown>>) ?? [])
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const r of [...current, ...reserved]) {
+    const id = r[props.rowKey] as string
+    if (id && !seen.has(id)) {
+      seen.add(id)
+      ids.push(id)
+    }
+  }
   emit('selection-change', ids)
 }
 
@@ -1492,7 +1511,7 @@ defineExpose({
       :show-overflow="'title'"
       :border="'inner'"
       :stripe="false"
-      :checkbox-config="{ highlight: true }"
+      :checkbox-config="{ highlight: true, reserve: true }"
       @sort-change="handleSortChange"
       @cell-click="handleCellClick"
       @cell-dblclick="handleCellDblclick"

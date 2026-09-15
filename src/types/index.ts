@@ -53,6 +53,8 @@ export type {
   SortParam,
   FilterOperator,
   FilterClause,
+  FilterGroup,
+  FilterCondition,
   PatchFieldParams,
   CreateRecordParams,
   QueryState,

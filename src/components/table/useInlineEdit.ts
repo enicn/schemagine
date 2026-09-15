@@ -322,14 +322,6 @@ export function useInlineEdit(
     activeEditCol.value = null
   }
 
-  function onTextareaEnter(e: KeyboardEvent, row: Record<string, unknown>, col: WrapperColumn): void {
-    if (e.ctrlKey || e.metaKey) {
-      return
-    }
-    e.preventDefault()
-    confirmEdit(row, col)
-  }
-
   function cancelEdit(): void {
     if (activeEditRow.value && activeEditCol.value) {
       emit('edit-closed', { row: activeEditRow.value, column: activeEditCol.value, value: editValue.value })
@@ -478,7 +470,6 @@ export function useInlineEdit(
     customEditorDef,
     startEdit,
     confirmEdit,
-    onTextareaEnter,
     cancelEdit,
     toggleEditValue,
     getFkLabel,

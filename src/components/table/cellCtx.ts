@@ -48,7 +48,6 @@ export function createCellCtx(entries: {
   editValue: Ref<any>
   confirmEdit: (row: Record<string, unknown>, col: WrapperColumn) => void
   cancelEdit: () => void
-  onTextareaEnter: (e: KeyboardEvent, row: Record<string, unknown>, col: WrapperColumn) => void
   toggleEditValue: () => void
   fkDropdownOpen: Ref<boolean>
   toggleFkDropdown: () => void

@@ -443,23 +443,34 @@ export type RuntimeGlobalContext = Record<string, unknown>
 export interface RuntimeContextState {
   global: Ref<RuntimeGlobalContext>['value']
   setGlobal: (value: RuntimeGlobalContext) => void
+  /** 当前用户角色列表（docs/19 G3）：FieldPermission.roleBased 判定输入 */
+  currentRoles: string[]
+  setRoles: (roles: string[]) => void
   $reset: () => void
 }
 
-export function createRuntimeContextState(initial?: RuntimeGlobalContext) {
+export function createRuntimeContextState(initial?: RuntimeGlobalContext, initialRoles?: string[]) {
   const global = ref<RuntimeGlobalContext>(initial ?? {})
+  const roles = ref<string[]>(initialRoles ?? [])
 
   function setGlobal(value: RuntimeGlobalContext): void {
     global.value = value
   }
 
+  function setRoles(next: string[]): void {
+    roles.value = [...next]
+  }
+
   function $reset(): void {
     global.value = {}
+    roles.value = []
   }
 
   return reactive({
     global,
     setGlobal,
+    currentRoles: roles,
+    setRoles,
     $reset,
   })
 }

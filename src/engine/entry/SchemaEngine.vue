@@ -35,6 +35,8 @@ const props = defineProps<{
   density?: 'compact' | 'default' | 'large'
   /** 引擎语言（docs/19 G1）：语言包须先经 registerLocale 注册；未传保持当前语言 */
   locale?: string
+  /** 当前用户角色（docs/19 G3）：FieldPermission.roleBased 判定输入 */
+  currentRoles?: string[]
 }>()
 
 // 引擎语言注入（docs/19 G1）：宿主经 locale prop 切换（语言包先 registerLocale 注册）
@@ -58,7 +60,7 @@ const emit = defineEmits<{
 const schemaMeta = createSchemaMetaState()
 const recordStore = createRecordState()
 const uiState = createUiState()
-const runtimeContext = createRuntimeContextState(props.globalContext ?? {})
+const runtimeContext = createRuntimeContextState(props.globalContext ?? {}, props.currentRoles ?? [])
 
 provide(SCHEMA_META_KEY, schemaMeta)
 provide(RECORD_STATE_KEY, recordStore)
@@ -129,6 +131,15 @@ watch(
     runtimeContext.setGlobal(ctx ?? {})
   },
   { deep: true },
+)
+
+// 角色注入（docs/19 G3）：宿主传入当前用户角色，驱动 roleBased 字段权限
+watch(
+  () => props.currentRoles,
+  (roles) => {
+    runtimeContext.setRoles(roles ?? [])
+  },
+  { immediate: true },
 )
 
 watch(() => uiState.viewMode, (mode) => {

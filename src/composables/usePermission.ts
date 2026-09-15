@@ -1,9 +1,24 @@
-import { computed } from 'vue'
-import { useSchemaMeta, type SchemaMetaState } from '@/composables/instanceState'
+import { computed, getCurrentInstance, inject } from 'vue'
+import { useSchemaMeta, RUNTIME_CONTEXT_KEY, type RuntimeContextState, type SchemaMetaState } from '@/composables/instanceState'
 import { resolveDataOperations, type ResolvedDataOperations } from '@/utils/dataOperations'
+import { resolveRoleOverride } from '@/utils/rolePermission'
 
-export function usePermission(schemaMetaParam?: SchemaMetaState) {
+/** 无 provider 时的角色上下文兜底（空角色 = roleBased 不参与判定） */
+const EMPTY_RUNTIME: RuntimeContextState = {
+  global: {},
+  setGlobal: () => {},
+  currentRoles: [],
+  setRoles: () => {},
+  $reset: () => {},
+}
+
+export function usePermission(schemaMetaParam?: SchemaMetaState, runtimeContextParam?: RuntimeContextState) {
   const schemaMeta = schemaMetaParam ?? useSchemaMeta()
+  // 角色来源（docs/19 G3）：优先显式注入；引擎树内取运行时上下文；
+  // 独立使用（无 provider，如单测/宿主直挂）回退空角色——roleBased 不生效、行为同旧版
+  const runtimeContext = runtimeContextParam
+    ?? (getCurrentInstance() ? (inject<RuntimeContextState>(RUNTIME_CONTEXT_KEY) ?? EMPTY_RUNTIME) : EMPTY_RUNTIME)
+  const currentRoles = computed(() => runtimeContext.currentRoles)
 
   const canView = computed(() => schemaMeta.permissions?.view ?? false)
   const canCreate = computed(() => schemaMeta.permissions?.create ?? false)
@@ -23,7 +38,9 @@ export function usePermission(schemaMetaParam?: SchemaMetaState) {
     const field = schemaMeta.getField(fieldKey)
     if (!field) return false
     if (!field.visible) return false
-    if (field.permission && !field.permission.visible) return false
+    const override = resolveRoleOverride(field.permission?.roleBased, currentRoles.value)
+    if (override === false) return false
+    if (field.permission && !field.permission.visible && override !== true) return false
     return true
   }
 
@@ -31,8 +48,10 @@ export function usePermission(schemaMetaParam?: SchemaMetaState) {
     const field = schemaMeta.getField(fieldKey)
     if (!field) return false
     if (field.readonly) return false
-    if (field.permission && !field.permission.editable) return false
-    return canEdit.value
+    const override = resolveRoleOverride(field.permission?.roleBased, currentRoles.value)
+    if (override === false) return false
+    if (field.permission && !field.permission.editable && override !== true) return false
+    return override === true ? true : canEdit.value
   }
 
   function filterVisibleFields(fields: Array<{ key: string }>): Array<{ key: string }> {

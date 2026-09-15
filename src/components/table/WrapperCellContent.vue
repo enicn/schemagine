@@ -79,14 +79,6 @@ const ctx = props.ctx
           @keydown.enter="ctx.confirmEdit(row, col)"
           @keydown.escape="ctx.cancelEdit"
         />
-        <!-- textarea -->
-        <textarea
-          v-else-if="col.fieldType === 'textarea'"
-          v-model="ctx.editValue"
-          class="edit-inline__input edit-inline__textarea"
-          @keydown.enter.prevent="ctx.onTextareaEnter($event, row, col)"
-          @keydown.escape="ctx.cancelEdit"
-        />
         <!-- boolean：toggle switch 切换预览，确认后才保存 -->
         <button
           v-else-if="col.fieldType === 'boolean'"

@@ -1,72 +1,30 @@
+<script lang="ts">
+// WrapperColumn 已迁移至 wrapperTypes.ts；保留此 re-export 以兼容既有导入路径
+export type { WrapperColumn } from './wrapperTypes'
+</script>
+
 <script setup lang="ts">
 import { formatDateTimeCell } from '@/utils/recordRow'
-import { formatMoney } from '@/utils/formatMoney'
-import { resolveEnumColor, resolveEnumTagStyle } from '@/utils/enumTag'
 import { reorderColumnsByDrag } from '@/utils/columnDrag'
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { VxeTable, VxeColumn } from 'vxe-table'
 import { VxeLoading, getI18n } from 'vxe-pc-ui'
 import 'vxe-table/lib/style.css'
 import 'vxe-pc-ui/lib/style.css'
 import type { VxeTableInstance } from 'vxe-table'
 import { ElPopover, ElInput, ElCheckbox, ElCheckboxGroup, ElButton, ElSwitch } from 'element-plus'
-import { candidateService } from '@/services/api/candidateService'
-import { recordService } from '@/services/api/recordService'
-import { mediaService } from '@/services/api/mediaService'
 import MediaImageCell from '@/components/field/MediaImageCell.vue'
 import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
-import type { CandidateOption, Condition, FilterClause, FieldValueCandidateOption } from '@/types'
-import { evaluateCondition } from '@/utils/condition'
-import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
-import { validateFieldValue } from '@/utils/fieldValidation'
+import type { FilterClause } from '@/types'
 import { resolveScrollY } from './virtualScroll'
-import type { Component } from 'vue'
-
-export interface WrapperColumn {
-  field: string
-  title: string
-  width?: number
-  fixed?: 'left' | 'right'
-  sortable?: boolean
-  visible: boolean
-  align?: 'left' | 'center' | 'right'
-  formatter?: (params: any) => string
-  isAction?: boolean
-  /** 危险操作样式（如标准删除操作） */
-  actionDanger?: boolean
-  /** 行级显隐条件：逐行以行数据为 record 上下文求值，false 时该行不渲染此操作按钮 */
-  actionVisibleWhen?: Condition
-  /** 未声明 width 的数据列携带 min-width：vxe 把表格剩余宽度平均分给带 min-width 的列（仅省略 width 不参与分配） */
-  minWidth?: number
-  isRelation?: boolean
-  cellClass?: (params: { value: unknown }) => string
-  fieldType?: string
-  targetModule?: string
-  selectOptions?: Array<{ label: string; value: string | number | boolean; color?: string }>
-  /** 枚举值 → 颜色（select/multi-select/status 字段），options[].color 优先（见 utils/enumTag） */
-  statusMap?: Record<string, string>
-  trueLabel?: string
-  falseLabel?: string
-  /** boolean true 标签自定义 CSS 类（引擎预设：cell-boolean--neutral 灰色；也可传业务自有类） */
-  trueLabelClass?: string
-  falseLabelClass?: string
-  /** fk 字段：下拉底部快速新建开关（透传 FieldSchema.quickCreate） */
-  quickCreate?: boolean
-  /** 列头筛选显式候选值模式（Excel 式）：数值/日期列缺省走关键词/时间段筛选，
-   *  声明后覆盖为候选值列表（datetime 后端按天分桶）；其余列无需声明即候选值优先 */
-  filterCandidates?: boolean
-  /** 字段绝对只读：任何权限/入口都禁止进入编辑态（与后端 editablePatch 更新跳过 readonly 对齐） */
-  readonly?: boolean
-  /** 有限编辑：禁止行内编辑，仅创建/专用通道可改（readonly 之外的可编辑性调节旋钮） */
-  editMode?: 'standard' | 'limited'
-  highlightStyle?: string
-  decimal?: number
-  decimalMode?: 'fixed' | 'max' | 'range'
-  maxDecimal?: number
-  /** 字段 Schema 引用:自定义字段渲染器/插槽上下文使用(独立使用 VxeTableWrapper 时可缺省) */
-  fieldSchema?: import('@/types').FieldSchema
-}
+import { useColumnBuilding } from './useColumnBuilding'
+import { useFkOptions } from './useFkOptions'
+import { useCellRendering } from './useCellRendering'
+import { useHeaderFilter } from './useHeaderFilter'
+import { useInlineEdit } from './useInlineEdit'
+import { useCellDetail } from './useCellDetail'
+import type { WrapperColumn } from './wrapperTypes'
 
 const ROW_HEIGHT = 44
 const HEADER_HEIGHT = 49
@@ -123,808 +81,111 @@ const emit = defineEmits<{
 }>()
 
 const tableRef = ref<VxeTableInstance | null>(null)
-
-/** 插槽透传（docs/19 B2）：field → 宿主插槽名 */
-function cellSlotName(col: WrapperColumn): string | undefined {
-  return props.cellSlots?.[col.field]
-}
-function headerSlotName(col: WrapperColumn): string | undefined {
-  return props.headerSlots?.[col.field]
-}
+const wrapperRef = ref<HTMLDivElement | null>(null)
 
 /** 暴露底层 vxe-table 实例与操作(docs/19 B2):宿主可调用 clearSort/scrollTo 等 vxe API */
 function getTableInstance(): VxeTableInstance | null {
   return tableRef.value
 }
 
-const visibleColumns = computed(() => props.columns.filter(c => c.visible))
-const relationColumns = computed(() => visibleColumns.value.filter(c => c.isRelation))
-// 操作列（type:'action'）：独立渲染为固定右侧的标准操作列，不参与排序/隐藏/拖拽
-const opColumns = computed(() => visibleColumns.value.filter(c => c.isAction))
-const dataColumns = computed(() => visibleColumns.value.filter(c => !c.isRelation && !c.isAction))
-/**
- * 操作列宽度 = 两侧留白 + 各按钮实测文本宽之和 + 按钮间距。
- *
- * 历史两版都是静态估算（先 80/按钮，后 48/按钮与字段显式 width 取大），短文案按钮
- * 实际只有 2~4 字，静态值让操作列长期比内容宽出一倍。现按 canvas measureText 以
- * .op-link 实际字体逐按钮测宽（中英混排皆准），字段显式 width 不再参与计价；
- * 行级 visibleWhen 只会隐藏按钮，计价恒按全量按钮集合（最坏行）取值。
- */
-const OP_COLUMN_PADDING = 16
-/** 操作按钮间距 */
-const OP_LINK_GAP = 12
+// ---- 列构建（拆分：useColumnBuilding） ----
+const {
+  visibleColumns,
+  relationColumns,
+  opColumns,
+  dataColumns,
+  opColumnWidth,
+  visibleOps,
+  cellSlotName,
+  headerSlotName,
+} = useColumnBuilding(props, tableRef)
 
-let opTextCtx: CanvasRenderingContext2D | null | undefined
-/** 以 .op-link 实际字体（token：--sg-font-size-md + --sg-font-family）测按钮文本宽 */
-function measureOpTextWidth(text: string): number {
-  if (!text) return 0
-  if (opTextCtx === undefined) {
-    opTextCtx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
-  }
-  if (!opTextCtx) return text.length * 13
-  const s = getComputedStyle((tableRef.value?.$el as HTMLElement | undefined) ?? document.documentElement)
-  opTextCtx.font = `${s.getPropertyValue('--sg-font-size-md').trim() || '13px'} ${s.getPropertyValue('--sg-font-family').trim() || 'sans-serif'}`
-  return opTextCtx.measureText(text).width
-}
+// ---- FK 候选缓存（拆分：useFkOptions，行内编辑/渲染/浮层共用） ----
+const fk = useFkOptions(props)
 
-const opColumnWidth = computed(() => {
-  const buttons = opColumns.value
-  if (buttons.length === 0) return 0
-  // 计价取「行内实际同时可见按钮集合」中的最宽者：行级 visibleWhen 让多数行只渲染
-  // 全量按钮的子集（如账号行恒为 重置密码+冻结|解冻+解锁、不含解绑微信），按全量
-  // 集合计价会让操作列在每行都空出一截。无数据行时回退全量集合（旧的最坏行口径）。
-  let priced = buttons
-  if (props.data.length > 0) {
-    let maxWidth = -1
-    for (const row of props.data) {
-      const ops = visibleOps(row)
-      const width = ops.reduce((s, c) => s + measureOpTextWidth(c.title), 0)
-      if (width > maxWidth) {
-        maxWidth = width
-        priced = ops
-      }
-    }
-    if (priced.length === 0) priced = buttons
-  }
-  const content = priced.reduce((w, c) => w + measureOpTextWidth(c.title), 0)
-  return Math.ceil(OP_COLUMN_PADDING * 2 + OP_LINK_GAP * (priced.length - 1) + content)
+// ---- 单元格渲染（拆分：useCellRendering） ----
+const {
+  hasFilterMatch,
+  getCellHighlightHtml,
+  getBooleanStateClass,
+  isEnumColumn,
+  hasEnumTagStyle,
+  getEnumCellHtml,
+  formatDisplay,
+  relationFormatter,
+  openImage,
+} = useCellRendering({
+  fkOptionsCache: () => fk.fkOptionsCache.value,
+  resolveFkLabel: fk.resolveFkLabel,
+  filterClauses: () => props.filterClauses,
 })
 
-/** 逐行求值操作按钮显隐：声明了 visibleWhen 的按钮按行数据过滤，未声明的恒可见 */
-function visibleOps(row: Record<string, unknown>): WrapperColumn[] {
-  return opColumns.value.filter(
-    c => !c.actionVisibleWhen || evaluateCondition(c.actionVisibleWhen, { record: row, global: {} }),
-  )
-}
+// ---- 表头筛选（拆分：useHeaderFilter） ----
+const {
+  headerMenuField,
+  headerMenuKeyword,
+  headerMenuOptions,
+  headerMenuSelectedKeys,
+  headerMenuLoading,
+  headerFilterMode,
+  headerFilterRange,
+  isCandidateMode,
+  onRangePick,
+  RANGE_PRESETS,
+  applyRangePreset,
+  isDatetimeCol,
+  isDateOnlyCol,
+  modeSwitchable,
+  facetValueKey,
+  getHeaderFilterClause,
+  handleHeaderPopoverVisibleChange,
+  headerSelectAll,
+  headerSelectIndeterminate,
+  toggleHeaderSelectAll,
+  loadMoreHeaderMenuOptions,
+  applyHeaderSort,
+  applyHeaderFilter,
+  clearHeaderFilter,
+} = useHeaderFilter(props, emit)
 
-const headerMenuField = ref<string | null>(null)
-const headerMenuKeyword = ref('')
-const headerMenuOptions = ref<FieldValueCandidateOption[]>([])
-const headerMenuSelectedKeys = ref<string[]>([])
-const headerMenuLoading = ref(false)
-const headerMenuPage = ref(1)
-const headerMenuHasMore = ref(false)
-
-/** 表头筛选模式：keyword=关键词包含匹配（默认）；candidates=候选值多选；range=时间段（date/datetime 列专用） */
-type HeaderFilterMode = 'keyword' | 'candidates' | 'range'
-const headerFilterMode = ref<HeaderFilterMode>('keyword')
-const headerFilterRange = ref<[string, string] | null>(null)
-
-function onRangePick(val: [string, string] | null): void {
-  headerFilterRange.value = val
-}
-
-/** 时间段快捷预设：一键填充并应用（订单管理等按天/周/月看数据的最高频动作） */
-const RANGE_PRESETS = [
-  { key: 'today', label: '本日' },
-  { key: 'yesterday', label: '昨日' },
-  { key: 'last7', label: '近7天' },
-  { key: 'week', label: '本周' },
-  { key: 'lastweek', label: '上周' },
-  { key: 'month', label: '本月' },
-  { key: 'lastmonth', label: '上月' },
-] as const
-
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`
-}
-function fmtDay(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-
-function presetRange(key: string): [Date, Date] {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const DAY = 86400000
-  const mondayOf = (d: Date, weeksAgo = 0): Date => {
-    const dow = (d.getDay() + 6) % 7 // 周一=0（国内周起始惯例）
-    return new Date(d.getTime() - (dow + weeksAgo * 7) * DAY)
-  }
-  switch (key) {
-    case 'today': return [today, today]
-    case 'yesterday': { const d = new Date(today.getTime() - DAY); return [d, d] }
-    case 'last7': return [new Date(today.getTime() - 6 * DAY), today]
-    case 'week': return [mondayOf(today), new Date(mondayOf(today).getTime() + 6 * DAY)]
-    case 'lastweek': return [mondayOf(today, 1), new Date(mondayOf(today, 1).getTime() + 6 * DAY)]
-    case 'month': return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 0)]
-    case 'lastmonth': return [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)]
-    default: return [today, today]
-  }
-}
-
-/** 应用时间段预设：按列的时间格式填充起止（date-only 补全天边界）并立即生效 */
-function applyRangePreset(field: string, key: string): void {
-  const col = props.columns.find(c => c.field === field)
-  const dayOnly = isDateOnlyCol(col ?? {})
-  const [s, e] = presetRange(key)
-  headerFilterRange.value = dayOnly ? [fmtDay(s), fmtDay(e)] : [`${fmtDay(s)} 00:00:00`, `${fmtDay(e)} 23:59:59`]
-  applyHeaderFilter(field)
-}
-
-function isDatetimeCol(col: { fieldType?: string }): boolean {
-  return col.fieldType === 'date' || col.fieldType === 'datetime'
-}
-function isDateOnlyCol(col: { fieldType?: string }): boolean {
-  return col.fieldType === 'date'
-}
-/** 数值型列（含金额/百分比/货币）：缺省关键词筛选，显式 filterCandidates 才覆盖为候选值 */
-function isNumericCol(col: { fieldType?: string }): boolean {
-  return col.fieldType === 'number' || col.fieldType === 'money' || col.fieldType === 'currency' || col.fieldType === 'percent'
-}
-
-/** 该列是否允许在弹层里切换「候选值/关键词」双模式：日期/数值列仅在显式声明候选值时开放 */
-function modeSwitchable(col: { fieldType?: string; filterCandidates?: boolean }): boolean {
-  if (col.filterCandidates) return true
-  return !isDatetimeCol(col) && !isNumericCol(col)
-}
-
-const isCandidateMode = computed({
-  get: () => headerFilterMode.value === 'candidates',
-  set: (v: boolean) => {
-    headerFilterMode.value = v ? 'candidates' : 'keyword'
-  },
+// ---- 行内编辑（拆分：useInlineEdit） ----
+const {
+  editingRowId,
+  editValue,
+  editingCol,
+  fkQuickCreateVisible,
+  fkFilteredOptions,
+  fkLoading,
+  fkSearchText,
+  fkDropdownOpen,
+  openFkQuickCreate,
+  handleFkQuickCreated,
+  isEditing,
+  customEditorDef,
+  startEdit,
+  confirmEdit,
+  onTextareaEnter,
+  cancelEdit,
+  toggleEditValue,
+  getFkLabel,
+  toggleFkDropdown,
+  closeFkDropdown,
+  selectFkOption,
+  clearFkSelection,
+  mediaPickerVisible,
+  mediaUploading,
+  mediaFileInput,
+  openMediaPicker,
+  onMediaPicked,
+  triggerMediaUpload,
+  onMediaFileChange,
+  clearMediaSelection,
+} = useInlineEdit(emit, {
+  rowKey: () => props.rowKey,
+  visibleColumns: () => visibleColumns.value,
+  wrapperRef,
+  fk,
 })
-
-function facetValueKey(value: unknown): string {
-  if (typeof value === 'string') return `s:${value}`
-  if (typeof value === 'number') return `n:${value}`
-  if (typeof value === 'boolean') return `b:${value}`
-  return `o:${String(value)}`
-}
-
-function getHeaderFilterClause(field: string): FilterClause | undefined {
-  return props.filterClauses?.find(c => c.field === field)
-}
-
-function initHeaderMenuForField(field: string): void {
-  headerMenuField.value = field
-  headerMenuOptions.value = []
-  headerMenuPage.value = 1
-  headerMenuHasMore.value = false
-
-  // 先恢复既有子句对应的模式（between→时间段、like→关键词、in/eq→候选值勾选）
-  const clause = getHeaderFilterClause(field)
-  if (clause?.operator === 'between' && Array.isArray(clause.values)) {
-    headerFilterMode.value = 'range'
-    headerFilterRange.value = [String(clause.values[0] ?? ''), String(clause.values[1] ?? '')]
-    return
-  }
-  if (clause?.operator === 'like') {
-    headerFilterMode.value = 'keyword'
-    headerMenuKeyword.value = typeof clause.value === 'string' ? clause.value : ''
-    headerMenuSelectedKeys.value = []
-    return
-  }
-  if (clause && (clause.operator === 'in' || clause.operator === 'notIn')) {
-    headerFilterMode.value = 'candidates'
-    const values = Array.isArray(clause.values) ? clause.values : []
-    headerMenuSelectedKeys.value = values.map(v => facetValueKey(v))
-    return
-  }
-  if (clause?.operator === 'eq') {
-    headerFilterMode.value = 'candidates'
-    headerMenuSelectedKeys.value = clause.value === undefined ? [] : [facetValueKey(clause.value)]
-    return
-  }
-
-  // 无既有子句时的默认模式（Excel 式：打开即见去重候选值）：
-  // - 数值/日期列缺省仍走关键词/时间段，仅显式声明 filterCandidates 才覆盖为候选值；
-  // - 其余列（文本/枚举/外键/布尔）候选值优先，可经开关切回关键词。
-  const col = props.columns.find(c => c.field === field)
-  if (isDatetimeCol(col ?? {}) && !col?.filterCandidates) {
-    headerFilterMode.value = 'range'
-    headerFilterRange.value = null
-    return
-  }
-  if (isNumericCol(col ?? {}) && !col?.filterCandidates) {
-    headerFilterMode.value = 'keyword'
-    headerMenuKeyword.value = ''
-    headerMenuSelectedKeys.value = []
-    return
-  }
-  headerFilterMode.value = 'candidates'
-  headerMenuKeyword.value = ''
-  headerMenuSelectedKeys.value = []
-}
-
-async function loadHeaderMenuOptions(reset: boolean): Promise<void> {
-  const field = headerMenuField.value
-  if (!field) return
-  if (headerMenuLoading.value) return
-  headerMenuLoading.value = true
-
-  const filters = (props.filterClauses ?? []).filter(c => c.field !== field)
-  const page = reset ? 1 : headerMenuPage.value
-
-  try {
-    const res = await recordService.listFieldValueCandidates({
-      moduleId: props.moduleId,
-      field,
-      keyword: headerMenuKeyword.value || undefined,
-      page,
-      pageSize: 50,
-      filters,
-    })
-    if (!res.success) return
-    if (headerMenuField.value !== field) return
-
-    const nextOptions = reset ? [] : [...headerMenuOptions.value]
-    const existingKeys = new Set(nextOptions.map(o => facetValueKey(o.value)))
-    for (const opt of res.data.options) {
-      const key = facetValueKey(opt.value)
-      if (!existingKeys.has(key)) {
-        nextOptions.push(opt)
-        existingKeys.add(key)
-      }
-    }
-
-    headerMenuOptions.value = nextOptions
-    headerMenuHasMore.value = res.data.hasMore
-    headerMenuPage.value = page
-  } finally {
-    headerMenuLoading.value = false
-  }
-}
-
-function handleHeaderPopoverVisibleChange(field: string, visible: boolean): void {
-  if (visible) {
-    initHeaderMenuForField(field)
-    // 候选值模式才需要拉取候选值；关键词模式零请求
-    if (headerFilterMode.value === 'candidates') {
-      loadHeaderMenuOptions(true)
-    }
-    return
-  }
-  if (headerMenuField.value === field) {
-    headerMenuField.value = null
-  }
-}
-
-// 切到候选值模式时按需加载候选值（首次打开为关键词模式时不发请求）
-watch(headerFilterMode, (mode) => {
-  if (!headerMenuField.value) return
-  if (mode === 'candidates' && !headerMenuLoading.value && headerMenuOptions.value.length === 0) {
-    headerMenuPage.value = 1
-    void loadHeaderMenuOptions(true)
-  }
-})
-
-let headerKeywordTimer: number | null = null
-watch(headerMenuKeyword, () => {
-  if (!headerMenuField.value) return
-  // 关键词模式下输入即为目标筛选词，点「确定」才生效，不触发候选值搜索
-  if (!isCandidateMode.value) return
-  if (headerKeywordTimer !== null) window.clearTimeout(headerKeywordTimer)
-  headerKeywordTimer = window.setTimeout(() => {
-    if (!headerMenuField.value) return
-    headerMenuPage.value = 1
-    headerMenuOptions.value = []
-    headerMenuHasMore.value = false
-    loadHeaderMenuOptions(true)
-  }, 250)
-})
-
-const headerSelectAll = computed(() => {
-  if (headerMenuOptions.value.length === 0) return false
-  return headerMenuSelectedKeys.value.length === headerMenuOptions.value.length
-})
-
-const headerSelectIndeterminate = computed(() => {
-  if (headerMenuOptions.value.length === 0) return false
-  return headerMenuSelectedKeys.value.length > 0 && headerMenuSelectedKeys.value.length < headerMenuOptions.value.length
-})
-
-function toggleHeaderSelectAll(checked: boolean): void {
-  if (!checked) {
-    headerMenuSelectedKeys.value = []
-    return
-  }
-  headerMenuSelectedKeys.value = headerMenuOptions.value.map((o: FieldValueCandidateOption) => facetValueKey(o.value))
-}
-
-function loadMoreHeaderMenuOptions(): void {
-  if (!headerMenuHasMore.value || headerMenuLoading.value) return
-  headerMenuPage.value += 1
-  loadHeaderMenuOptions(false)
-}
-
-function applyHeaderSort(field: string, order: 'asc' | 'desc' | null): void {
-  emit('sort-change', { field, order })
-  headerMenuField.value = null
-}
-
-function applyHeaderFilter(field: string): void {
-  if (headerFilterMode.value === 'range') {
-    // 时间段筛选：起止齐全 → between 子句；任一为空 → 清除该列筛选。
-    // date 列产出日期-only 值：start 补 00:00:00、end 补 23:59:59，
-    // 使后端 gte/lte 边界语义与「按天选择」直觉一致（否则 lte=当天00:00 会排除当天）。
-    const rv = headerFilterRange.value
-    if (!rv || !rv[0] || !rv[1]) {
-      emit('filter-change', { field, clause: null })
-    } else {
-      const col = props.columns.find(c => c.field === field)
-      const dayOnly = isDateOnlyCol(col ?? {})
-      const startVal = dayOnly && /^\d{4}-\d{2}-\d{2}$/.test(rv[0]) ? `${rv[0]} 00:00:00` : rv[0]
-      const endVal = dayOnly && /^\d{4}-\d{2}-\d{2}$/.test(rv[1]) ? `${rv[1]} 23:59:59` : rv[1]
-      emit('filter-change', { field, clause: { field, operator: 'between', values: [startVal, endVal] } })
-    }
-    headerMenuField.value = null
-    return
-  }
-  if (!isCandidateMode.value) {
-    // 关键词筛选：非空 → like 子句；空 → 清除该列筛选
-    const keyword = headerMenuKeyword.value.trim()
-    if (!keyword) {
-      emit('filter-change', { field, clause: null })
-    } else {
-      emit('filter-change', { field, clause: { field, operator: 'like', value: keyword } })
-    }
-    headerMenuField.value = null
-    return
-  }
-
-  const keys = headerMenuSelectedKeys.value
-  if (!keys || keys.length === 0) {
-    emit('filter-change', { field, clause: null })
-  } else {
-    const map = new Map(headerMenuOptions.value.map(o => [facetValueKey(o.value), o.value]))
-    const values = keys.map(k => map.get(k)).filter(v => v !== undefined)
-    emit('filter-change', { field, clause: { field, operator: 'in', values } })
-  }
-  headerMenuField.value = null
-}
-
-function clearHeaderFilter(field: string): void {
-  emit('filter-change', { field, clause: null })
-  headerMenuField.value = null
-}
-
-const editingRowId = ref<string | null>(null)
-const editingField = ref<string | null>(null)
-const editValue = ref<any>('')
-/** 当前编辑会话上下文（B5：edit-closed 事件需要 row/column，Esc 取消路径无入参，从这里取） */
-const activeEditRow = ref<Record<string, unknown> | null>(null)
-const activeEditCol = ref<WrapperColumn | null>(null)
-const fkOptions = ref<CandidateOption[]>([])
-const fkOptionsCache = ref<Map<string, CandidateOption[]>>(new Map())
-const resolvingFkIds = ref<Set<string>>(new Set())
-const fkLoading = ref(false)
-const fkSearchText = ref('')
-const fkDropdownOpen = ref(false)
-let fkTargetModule = ''
-
-// fk 快速新建（col.quickCreate）：弹窗创建成功后把新记录置顶候选并自动选中，待用户确认落库
-const fkQuickCreateVisible = ref(false)
-const editingCol = computed(() => visibleColumns.value.find(c => c.field === editingField.value))
-
-function openFkQuickCreate(): void {
-  fkQuickCreateVisible.value = true
-}
-
-function handleFkQuickCreated(payload: { id: string; label: string; value: string }): void {
-  fkQuickCreateVisible.value = false
-  const opt: CandidateOption = { value: payload.value, label: payload.label }
-  fkOptions.value = [opt, ...fkOptions.value.filter(o => o.value !== payload.value)]
-  if (fkTargetModule) {
-    const cache = new Map(fkOptionsCache.value)
-    cache.set(fkTargetModule, fkOptions.value)
-    fkOptionsCache.value = cache
-  }
-  editValue.value = payload.value
-}
-
-const fkFilteredOptions = computed(() => {
-  const search = fkSearchText.value.toLowerCase().trim()
-  if (!search) return fkOptions.value
-  return fkOptions.value.filter(o => o.label.toLowerCase().includes(search))
-})
-
-function isEditing(rowId: string, field: string): boolean {
-  return editingRowId.value === rowId && editingField.value === field
-}
-
-const EDIT_SCROLL_PADDING = 8
-
-function ensureInlineEditorInView(): void {
-  const root = wrapperRef.value
-  if (!root) return
-
-  const debugEnabled = typeof window !== 'undefined' && (
-    (window as any).__SCHEMAGINE_VXE_DEBUG__ === true
-    || window.localStorage?.getItem('SCHEMAGINE_VXE_DEBUG') === '1'
-  )
-
-  const editingCell = root.querySelector('.vxe-body--column.is-editing-cell') as HTMLElement | null
-  if (!editingCell) return
-
-  const bodyWrapper = (editingCell.closest('.vxe-table--body-wrapper') as HTMLElement | null)
-    || (root.querySelector('.vxe-table--body-wrapper') as HTMLElement | null)
-  if (!bodyWrapper) return
-
-  const editor = editingCell.querySelector('.edit-inline') as HTMLElement | null
-  if (!editor) return
-
-  const dropdown = editingCell.querySelector('.fk-edit-dropdown') as HTMLElement | null
-  const target = dropdown || editor
-
-  const bodyRect = bodyWrapper.getBoundingClientRect()
-  const horizontalScrollbarHeight = Math.max(0, bodyWrapper.offsetHeight - bodyWrapper.clientHeight)
-  const targetRect = target.getBoundingClientRect()
-  const topLimit = bodyRect.top + EDIT_SCROLL_PADDING
-  const bottomLimit = bodyRect.bottom - EDIT_SCROLL_PADDING - horizontalScrollbarHeight
-
-  if (targetRect.bottom > bottomLimit) {
-    const delta = targetRect.bottom - bottomLimit
-    const prevScrollTop = bodyWrapper.scrollTop
-    bodyWrapper.scrollTop += delta
-    const canScroll = bodyWrapper.scrollHeight > bodyWrapper.clientHeight + 1
-    const didScroll = bodyWrapper.scrollTop !== prevScrollTop
-    const flipY = !canScroll || !didScroll
-    editingCell.classList.toggle('vxe-inline-flip-y', flipY)
-    if (debugEnabled) {
-      console.log('[VxeTableWrapper] ensureInlineEditorInView: scroll down', {
-        delta,
-        prevScrollTop,
-        scrollTop: bodyWrapper.scrollTop,
-        clientHeight: bodyWrapper.clientHeight,
-        offsetHeight: bodyWrapper.offsetHeight,
-        scrollHeight: bodyWrapper.scrollHeight,
-        horizontalScrollbarHeight,
-        canScroll,
-        didScroll,
-        flipY,
-        bodyRect: { top: bodyRect.top, bottom: bodyRect.bottom, height: bodyRect.height },
-        targetRect: { top: targetRect.top, bottom: targetRect.bottom, height: targetRect.height },
-        topLimit,
-        bottomLimit,
-      })
-    }
-  }
-  if (targetRect.top < topLimit) {
-    const delta = topLimit - targetRect.top
-    const prevScrollTop = bodyWrapper.scrollTop
-    bodyWrapper.scrollTop -= delta
-    editingCell.classList.remove('vxe-inline-flip-y')
-    if (debugEnabled) {
-      console.log('[VxeTableWrapper] ensureInlineEditorInView: scroll up', {
-        delta,
-        prevScrollTop,
-        scrollTop: bodyWrapper.scrollTop,
-        clientHeight: bodyWrapper.clientHeight,
-        offsetHeight: bodyWrapper.offsetHeight,
-        scrollHeight: bodyWrapper.scrollHeight,
-        horizontalScrollbarHeight,
-        bodyRect: { top: bodyRect.top, bottom: bodyRect.bottom, height: bodyRect.height },
-        targetRect: { top: targetRect.top, bottom: targetRect.bottom, height: targetRect.height },
-        topLimit,
-        bottomLimit,
-      })
-    }
-  }
-
-  if (debugEnabled) {
-    const cellRect = editingCell.getBoundingClientRect()
-    console.log('[VxeTableWrapper] ensureInlineEditorInView: layout snapshot', {
-      isDropdown: !!dropdown,
-      bodyWrapperClass: bodyWrapper.className,
-      bodyWrapperTag: bodyWrapper.tagName,
-      bodyWrapperScrollTop: bodyWrapper.scrollTop,
-      bodyWrapperClientHeight: bodyWrapper.clientHeight,
-      bodyWrapperScrollHeight: bodyWrapper.scrollHeight,
-      horizontalScrollbarHeight,
-      cellRect: { top: cellRect.top, bottom: cellRect.bottom, height: cellRect.height },
-      bodyRect: { top: bodyRect.top, bottom: bodyRect.bottom, height: bodyRect.height },
-      targetRect: { top: targetRect.top, bottom: targetRect.bottom, height: targetRect.height },
-      topLimit,
-      bottomLimit,
-    })
-  }
-}
-
-function focusInlineEditor(): void {
-  const root = wrapperRef.value
-  if (!root) return
-
-  const editingCell = root.querySelector('.vxe-body--column.is-editing-cell') as HTMLElement | null
-  if (!editingCell) return
-
-  const editor = editingCell.querySelector('.edit-inline') as HTMLElement | null
-  if (!editor) return
-
-  const preferred = editor.querySelector('.edit-inline__textarea, .edit-inline__input, .edit-inline__select, .fk-edit-trigger, .toggle-switch') as HTMLElement | null
-  const fallback = editor.querySelector('input, textarea, select, button, [tabindex]:not([tabindex="-1"])') as HTMLElement | null
-  const target = preferred || fallback
-  target?.focus?.()
-}
-
-function getPercentageDisplayValue(raw: unknown): number {
-  const num = Number(raw)
-  return isNaN(num) ? 0 : num * 100
-}
-
-function getDecimalPlaces(value: number): number {
-  if (!isFinite(value)) return 0
-  const str = String(value)
-  const dotIndex = str.indexOf('.')
-  if (dotIndex === -1) return 0
-  const places = str.length - dotIndex - 1
-  return places
-}
-
-function validateDecimal(value: unknown, col: WrapperColumn): string | null {
-  if (value == null || value === '') return null
-  if (col.fieldType !== 'number' && col.fieldType !== 'currency' && col.fieldType !== 'money' && col.fieldType !== 'percent') return null
-  if (col.decimal == null) return null
-  const num = Number(value)
-  if (isNaN(num)) return null
-  const actualPlaces = getDecimalPlaces(num)
-  const mode = col.decimalMode ?? 'fixed'
-  const maxDec = mode === 'range' ? (col.maxDecimal ?? col.decimal) : col.decimal
-  if (actualPlaces <= maxDec) return null
-  return `最多允许${maxDec}位小数，当前${actualPlaces}位`
-}
-
-/** 自定义字段类型（docs/19 B1）：返回注册的编辑器组件，未注册返回 undefined */
-function customEditorDef(col: WrapperColumn): Component | undefined {
-  if (!col.fieldType) return undefined
-  return getFieldTypeDefinition(col.fieldType)?.editor
-}
-
-async function startEdit(row: Record<string, unknown>, col: WrapperColumn, rowIndex?: number): Promise<void> {
-  // 双保险：绝对只读/有限编辑字段不进编辑态（正常路径已在 handleCellDblclick 拦截）
-  if (col.readonly || col.editMode === 'limited') return
-  const rowId = row[props.rowKey] as string
-  editingRowId.value = rowId
-  editingField.value = col.field
-  activeEditRow.value = row
-  activeEditCol.value = col
-  if (col.fieldType === 'percent') {
-    editValue.value = getPercentageDisplayValue(row[col.field])
-  } else if (col.fieldType && col.fieldSchema) {
-    // 自定义字段类型（docs/19 B1）：经 toEditorValue 适配回显，缺省原样透传
-    const def = getFieldTypeDefinition(col.fieldType)
-    editValue.value = def?.toEditorValue ? def.toEditorValue(row[col.field], col.fieldSchema) : row[col.field]
-  } else {
-    editValue.value = row[col.field]
-  }
-  fkDropdownOpen.value = false
-  fkSearchText.value = ''
-  emit('edit-activated', { row, column: col, rowIndex: rowIndex ?? -1 })
-
-  const debugEnabled = typeof window !== 'undefined' && (
-    (window as any).__SCHEMAGINE_VXE_DEBUG__ === true
-    || window.localStorage?.getItem('SCHEMAGINE_VXE_DEBUG') === '1'
-  )
-  if (debugEnabled) {
-    console.log('[VxeTableWrapper] startEdit', {
-      rowId,
-      field: col.field,
-      fieldType: col.fieldType,
-      width: col.width,
-    })
-  }
-
-  void nextTick().then(() => {
-    ensureInlineEditorInView()
-    focusInlineEditor()
-  })
-
-  if (col.fieldType === 'fk' && col.targetModule) {
-    fkTargetModule = col.targetModule
-    const cached = fkOptionsCache.value.get(col.targetModule)
-    if (cached) {
-      fkOptions.value = cached
-    } else {
-      fkLoading.value = true
-      try {
-        const res = await candidateService.query({
-          targetModule: col.targetModule,
-          page: 1,
-          pageSize: 500,
-        })
-        if (res.success) {
-          fkOptions.value = res.data.options
-          const cache = new Map(fkOptionsCache.value)
-          cache.set(col.targetModule, res.data.options)
-          fkOptionsCache.value = cache
-        }
-      } finally {
-        fkLoading.value = false
-      }
-    }
-  }
-}
-
-function confirmEdit(row: Record<string, unknown>, col: WrapperColumn): void {
-  let val = editValue.value
-  if (col.fieldType === 'percent') {
-    val = Number(val) / 100
-  } else if (col.fieldType && col.fieldSchema) {
-    // 自定义字段类型（docs/19 B1）：经 toRecordValue 适配保存值，缺省原样透传
-    const def = getFieldTypeDefinition(col.fieldType)
-    if (def?.toRecordValue) val = def.toRecordValue(val, col.fieldSchema)
-  }
-  const error = validateDecimal(val, col)
-  if (error) {
-    cancelEdit()
-    import('element-plus').then(({ ElMessage }) => {
-      ElMessage.warning(`${col.title}: ${error}`)
-    })
-    return
-  }
-  // docs/19 批次 D3:共享校验器(与创建保存/快速创建同口径);error 拦截,warning 放行仅提示
-  if (col.fieldSchema) {
-    const validation = validateFieldValue(col.fieldSchema, val)
-    if (!validation.valid) {
-      cancelEdit()
-      import('element-plus').then(({ ElMessage }) => {
-        ElMessage.warning(`${col.title}: ${validation.errors[0]}`)
-      })
-      return
-    }
-    if (validation.warnings.length > 0) {
-      import('element-plus').then(({ ElMessage }) => {
-        ElMessage.info(`${col.title}: ${validation.warnings[0]}`)
-      })
-    }
-  }
-  const field = col.field
-  const oldValue = row[field]
-  if (val !== oldValue && !(val === '' && oldValue == null)) {
-    emit('inline-edit', { row, field, value: val, oldValue })
-    row[field] = val
-  }
-  emit('edit-closed', { row, column: col, value: val })
-  editingRowId.value = null
-  editingField.value = null
-  activeEditRow.value = null
-  activeEditCol.value = null
-}
-
-function onTextareaEnter(e: KeyboardEvent, row: Record<string, unknown>, col: WrapperColumn): void {
-  if (e.ctrlKey || e.metaKey) {
-    return
-  }
-  e.preventDefault()
-  confirmEdit(row, col)
-}
-
-function cancelEdit(): void {
-  if (activeEditRow.value && activeEditCol.value) {
-    emit('edit-closed', { row: activeEditRow.value, column: activeEditCol.value, value: editValue.value })
-  }
-  editingRowId.value = null
-  editingField.value = null
-  activeEditRow.value = null
-  activeEditCol.value = null
-  fkSearchText.value = ''
-  fkDropdownOpen.value = false
-}
-
-function toggleEditValue(): void {
-  editValue.value = !editValue.value
-}
-
-function getFkLabel(value: unknown): string {
-  if (value == null || value === '') return ''
-  const idStr = String(value)
-  const opt = fkOptions.value.find(o => String(o.value) === idStr)
-  return opt?.label || String(value)
-}
-
-function toggleFkDropdown(): void {
-  fkDropdownOpen.value = !fkDropdownOpen.value
-  if (fkDropdownOpen.value) {
-    fkSearchText.value = ''
-    nextTick(() => {
-      ensureInlineEditorInView()
-      const input = document.querySelector('.fk-edit-search-input') as HTMLInputElement | null
-      input?.focus()
-    })
-  }
-}
-
-function closeFkDropdown(): void {
-  fkDropdownOpen.value = false
-  fkSearchText.value = ''
-}
-
-function selectFkOption(opt: CandidateOption): void {
-  editValue.value = opt.value
-  fkDropdownOpen.value = false
-  fkSearchText.value = ''
-}
-
-function clearFkSelection(): void {
-  editValue.value = ''
-}
-
-// ---- mediaImage 行内编辑：媒体库选择 / 上传新资源 / 清除 ----
-const mediaPickerVisible = ref(false)
-const mediaUploading = ref(false)
-const mediaFileInput = ref<HTMLInputElement | null>(null)
-
-function openMediaPicker(): void {
-  mediaPickerVisible.value = true
-}
-
-function onMediaPicked(asset: { id: string }): void {
-  editValue.value = asset.id
-}
-
-function triggerMediaUpload(e?: Event): void {
-  // VxeTable 把单元格 slot 挂到内部单元格实例，template ref 解析不到父组件 setup 作用域；
-  // 且列表有多行 media-edit，必须就近定位「被点按钮所在行」的 input，避免点到别的行。
-  // 用真实事件 target（永不为 null）沿 .media-edit 向上找本行 input，比 ref/currentTarget 都稳。
-  let input: HTMLInputElement | null = null
-  const el = (e?.target ?? e?.currentTarget) as HTMLElement | null
-  const container = el?.closest('.media-edit') as HTMLElement | null
-  if (container) {
-    input = container.querySelector('input[type="file"]') as HTMLInputElement | null
-  }
-  if (!input) input = mediaFileInput.value
-  input?.click()
-}
-
-function onMediaFileChange(e: Event): void {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  mediaUploading.value = true
-  mediaService
-    .upload(file)
-    .then((res) => {
-      if (res.success) {
-        editValue.value = res.data.id
-      } else {
-        import('element-plus').then(({ ElMessage }) => ElMessage.error(res.message || '上传失败'))
-      }
-    })
-    .finally(() => {
-      mediaUploading.value = false
-    })
-}
-
-function clearMediaSelection(): void {
-  editValue.value = ''
-}
-
-// ===== 截断单元格内容查看：单击省略单元格原地弹出完整内容 =====
-// 动机：列宽不足时长值被省略，原生 title 悬停提示慢且不可复制；原地展开会撑开行高，
-// 且仍受列宽约束。自管浮层（Teleport+fixed 定位）以单元格为锚，开关只由 cellDetail
-// 单一状态机决定——不用 el-popover 的 trigger/click-outside 机制：换格点击时旧弹层的
-// 外点关闭会在新弹层打开后再次触发，把刚打开的弹层秒关（事件周期冲突）。
-// 宽度策略：随内容自适应（width:max-content），上限 400px（.schemagine-cell-detail-panel 样式）。
-const CELL_DETAIL_GAP = 6
-const cellDetail = ref<{
-  visible: boolean
-  triggerEl: HTMLElement | null
-  title: string
-  content: string
-}>({ visible: false, triggerEl: null, title: '', content: '' })
-const cellDetailPanelRef = ref<HTMLDivElement | null>(null)
-const cellDetailPos = ref<{ left: number; top: number }>({ left: 0, top: 0 })
 
 /** 单元格展示全文（与列渲染同口径：datetime 走专用格式化，fk 直读缓存避免 formatDisplay 的 HTML 转义，其余走 formatDisplay） */
 function getCellDetailText(row: Record<string, unknown>, col: WrapperColumn): string {
@@ -934,134 +195,29 @@ function getCellDetailText(row: Record<string, unknown>, col: WrapperColumn): st
     return formatDateTimeCell(value, col.fieldType)
   }
   if (col.fieldType === 'fk' && col.targetModule) {
-    const cached = fkOptionsCache.value.get(col.targetModule)
+    const cached = fk.fkOptionsCache.value.get(col.targetModule)
     const opt = cached?.find(o => String(o.value) === String(value))
     return opt ? opt.label : String(value)
   }
   return formatDisplay(value, col)
 }
 
-function closeCellDetail(): void {
-  cellDetail.value = { visible: false, triggerEl: null, title: '', content: '' }
-}
-
-/** 渲染后按锚单元格定位：贴下方起始，空间不足翻到上方，左右夹在视口内 */
-function positionCellDetailPanel(): void {
-  const el = cellDetail.value.triggerEl
-  const panel = cellDetailPanelRef.value
-  if (!el || !panel) return
-  const r = el.getBoundingClientRect()
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const pw = panel.offsetWidth
-  const ph = panel.offsetHeight
-  const left = Math.min(Math.max(r.left, 8), Math.max(8, vw - pw - 8))
-  let top = r.bottom + CELL_DETAIL_GAP
-  if (top + ph > vh - 8) {
-    top = r.top - ph - CELL_DETAIL_GAP
-    if (top < 8) top = Math.max(8, vh - ph - 8)
-  }
-  cellDetailPos.value = { left: Math.round(left), top: Math.round(top) }
-}
-
-/** 溢出判定：裁剪可能发生在 .vxe-cell 或其带 ellipsis 的后代（如 .cell-value span）上，须逐层检查 */
-function isContentTruncated(root: HTMLElement | null): boolean {
-  if (!root) return false
-  if (root.scrollWidth > root.clientWidth + 1) return true
-  for (const el of root.querySelectorAll<HTMLElement>('*')) {
-    if (el.scrollWidth > el.clientWidth + 1) return true
-  }
-  return false
-}
-
-/** 单击单元格时尝试打开内容浮层：仅当内容真的被省略（横向溢出）时弹出 */
-function maybeOpenCellDetail(params: any, col: WrapperColumn): void {
-  // 媒体/图片单元格无可省略文本；编辑态单元格交给行内编辑器
-  if (col.isAction || col.fieldType === 'mediaImage' || col.fieldType === 'image' || col.fieldType === 'attachment') return
-  if (isEditing(params.row[props.rowKey], col.field)) return
-  const cellEl = (tableRef.value?.getCellElement(params.row, params.column) as HTMLElement | null) ?? null
-  // 再点同一格 → 收起（点外部/其他格的收起走 onCellDetailOutsidePointerDown，不与此处竞争）
-  if (cellDetail.value.visible && cellDetail.value.triggerEl && cellDetail.value.triggerEl === cellEl) {
-    closeCellDetail()
-    return
-  }
-  const inner = cellEl?.querySelector('.vxe-cell') as HTMLElement | null
-  const text = getCellDetailText(params.row, col)
-  if (!text || !isContentTruncated(inner)) {
-    closeCellDetail()
-    return
-  }
-  cellDetail.value = { visible: true, triggerEl: cellEl, title: col.title, content: text }
-  void nextTick(positionCellDetailPanel)
-}
-
-async function copyCellDetail(): Promise<void> {
-  const text = cellDetail.value.content
-  if (!text) return
-  const { ElMessage } = await import('element-plus')
-  try {
-    await navigator.clipboard.writeText(text)
-    ElMessage.success('已复制')
-  } catch {
-    // 非安全上下文（http 内网部署）无 navigator.clipboard，回落隐藏 textarea + execCommand
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.opacity = '0'
-    document.body.appendChild(ta)
-    ta.select()
-    try {
-      if (document.execCommand('copy')) {
-        ElMessage.success('已复制')
-      } else {
-        ElMessage.error('复制失败，请手动选择复制')
-      }
-    } catch {
-      ElMessage.error('复制失败，请手动选择复制')
-    } finally {
-      ta.remove()
-    }
-  }
-}
-
-function onCellDetailKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') closeCellDetail()
-}
-
-// 浮层打开期间的点外部收起：面板内部与锚单元格自身的 pointerdown 忽略
-// （锚单元格忽略是为了让单击切换语义完整到达 maybeOpenCellDetail 的同格判断）
-function onCellDetailOutsidePointerDown(e: PointerEvent): void {
-  const target = e.target as Node | null
-  if (!target) return
-  if (cellDetailPanelRef.value?.contains(target)) return
-  if (cellDetail.value.triggerEl?.contains(target)) return
-  closeCellDetail()
-}
-
-// 任意容器滚动（表体/页面容器）都可能让锚易位或错位，统一收起；面板内部滚动除外
-function onCellDetailScroll(e: Event): void {
-  const target = e.target as Node | null
-  if (target && cellDetailPanelRef.value?.contains(target)) return
-  closeCellDetail()
-}
-
-function onCellDetailResize(): void {
-  closeCellDetail()
-}
-
-watch(() => cellDetail.value.visible, (v) => {
-  if (v) {
-    window.addEventListener('keydown', onCellDetailKeydown, true)
-    window.addEventListener('pointerdown', onCellDetailOutsidePointerDown, true)
-    window.addEventListener('scroll', onCellDetailScroll, true)
-    window.addEventListener('resize', onCellDetailResize)
-  } else {
-    window.removeEventListener('keydown', onCellDetailKeydown, true)
-    window.removeEventListener('pointerdown', onCellDetailOutsidePointerDown, true)
-    window.removeEventListener('scroll', onCellDetailScroll, true)
-    window.removeEventListener('resize', onCellDetailResize)
-  }
+// ---- 截断内容查看浮层（拆分：useCellDetail） ----
+const {
+  cellDetail,
+  cellDetailPanelRef,
+  cellDetailPos,
+  closeCellDetail,
+  maybeOpenCellDetail,
+  copyCellDetail,
+} = useCellDetail({
+  tableRef,
+  rowKey: () => props.rowKey,
+  isEditing,
+  getCellDetailText,
 })
+
+// ---- vxe 事件转发：薄封装，组合上述各域并向宿主上抛 ----
 
 function handleSortChange(params: any): void {
   const { field, order } = params
@@ -1145,12 +301,16 @@ function handleSelectionChange(): void {
   emit('selection-change', ids)
 }
 
-const wrapperRef = ref<HTMLDivElement | null>(null)
+function handleRelationClick(col: WrapperColumn, row: Record<string, unknown>): void {
+  emit('relation-click', { row, column: col })
+}
+
+// ---- 容器高度自适应：无 fixedRowCount 时以 ResizeObserver 观测容器实际高度 ----
+
 const observerHeight = ref(0)
 const isObserving = ref(false)
 
 let resizeObserver: ResizeObserver | null = null
-let fkClickOutsideHandler: ((e: MouseEvent) => void) | null = null
 
 function startObserving(): void {
   if (resizeObserver || !wrapperRef.value) return
@@ -1173,111 +333,21 @@ function stopObserving(): void {
   }
 }
 
-function bindFkClickOutside(): void {
-  if (fkClickOutsideHandler) return
-  fkClickOutsideHandler = (e: MouseEvent) => {
-    if (fkDropdownOpen.value) {
-      const target = e.target as HTMLElement | null
-      if (target && !target.closest('.fk-edit-dropdown') && !target.closest('.fk-edit-trigger')) {
-        closeFkDropdown()
-      }
-    }
-  }
-  document.addEventListener('click', fkClickOutsideHandler, true)
-}
-
-function unbindFkClickOutside(): void {
-  if (fkClickOutsideHandler) {
-    document.removeEventListener('click', fkClickOutsideHandler, true)
-    fkClickOutsideHandler = null
-  }
-}
-
 onMounted(() => {
   if (!props.fixedRowCount) {
     startObserving()
   }
-  preloadFkOptions()
-  bindFkClickOutside()
+  fk.preloadFkOptions()
 })
 
 onUnmounted(() => {
   stopObserving()
-  unbindFkClickOutside()
-  // 内容浮层若在打开状态，随组件卸载摘除全部 window 监听
-  window.removeEventListener('keydown', onCellDetailKeydown, true)
-  window.removeEventListener('pointerdown', onCellDetailOutsidePointerDown, true)
-  window.removeEventListener('scroll', onCellDetailScroll, true)
-  window.removeEventListener('resize', onCellDetailResize)
 })
-
-function preloadFkOptions(): void {
-  const fkColumns = props.columns.filter(c => c.fieldType === 'fk' && c.targetModule)
-  for (const col of fkColumns) {
-    const module = col.targetModule!
-    reloadFkOptionsForModule(module)
-  }
-}
-
-async function reloadFkOptionsForModule(module: string): Promise<void> {
-  try {
-    const res = await candidateService.query({
-      targetModule: module,
-      page: 1,
-      pageSize: 500,
-    })
-    if (res.success) {
-      const cache = new Map(fkOptionsCache.value)
-      cache.set(module, res.data.options)
-      fkOptionsCache.value = cache
-    }
-  } catch {
-    // keep existing cache on error
-  }
-}
-
-async function resolveFkLabel(targetModule: string, id: string): Promise<void> {
-  const dedupeKey = `${targetModule}:${id}`
-  if (resolvingFkIds.value.has(dedupeKey)) return
-  // 已缓存（含失败 fallback）则不再请求，避免重渲染时无限重试
-  const cached = fkOptionsCache.value.get(targetModule)
-  if (cached && cached.some(o => String(o.value) === id)) return
-  resolvingFkIds.value = new Set([...resolvingFkIds.value, dedupeKey])
-
-  let resolvedLabel: string | null = null
-  try {
-    const res = await recordService.getDetail(targetModule, id)
-    if (res.success) {
-      const record = res.data
-      const labelField = record.fields.name ?? record.fields.label ?? record.fields.title
-      if (typeof labelField === 'string') resolvedLabel = labelField
-    }
-  } catch {
-    // keep showing raw value
-  } finally {
-    // 无论成功失败都写入 fallback 缓存：成功用真实 label，失败用原始 id
-    // 这样下次 formatDisplay 命中缓存，不再触发请求
-    const label = resolvedLabel ?? id
-    const newOpt: CandidateOption = { value: id, label }
-    const cache = new Map(fkOptionsCache.value)
-    const existing = cache.get(targetModule) || []
-    if (!existing.some(o => String(o.value) === id)) {
-      cache.set(targetModule, [newOpt, ...existing])
-    }
-    fkOptionsCache.value = cache
-    const next = new Set(resolvingFkIds.value)
-    next.delete(dedupeKey)
-    resolvingFkIds.value = next
-  }
-}
 
 watch(() => props.data, () => {
   // 数据刷新会整体重渲染行，浮层锚元素随时失效，先行收起
   closeCellDetail()
-  const fkColumns = props.columns.filter(c => c.fieldType === 'fk' && c.targetModule)
-  for (const col of fkColumns) {
-    reloadFkOptionsForModule(col.targetModule!)
-  }
+  fk.preloadFkOptions()
 })
 
 const tableHeight = computed(() => {
@@ -1333,152 +403,6 @@ function getRowClassName({ row }: any): string {
 // 筛选/排序下拉按钮（▼）一并带入，这里显式只取列名
 function columnDragTooltipMethod({ column }: { column: { title?: string | number } }): string {
   return getI18n('vxe.table.dragTip', [String(column?.title ?? '')]) as string
-}
-
-function handleRelationClick(col: WrapperColumn, row: Record<string, unknown>): void {
-  emit('relation-click', { row, column: col })
-}
-
-function relationFormatter(col: WrapperColumn): string {
-  return col.formatter ? col.formatter({ cellValue: undefined, row: {}, column: col }) : '查看'
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function getFilterClause(col: WrapperColumn): FilterClause | undefined {
-  if (!props.filterClauses) return undefined
-  return props.filterClauses.find(c => c.field === col.field)
-}
-
-function hasFilterMatch(col: WrapperColumn): boolean {
-  return !!getFilterClause(col)
-}
-
-function getCellHighlightHtml(value: unknown, col: WrapperColumn): string {
-  const clause = getFilterClause(col)
-  if (!clause) return escapeHtml(formatDisplay(value, col))
-
-  const textValue = formatDisplay(value, col)
-  if (!textValue) return ''
-
-  const defaultStyle = 'background:var(--sg-color-highlight);color:var(--sg-color-on-highlight);font-weight:bold;padding:0 var(--sg-spacing-1);border-radius:var(--sg-radius-xs)'
-  const style = col.highlightStyle || defaultStyle
-  const escaped = escapeHtml(textValue)
-
-  if (clause.operator === 'like' && clause.value != null) {
-    const keyword = String(clause.value)
-    if (!keyword) return escaped
-    const regex = new RegExp(`(${escapeRegex(keyword)})`, 'gi')
-    const html = escaped.replace(regex, (match) => `<span class="filter-match-highlight" style="${style}">${match}</span>`)
-    if (html !== escaped) return html
-  }
-
-  return `<span class="filter-match-highlight" style="${style}">${escaped}</span>`
-}
-
-/** boolean 列默认状态配色：是=绿 / 否=红；业务可用 trueLabelClass/falseLabelClass 覆盖（如灰色预设 cell-boolean--neutral） */
-function getBooleanStateClass(value: unknown): string {
-  return value ? 'cell-boolean--yes' : 'cell-boolean--no'
-}
-
-/** select / multi-select / status 三类枚举列（有候选值或 statusMap 才可能出彩色标签） */
-function isEnumColumn(col: WrapperColumn): boolean {
-  return (col.fieldType === 'select' || col.fieldType === 'multi-select' || col.fieldType === 'status')
-    && (!!col.selectOptions && col.selectOptions.length > 0 || !!col.statusMap)
-}
-
-/** 任一取值声明了颜色才走彩色标签通道，其余完全回落既有渲染（零声明零变化） */function hasEnumTagStyle(value: unknown, col: WrapperColumn): boolean {
-  if (value == null || value === '') return false
-  const parts = Array.isArray(value) ? value : [value]
-  return parts.some(part => resolveEnumColor(part, col.selectOptions, col.statusMap) != null)
-}
-
-/**
- * 枚举列单元格 HTML：逐值渲染彩色标签（声明了颜色的用取色三件套，
- * 未声明的取值回落默认蓝标签样式类）。
- */
-function getEnumCellHtml(value: unknown, col: WrapperColumn): string {
-  const parts = Array.isArray(value) ? value : [value]
-  return parts
-    .map(part => {
-      const label = escapeHtml(formatDisplay(part, col))
-      const style = resolveEnumTagStyle(resolveEnumColor(part, col.selectOptions, col.statusMap))
-      const css = style
-        ? ` style="background:${style.background};color:${style.color};border-color:${style.borderColor}"`
-        : ''
-      return `<span class="cell-tag"${css}>${label}</span>`
-    })
-    .join('')
-}
-
-function formatDisplay(value: unknown, col: WrapperColumn): string {
-  // 操作列（type:'action'）没有底层数据值，必须优先用 formatter 渲染动作标签（如「删除」），
-  // 否则 value==null 会提前返回空字符串导致单元格空白。
-  if (col.formatter) {
-    return col.formatter({ cellValue: value })
-  }
-  if (value == null) return ''
-  // 自定义字段类型（docs/19 批次 B1）：命中注册渲染器时按注册渲染（经 v-html 信任输出）
-  if (col.fieldType && col.fieldSchema) {
-    const customDef = getFieldTypeDefinition(col.fieldType)
-    if (customDef?.renderToHtml) {
-      return customDef.renderToHtml({ value, field: col.fieldSchema })
-    }
-  }
-  if (col.fieldType === 'boolean') {
-    return value ? (col.trueLabel || '是') : (col.falseLabel || '否')
-  }
-  // money：默认两位小数，源数据存在更高位有效小数时按实际位数展示（口径见 utils/formatMoney）
-  if (col.fieldType === 'money') {
-    return formatMoney(value)
-  }
-  if (col.fieldType === 'percent') {
-    const num = Number(value)
-    const decimal = col.decimal ?? 0
-    const mode = col.decimalMode ?? 'fixed'
-    if (mode === 'max') {
-      return isNaN(num) ? String(value) : `${(num * 100).toString()}%`
-    }
-    return isNaN(num) ? String(value) : `${(num * 100).toFixed(decimal)}%`
-  }
-  if (col.fieldType === 'fk' && col.targetModule) {
-    const cachedOptions = fkOptionsCache.value.get(col.targetModule)
-    if (cachedOptions) {
-      // 统一转 string 比较：后端 FK 字段值可能是 number，而缓存 option.value 是 string
-      const idStr = String(value)
-      const opt = cachedOptions.find(o => String(o.value) === idStr)
-      if (opt) return opt.label
-    }
-    resolveFkLabel(col.targetModule, String(value))
-    return escapeHtml(String(value))
-  }
-  if (col.selectOptions) {
-    if (Array.isArray(value)) {
-      return value.map(v => {
-        const opt = col.selectOptions!.find(o => o.value === v)
-        return opt?.label || String(v)
-      }).join(', ')
-    }
-    const opt = col.selectOptions.find(o => o.value === value)
-    return opt?.label || String(value)
-  }
-  return String(value)
-}
-
-function openImage(src: unknown): void {
-  const s = src == null ? '' : String(src)
-  if (s) window.open(s, '_blank', 'noopener')
 }
 
 defineExpose({

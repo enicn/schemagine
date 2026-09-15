@@ -122,7 +122,8 @@ test.describe('P0 Schema 引擎基础闭环', () => {
     await expect(page.getByText('空模块（无数据）').first()).toBeVisible({ timeout: 10000 })
     await page.waitForTimeout(2000)
 
-    const headerTitle = page.locator('.vxe-header--row th .vxe-cell--title').first()
+    // 表头渲染 schema 列(首列可能是行首复选框列,按文本定位数据列)
+    const headerTitle = page.locator('.vxe-header--row th .vxe-cell--title').filter({ hasText: '名称' }).first()
     await expect(headerTitle).toContainText('名称')
 
     const paginationTotal = page.locator('.el-pagination__total')

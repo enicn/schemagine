@@ -18,6 +18,7 @@ import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
 import type { CandidateOption, Condition, FilterClause, FieldValueCandidateOption } from '@/types'
 import { evaluateCondition } from '@/utils/condition'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import { validateFieldValue } from '@/utils/fieldValidation'
 import { resolveScrollY } from './virtualScroll'
 import type { Component } from 'vue'
 
@@ -769,6 +770,22 @@ function confirmEdit(row: Record<string, unknown>, col: WrapperColumn): void {
       ElMessage.warning(`${col.title}: ${error}`)
     })
     return
+  }
+  // docs/19 批次 D3:共享校验器(与创建保存/快速创建同口径);error 拦截,warning 放行仅提示
+  if (col.fieldSchema) {
+    const validation = validateFieldValue(col.fieldSchema, val)
+    if (!validation.valid) {
+      cancelEdit()
+      import('element-plus').then(({ ElMessage }) => {
+        ElMessage.warning(`${col.title}: ${validation.errors[0]}`)
+      })
+      return
+    }
+    if (validation.warnings.length > 0) {
+      import('element-plus').then(({ ElMessage }) => {
+        ElMessage.info(`${col.title}: ${validation.warnings[0]}`)
+      })
+    }
   }
   const field = col.field
   const oldValue = row[field]

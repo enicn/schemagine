@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { ElDialog, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElSelect, ElOption, ElDatePicker, ElSwitch, ElMessage } from 'element-plus'
 import { recordService } from '@/services/api/recordService'
 import { schemaService } from '@/services/api/schemaService'
+import { validateFieldValue } from '@/utils/fieldValidation'
 import type { FieldSchema, ModuleSchema } from '@/types'
 
 const props = defineProps<{
@@ -55,22 +56,17 @@ const labelField = computed(() => {
 })
 
 function getFieldRules(field: FieldSchema) {
-  const rules: any[] = []
-  if (field.required) {
-    rules.push({ required: true, message: `请输入${field.label}`, trigger: 'blur' })
-  }
-  if (field.validationRules) {
-    for (const vr of field.validationRules) {
-      if (vr.type === 'minLength') {
-        rules.push({ min: vr.value as number, message: vr.message, trigger: 'blur' })
-      } else if (vr.type === 'maxLength') {
-        rules.push({ max: vr.value as number, message: vr.message, trigger: 'blur' })
-      } else if (vr.type === 'pattern') {
-        rules.push({ pattern: vr.value as RegExp, message: vr.message, trigger: 'blur' })
-      }
-    }
-  }
-  return rules
+  // docs/19 批次 D3:统一走共享校验器(此前仅映射 required/长度/pattern,min/max/custom 缺失)
+  return [
+    {
+      validator: (_rule: unknown, value: unknown, callback: (error?: Error) => void) => {
+        const result = validateFieldValue(field, value)
+        if (!result.valid) callback(new Error(result.errors[0]))
+        else callback()
+      },
+      trigger: 'blur',
+    },
+  ]
 }
 
 watch(() => props.visible, async (v) => {

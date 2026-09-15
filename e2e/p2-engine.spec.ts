@@ -722,4 +722,38 @@ test.describe('P2 Schema 引擎高级特性', () => {
     const rowCount = await bodyRows.count()
     expect(rowCount).toBeGreaterThanOrEqual(1)
   })
+
+  test('11.1 批量编辑 - 选中 2 行填充字段成功(docs/19 D2)', async ({ page }) => {
+    await page.goto('/module/module-voucher')
+    await page.waitForTimeout(1500)
+
+    // 勾选前两行(主表复选框;固定列克隆同源,点主表即可)
+    const checkboxCells = page.locator('.vxe-body--row .vxe-cell--checkbox')
+    await expect(checkboxCells.nth(1)).toBeVisible({ timeout: 10000 })
+    await checkboxCells.nth(0).click()
+    await checkboxCells.nth(1).click()
+
+    // 工具栏出现批量编辑(2)
+    const batchEditBtn = page.locator('button').filter({ hasText: '批量编辑' })
+    await expect(batchEditBtn).toContainText('(2)', { timeout: 5000 })
+    await batchEditBtn.click()
+
+    // 对话框:字段选「摘要」
+    const dialog = page.locator('.el-dialog').filter({ hasText: '批量编辑' })
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await dialog.locator('.batch-edit-field-select').click()
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').filter({ hasText: '摘要' }).first().click()
+
+    // 填充值(TextEditor)
+    const valueInput = dialog.locator('.batch-edit-editor input')
+    await expect(valueInput).toBeVisible({ timeout: 5000 })
+    await valueInput.fill('批量填充校验值')
+
+    // 应用 → 成功提示 2 条(同屏可能有模块加载消息,按文本过滤)
+    await dialog.locator('button').filter({ hasText: '应用' }).click()
+    await expect(page.locator('.el-message').filter({ hasText: '已更新 2 条' })).toBeVisible({ timeout: 8000 })
+
+    // 两行摘要列显示新值
+    await expect(page.locator('.vxe-body--row').filter({ hasText: '批量填充校验值' })).toHaveCount(2, { timeout: 8000 })
+  })
 })

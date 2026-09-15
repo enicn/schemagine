@@ -20,6 +20,7 @@ import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
 import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterClause, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
+import { validateFieldValue } from '@/utils/fieldValidation'
 
 const props = defineProps<{
   moduleId: string
@@ -122,6 +123,18 @@ watch(
 
 watch(() => uiState.viewMode, (mode) => {
   emit('view-mode-change', { mode: mode as 'list' | 'card' | 'create' })
+})
+
+// 全局消息桥接(docs/19 批次 D2):showMessage 写入的状态此前无组件渲染,
+// 批量删除/保存失败等提示均不可见;在此统一转 ElMessage 弹出。
+watch(() => uiState.globalMessage, (message) => {
+  if (!message) return
+  ElMessage({
+    message,
+    type: (uiState.globalMessageType as 'info' | 'warning' | 'error' | 'success') ?? 'info',
+    grouping: true,
+  })
+  uiState.clearMessage()
 })
 
 function handleViewModeChange(mode: 'list' | 'card' | 'create'): void {
@@ -291,18 +304,31 @@ async function handleCreateSave(): Promise<void> {
   const drafts = recordStore.draftRows
   if (drafts.length === 0) return
 
+  // docs/19 批次 D3:共享校验器(ValidationRule[] + required)与行内编辑/快速创建同口径
   const errors: string[] = []
+  const warnings: string[] = []
   drafts.forEach((draft, idx) => {
     for (const field of schemaMeta.visibleFields) {
-      const error = validateDecimalValue(draft.fields[field.key], field)
-      if (error) {
-        errors.push(`第${idx + 1}行「${field.label}」: ${error}`)
+      const decimalError = validateDecimalValue(draft.fields[field.key], field)
+      if (decimalError) {
+        errors.push(`第${idx + 1}行「${field.label}」: ${decimalError}`)
+        continue
+      }
+      const result = validateFieldValue(field, draft.fields[field.key])
+      for (const message of result.errors) {
+        errors.push(`第${idx + 1}行「${field.label}」: ${message}`)
+      }
+      for (const message of result.warnings) {
+        warnings.push(`第${idx + 1}行「${field.label}」: ${message}`)
       }
     }
   })
   if (errors.length > 0) {
     ElMessage.warning(errors.join('；'))
     return
+  }
+  if (warnings.length > 0) {
+    ElMessage.warning(warnings.join('；'))
   }
 
   if (!schemaMeta.schema) return

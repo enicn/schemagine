@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject, type Ref } from 'vue'
-import { ElTag, ElButton, ElMessageBox } from 'element-plus'
+import { ElTag, ElButton, ElMessageBox, ElDialog, ElSelect, ElOption } from 'element-plus'
 import SchemaTable from '@/components/table/SchemaTable.vue'
 import SchemaPagination from '@/components/table/SchemaPagination.vue'
+import FieldEditorFactory from '@/components/field/FieldEditorFactory.vue'
+import { builtinEditorForType } from '@/components/field/editorMap'
+import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
+import { validateFieldValue } from '@/utils/fieldValidation'
 import { getOperatorLabel } from '@/utils/filterLabels'
 import BottomTabs from '@/components/filter/BottomTabs.vue'
 import type { FilterTab } from '@/components/filter/BottomTabs.vue'
@@ -77,11 +81,103 @@ const loadingModuleId = inject<Ref<string | null>>('loadingModuleId', ref(null))
 // 标准数据操作（删除/批量删除）：配置 × 权限，由引擎内置交互
 const deleteOps = computed(() => permission.deleteOperations.value)
 const canExport = computed(() => permission.canExport.value)
+const canEditRecords = computed(() => permission.canEdit.value)
 
-// 存在批量删除或需要勾选行上下文的列表动作（如 custom 批量操作）时，渲染行首复选框列
+// 存在批量删除/批量编辑或需要勾选行上下文的列表动作（如 custom 批量操作）时，渲染行首复选框列
 const showSelection = computed<boolean>(() => {
-  return deleteOps.value.canBatchDelete || listActions.value.some((a) => a.type === 'custom')
+  return deleteOps.value.canBatchDelete
+    || canEditRecords.value
+    || listActions.value.some((a) => a.type === 'custom')
 })
+
+// --- 批量编辑（docs/19 批次 D2）：选中行 → 单字段填充 → patchField 循环提交 ---
+const NON_BATCH_EDITABLE_TYPES = new Set([
+  'formula', 'one-to-many', 'many-to-many', 'reverse-ref', 'action',
+  'json', 'image', 'attachment', 'mediaImage',
+])
+
+const batchEditableFields = computed<FieldSchema[]>(() => {
+  return props.schema.fields
+    .filter((f) => {
+      if (!f.visible) return false
+      if (f.readonly || f.editMode === 'limited') return false
+      if (!permission.isFieldEditable(f.key)) return false
+      if (NON_BATCH_EDITABLE_TYPES.has(f.type)) return false
+      return builtinEditorForType(f.type) !== undefined || !!getFieldTypeDefinition(f.type)?.editor
+    })
+    .sort((a, b) => a.order - b.order)
+})
+
+const batchEditVisible = ref(false)
+const batchEditFieldKey = ref('')
+const batchEditValue = ref<unknown>(undefined)
+const batchEditRunning = ref(false)
+
+const batchEditSelectedField = computed<FieldSchema | null>(() => {
+  return batchEditableFields.value.find(f => f.key === batchEditFieldKey.value) ?? null
+})
+
+function handleBatchEditClick(): void {
+  if (uiState.selectedRowIds.length === 0) return
+  if (batchEditableFields.value.length === 0) {
+    uiState.showMessage('当前模块没有可批量编辑的字段', 'warning')
+    return
+  }
+  batchEditFieldKey.value = batchEditableFields.value[0]!.key
+  batchEditValue.value = undefined
+  batchEditVisible.value = true
+}
+
+async function handleBatchEditConfirm(): Promise<void> {
+  const field = batchEditSelectedField.value
+  if (!field || batchEditRunning.value) return
+
+  const value = batchEditValue.value === undefined ? null : batchEditValue.value
+  const validation = validateFieldValue(field, value)
+  if (!validation.valid) {
+    uiState.showMessage(`「${field.label}」${validation.errors[0] ?? '校验未通过'}`, 'warning')
+    return
+  }
+
+  batchEditRunning.value = true
+  try {
+    let okCount = 0
+    let skipped = 0
+    const failedRowIds: string[] = []
+    for (const rowId of uiState.selectedRowIds) {
+      const record = recordStore.getRecordById(rowId)
+      if (!record) {
+        failedRowIds.push(rowId)
+        continue
+      }
+      if (record.fields[field.key] === value) {
+        skipped++
+        continue
+      }
+      const res = await recordService.patchField({
+        moduleId: props.schema.id,
+        recordId: rowId,
+        field: field.key,
+        value,
+        expectedVersion: record.version,
+      })
+      if (res.success) {
+        recordStore.updateRecordField(rowId, field.key, value, res.data.version)
+        okCount++
+      } else {
+        failedRowIds.push(rowId)
+      }
+    }
+    if (failedRowIds.length > 0) {
+      uiState.showMessage(`已更新 ${okCount} 条，失败 ${failedRowIds.length} 条（可能存在版本冲突）`, 'warning')
+    } else {
+      uiState.showMessage(`已更新 ${okCount} 条${skipped > 0 ? `（跳过 ${skipped} 条未变化）` : ''}`, 'success')
+    }
+    batchEditVisible.value = false
+  } finally {
+    batchEditRunning.value = false
+  }
+}
 
 const filters = ref<FilterClause[]>([])
 
@@ -439,12 +535,16 @@ function handleBottomTabChange(tabId: string): void {
 
 <template>
   <div class="list-view">
-    <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport" class="list-toolbar">
+    <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport || (canEditRecords && batchEditableFields.length > 0)" class="list-toolbar">
       <div v-if="listActions.length > 0" class="list-toolbar__left">
         <ListActionBar :actions="listActions" :active-filters="filters"
           :selected-row-ids="uiState.selectedRowIds" @action-trigger="handleListAction" />
       </div>
-      <div v-if="canExport || deleteOps.canBatchDelete" class="list-toolbar__right">
+      <div v-if="canExport || deleteOps.canBatchDelete || (canEditRecords && batchEditableFields.length > 0)" class="list-toolbar__right">
+        <ElButton v-if="canEditRecords && batchEditableFields.length > 0" size="small" plain
+          :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">
+          批量编辑{{ uiState.selectedRowIds.length > 0 ? ` (${uiState.selectedRowIds.length})` : '' }}
+        </ElButton>
         <ElButton size="small" plain :loading="exporting" @click="handleExportCsv">
           导出CSV
         </ElButton>
@@ -524,6 +624,38 @@ function handleBottomTabChange(tabId: string): void {
         :page-size="recordStore.queryState.pagination.pageSize" :total="recordStore.totalRecords"
         :loading="recordStore.isLoading" @page-change="handlePageChange" @page-size-change="handlePageSizeChange" />
     </div>
+
+    <!-- 批量编辑对话框（docs/19 批次 D2）：选中行单字段填充 -->
+    <ElDialog v-model="batchEditVisible" title="批量编辑" width="480px" :close-on-click-modal="false" append-to-body>
+      <div class="batch-edit-body">
+        <div class="batch-edit-row">
+          <span class="batch-edit-label">字段</span>
+          <ElSelect v-model="batchEditFieldKey" size="small" filterable class="batch-edit-field-select">
+            <ElOption v-for="f in batchEditableFields" :key="f.key" :label="f.label" :value="f.key" />
+          </ElSelect>
+        </div>
+        <div class="batch-edit-row">
+          <span class="batch-edit-label">填充值</span>
+          <div class="batch-edit-editor">
+            <FieldEditorFactory
+              v-if="batchEditSelectedField"
+              :field-schema="batchEditSelectedField"
+              :model-value="batchEditValue"
+              @update:model-value="(v: unknown) => batchEditValue = v"
+            />
+            <span v-else class="batch-edit-empty">无可编辑字段</span>
+          </div>
+        </div>
+        <p class="batch-edit-hint">将对选中的 {{ uiState.selectedRowIds.length }} 条记录应用此值;校验规则与单条编辑一致。</p>
+      </div>
+      <template #footer>
+        <ElButton size="small" @click="batchEditVisible = false">取消</ElButton>
+        <ElButton size="small" type="primary" :loading="batchEditRunning" :disabled="!batchEditSelectedField"
+          @click="handleBatchEditConfirm">
+          应用
+        </ElButton>
+      </template>
+    </ElDialog>
   </div>
 </template>
 
@@ -692,5 +824,39 @@ function handleBottomTabChange(tabId: string): void {
   width: 1px;
   height: 16px;
   background: var(--sg-border-color);
+}
+
+.batch-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sg-spacing-4);
+}
+.batch-edit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sg-spacing-4);
+}
+.batch-edit-label {
+  flex-shrink: 0;
+  width: 56px;
+  padding-top: 4px;
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+}
+.batch-edit-field-select {
+  width: 100%;
+}
+.batch-edit-editor {
+  flex: 1;
+  min-width: 0;
+}
+.batch-edit-empty {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+}
+.batch-edit-hint {
+  margin: 0;
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
 }
 </style>

@@ -25,6 +25,7 @@ import { useHeaderFilter } from './useHeaderFilter'
 import { useInlineEdit } from './useInlineEdit'
 import { useCellDetail } from './useCellDetail'
 import { createCellCtx } from './cellCtx'
+import { GROUP_ROW_FLAG, isGroupRow } from '@/utils/recordGroup'
 import WrapperHeaderCell from './WrapperHeaderCell.vue'
 import WrapperCellContent from './WrapperCellContent.vue'
 import type { WrapperColumn } from './wrapperTypes'
@@ -66,6 +67,10 @@ const props = withDefaults(defineProps<{
   expandSlot?: string
   /** 合并单元格（docs/19 F5）：vxe span-method 透传 */
   spanMethod?: (params: any) => { rowspan: number; colspan: number } | undefined
+  /** 按列 footer 合计（docs/19 F6）：vxe footer-method 透传，声明即显示表尾行 */
+  footerMethod?: (params: { columns: Array<{ field?: string }> }) => string[][]
+  /** 分组声明（docs/19 F6）：组行展示与小计列标识 */
+  groupBy?: { field: string; summaryFields?: string[] }
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -462,6 +467,7 @@ const cellCtx = createCellCtx({
   hasFilterMatch,
   getCellHighlightHtml,
   openImage,
+  groupCellDisplay,
 })
 
 const tableHeight = computed(() => {
@@ -506,8 +512,22 @@ function getCellClassName({ row, column }: any): string {
   return classes.filter(Boolean).join(' ')
 }
 
+/** 组行单元格展示（docs/19 F6）：分组列显示「组值（N条）」，小计列显示「小计 X」，其余留空 */
+function groupCellDisplay(row: Record<string, unknown>, col: WrapperColumn): string {
+  const meta = row[GROUP_ROW_FLAG] as { value: string; count: number; summary: Record<string, number> } | undefined
+  if (!meta) return ''
+  if (col.field === props.groupBy?.field) {
+    // 组值按列渲染口径显示（select 枚举出 label，其余 String）
+    return `${formatDisplay(meta.value, col)}（${meta.count}条）`
+  }
+  const raw = col.field != null ? meta.summary[col.field] : undefined
+  if (raw != null) return `小计 ${formatDisplay(raw, col)}`
+  return ''
+}
+
 function getRowClassName({ row }: any): string {
   const classes: string[] = []
+  if (isGroupRow(row)) classes.push('is-group-row')
   if (editingRowId.value && editingRowId.value === row[props.rowKey]) classes.push('is-editing-row')
   if (props.selectedRowId && props.selectedRowId === row[props.rowKey]) classes.push('is-selected-row')
   return classes.join(' ')
@@ -542,6 +562,8 @@ defineExpose({
       :header-cell-config="{ height: densityHeights.header, padding: false }"
       :tree-config="vxeTreeConfig"
       :span-method="spanMethod"
+      :show-footer="!!footerMethod"
+      :footer-method="footerMethod"
       :scroll-y="tableScrollY"
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
@@ -731,6 +753,11 @@ defineExpose({
    列总宽超出容器（横向滚动）时 vxe 内联 width 生效、min-width 不参与，固定列层不在选择域内不受影响 */
 .vxe-table-wrapper :deep(.vxe-table--render-default .vxe-table--main-wrapper table) {
   min-width: 100%;
+}
+/* 分组组行（docs/19 F6）：浅色底 + 加粗区分数据行 */
+.vxe-table-wrapper :deep(.vxe-body--row.is-group-row .vxe-body--column) {
+  background: var(--sg-fill-color-light);
+  font-weight: 600;
 }
 .vxe-table-wrapper.is-auto-fill {
   flex: 1;

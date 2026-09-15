@@ -19,7 +19,9 @@ const ctx = props.ctx
 </script>
 
 <template>
-  <template v-if="ctx.isEditing(row[ctx.rowKey], col.field)">
+  <!-- 分组组行（docs/19 F6）：标记行整行按组值/小计渲染 -->
+  <span v-if="row.__sgGroup__" class="cell-value group-row-cell">{{ ctx.groupCellDisplay(row, col) }}</span>
+  <template v-else-if="ctx.isEditing(row[ctx.rowKey], col.field)">
     <div class="edit-inline" @click.stop>
       <div class="edit-inline__editor">
         <!-- 自定义字段类型（docs/19 B1）：注册了编辑器组件的自定义类型 -->

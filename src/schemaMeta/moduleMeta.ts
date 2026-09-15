@@ -19,6 +19,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   listActions: true,
   operations: true,
   treeConfig: true,
+  groupBy: true,
   migrations: true,
   status: true,
 }
@@ -110,6 +111,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: '引擎内置标准操作配置(当前仅 delete):{ delete: { enabled, batch, label, batchLabel, confirmTitle, confirmMessage, batchConfirmTitle, batchConfirmMessage } };启用后渲染行级/批量删除入口(需同时满足 permissions.delete),确认后引擎发标准化事件、由宿主执行。',
     example: { delete: { enabled: true, batch: true } },
+  },
+  {
+    key: 'groupBy', target: 'module', label: '分组小计', group: 'display', appliesTo: 'all', kind: 'object',
+    surfaces: ['render'],
+    description: '分组与小计声明(docs/19 F6):{ field, direction, summaryFields }。field 为分组字段;组行显示组值与条数,summaryFields 各列显示组内小计;按列 footer 合计取字段 aggregation:sum(与聚合统计条同口径)。',
+    example: { field: 'status', direction: 'asc', summaryFields: ['amount'] },
   },
   {
     key: 'treeConfig', target: 'module', label: '树形数据', group: 'display', appliesTo: 'all', kind: 'object',

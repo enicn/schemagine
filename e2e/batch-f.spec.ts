@@ -132,4 +132,67 @@ test.describe('docs/19 批次 F：展示形态', () => {
     // 五车间位置不同,不参与合并
     await expect(rows.filter({ hasText: '五车间' })).toContainText('B栋2层')
   })
+
+  // ===== F6 分组小计（module-ap：按 status 分组，amount 组内小计 + footer 合计） =====
+
+  /** 注入三条已知金额的应付记录：paid×2（100/200）+ unpaid×1（50） */
+  async function injectKnownApRecords(page: import('@playwright/test').Page): Promise<void> {
+    await page.evaluate(() => {
+      const rec = (id: string, no: string, amount: number, status: string) => ({
+        id,
+        moduleId: 'module-ap',
+        fields: { vendor: 'v1', invoiceNumber: no, amount, paidAmount: 0, balance: amount, dueDate: '2026-06-01', status, priority: 'high' },
+        version: 1,
+        createdAt: '2026-06-01T08:00:00Z',
+        updatedAt: '2026-06-01T08:00:00Z',
+      })
+      localStorage.setItem('schemagine:records:module-ap', JSON.stringify([
+        rec('t-a1', 'INV-T-001', 100, 'paid'),
+        rec('t-a2', 'INV-T-002', 200, 'paid'),
+        rec('t-a3', 'INV-T-003', 50, 'unpaid'),
+      ]))
+    })
+    await page.reload()
+    await expect(page.locator('.vxe-body--row').first()).toBeVisible({ timeout: 8000 })
+  }
+
+  test('F6.1 组行小计与底部合计正确', async ({ page }) => {
+    await page.goto('/module/module-ap')
+    await injectKnownApRecords(page)
+
+    // 组行按组值 asc：已付清（2条，小计 300）在前，未付款（1条，小计 50）在后
+    const groupRows = page.locator('.vxe-body--row.is-group-row')
+    await expect(groupRows.filter({ hasText: '已付清' })).toContainText('（2条）')
+    await expect(groupRows.filter({ hasText: '已付清' })).toContainText('小计 300')
+    await expect(groupRows.filter({ hasText: '未付款' })).toContainText('（1条）')
+    await expect(groupRows.filter({ hasText: '未付款' })).toContainText('小计 50')
+
+    // footer 合计行：amount 总和 350
+    const footer = page.locator('.vxe-footer--row')
+    await expect(footer).toContainText('合计')
+    await expect(footer).toContainText('350')
+  })
+
+  test('F6.2 与筛选组合后小计与合计仍正确', async ({ page }) => {
+    await page.goto('/module/module-ap')
+    await injectKnownApRecords(page)
+
+    // 筛选 状态=已付清：只剩 paid 组（2 条）
+    const filterBtn = page.locator('.filter-bar-header button').filter({ hasText: '筛选' })
+    await filterBtn.click()
+    const statusItem = page.locator('.filter-popover-item').filter({ hasText: '状态' })
+    await statusItem.locator('.filter-select').click()
+    await page.getByRole('option', { name: '已付清' }).first().click()
+    await page.locator('.filter-popover-actions button').filter({ hasText: '搜索' }).click()
+
+    const groupRows = page.locator('.vxe-body--row.is-group-row')
+    await expect(groupRows).toHaveCount(1)
+    await expect(groupRows.first()).toContainText('已付清（2条）')
+    await expect(groupRows.first()).toContainText('小计 300')
+
+    // footer 合计随过滤收口为 300（未付款的 50 已被过滤）
+    const footer = page.locator('.vxe-footer--row')
+    await expect(footer).toContainText('300')
+    await expect(footer).not.toContainText('350')
+  })
 })

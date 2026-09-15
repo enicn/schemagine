@@ -14,6 +14,8 @@ export interface ModuleSchema {
   operations?: DataOperationsConfig
   /** 树形数据声明（docs/19 F2）：声明后列表按树形渲染（vxe tree-config） */
   treeConfig?: TreeConfig
+  /** 分组与小计声明（docs/19 F6）：声明后列表按字段值分组渲染组行与组内小计 */
+  groupBy?: GroupByConfig
   /** @since 2.0 版本迁移列表：按 fromVersion 升序排列 */
   migrations?: SchemaMigration[]
   status: 'active' | 'disabled' | 'error'
@@ -25,6 +27,20 @@ export interface ModuleSchema {
  *  - 记录自带嵌套：children 数组直接挂在记录上（childrenField 声明字段名，默认 'children'）；
  *  - 平铺 + 父引用：记录以 parentField 存父记录主键，由引擎组树（utils/recordTree buildRecordTree）。
  */
+/**
+ * 分组与小计声明（docs/19 批次 F6）。
+ * 组行携带组值/条数/组内小计；按列 footer 合计取 fields 中 aggregation:'sum'
+ * 字段（与聚合统计条 useAggregation 同口径），经 vxe footer-method 渲染。
+ */
+export interface GroupByConfig {
+  /** 分组字段（字段 key，建议低基数枚举/文本列） */
+  field: string
+  /** 组间排序方向，默认 'asc'（组内保持原顺序） */
+  direction?: 'asc' | 'desc'
+  /** 组行小计字段（字段 key）：组行上对应列显示组内 sum */
+  summaryFields?: string[]
+}
+
 export interface TreeConfig {
   /** 嵌套子记录所在字段名，默认 'children' */
   childrenField?: string

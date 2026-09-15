@@ -72,6 +72,8 @@ export function createCellCtx(entries: {
   hasFilterMatch: (col: WrapperColumn) => boolean
   getCellHighlightHtml: (value: unknown, col: WrapperColumn) => string
   openImage: (src: unknown) => void
+  /** 组行单元格展示（docs/19 F6） */
+  groupCellDisplay: (row: Record<string, unknown>, col: WrapperColumn) => string
 }) {
   return reactive(entries)
 }

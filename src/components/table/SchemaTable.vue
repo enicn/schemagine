@@ -9,6 +9,7 @@ import { relationService } from '@/services/api/relationService'
 import { flattenRecordRow } from '@/utils/recordRow'
 import { buildRecordTree } from '@/utils/recordTree'
 import { buildSameValueSpanMethod } from '@/utils/mergeCells'
+import { buildGroupedRows } from '@/utils/recordGroup'
 
 const props = defineProps<{
   schema: ModuleSchema
@@ -176,7 +177,37 @@ const tableData = computed<Record<string, unknown>[]>(() => {
       childrenField: tree.childrenField ?? 'children',
     })
   }
+  // 分组小计（docs/19 F6）：声明 groupBy 时插入组行（组值/条数/组内小计）
+  const groupBy = props.schema.groupBy
+  if (groupBy?.field) {
+    return buildGroupedRows(flatRows.value, groupBy)
+  }
   return flatRows.value
+})
+
+/**
+ * 按列 footer 合计（docs/19 F6）：schema 中 aggregation:'sum' 字段的当前结果集合计，
+ * 口径与聚合统计条（useAggregation）一致：Number 非 NaN 求和、两位小数舍入。
+ */
+const footerMethod = computed(() => {
+  const sumFields = props.schema.fields.filter(f => f.aggregation === 'sum').map(f => f.key)
+  if (sumFields.length === 0) return undefined
+  return ({ columns }: { columns: Array<{ field?: string }> }) => {
+    let labelPlaced = false
+    return [columns.map((c) => {
+      if (!c.field) return ''
+      if (!labelPlaced) {
+        labelPlaced = true
+        return '合计'
+      }
+      if (!sumFields.includes(c.field)) return ''
+      const sum = flatRows.value.reduce((acc, r) => {
+        const v = Number(r[c.field!])
+        return isNaN(v) ? acc : acc + v
+      }, 0)
+      return String(Math.round(sum * 100) / 100)
+    })]
+  }
 })
 
 /**
@@ -185,7 +216,7 @@ const tableData = computed<Record<string, unknown>[]>(() => {
  */
 const spanMethod = computed(() => {
   const mergeFields = props.schema.fields.filter(f => f.mergeCells).map(f => f.key)
-  if (mergeFields.length === 0 || props.schema.treeConfig?.parentField) return undefined
+  if (mergeFields.length === 0 || props.schema.treeConfig?.parentField || props.schema.groupBy?.field) return undefined
   return buildSameValueSpanMethod(mergeFields, flatRows.value)
 })
 
@@ -293,6 +324,8 @@ defineExpose({
       :density="density"
       :expand-slot="expandSlot"
       :span-method="spanMethod"
+      :footer-method="footerMethod"
+      :group-by="schema.groupBy"
       :tree-config="schema.treeConfig
         ? { children: schema.treeConfig.childrenField ?? 'children', expandAll: schema.treeConfig.expandAll ?? false }
         : undefined"

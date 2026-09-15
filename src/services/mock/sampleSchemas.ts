@@ -477,6 +477,11 @@ export const apSchema: ModuleSchema = {
     configure: true,
   },
   defaultViewMode: 'list',
+  groupBy: {
+    field: 'status',
+    direction: 'asc',
+    summaryFields: ['amount'],
+  },
   listEditMode: 'select-then-edit',
   listActions: [
     {

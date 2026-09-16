@@ -9,6 +9,7 @@ import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue } from '@/utils/fieldValidation'
 import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterSummary'
+import { buildExportMatrix, downloadCsvFile, downloadXlsxFile } from '@/utils/tableExport'
 import { flattenFilterConditions, removeFieldFromConditions, cloneFilterConditions, isFilterGroup } from '@/utils/filterConditions'
 import BottomTabs from '@/components/filter/BottomTabs.vue'
 import type { FilterTab } from '@/components/filter/BottomTabs.vue'
@@ -493,47 +494,6 @@ const exportColumns = computed<FieldSchema[]>(() => {
     })
 })
 
-/** 单元格文本化：外键取关联名标签；枚举取 options 标签；布尔取是/否；结构化值 JSON 化 */
-function exportCellText(field: FieldSchema, row: Record<string, unknown>): string {
-  const raw = row[`${field.key}_label`] ?? row[field.key]
-  if (raw === null || raw === undefined) return ''
-  if (typeof raw === 'boolean') return raw ? '是' : '否'
-  if ((field.type === 'select' || field.type === 'status') && field.options?.length) {
-    const opt = field.options.find(o => String(o.value) === String(raw))
-    if (opt) return String(opt.label)
-  }
-  if (Array.isArray(raw) || typeof raw === 'object') return JSON.stringify(raw)
-  return String(raw)
-}
-
-/** CSV 单元格转义：防公式注入（=+-@ 开头前置 '）与引号/换行 */
-function csvEscape(text: string): string {
-  let v = text
-  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`
-  if (/[",\n\r]/.test(v)) v = `"${v.replace(/"/g, '""')}"`
-  return v
-}
-
-function exportTimestamp(): string {
-  const d = new Date()
-  const p = (n: number): string => (n < 10 ? `0${n}` : `${n}`)
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`
-}
-
-function downloadCsv(rows: Array<Record<string, unknown>>): void {
-  const cols = exportColumns.value
-  const lines = [cols.map(c => csvEscape(c.label)).join(',')]
-  for (const row of rows) {
-    lines.push(cols.map(c => csvEscape(exportCellText(c, row))).join(','))
-  }
-  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${props.schema.name}_${exportTimestamp()}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
 async function handleExportCsv(): Promise<void> {
   if (exporting.value) return
@@ -563,8 +523,51 @@ async function handleExportCsv(): Promise<void> {
       uiState.showMessage('当前筛选下没有可导出的数据', 'warning')
       return
     }
-    downloadCsv(rows)
+    downloadCsvFile(props.schema.name, buildExportMatrix(exportColumns.value, rows))
     uiState.showMessage(`已导出 ${rows.length} 行 CSV`, 'success')
+  } catch (err) {
+    uiState.showMessage(err instanceof Error ? err.message : '导出失败', 'error')
+  } finally {
+    exporting.value = false
+  }
+}
+
+/** 导出 Excel（docs/19 批次 G4）：xlsx 为可选 peer 依赖，未安装回退 CSV 并提示 */
+async function handleExportExcel(): Promise<void> {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const rows: Array<Record<string, unknown>> = []
+    let total = Number.POSITIVE_INFINITY
+    let page = 1
+    while (rows.length < EXPORT_MAX_ROWS && (page - 1) * EXPORT_PAGE_SIZE < total) {
+      const res = await recordService.list({
+        moduleId: props.schema.id,
+        filters: filters.value,
+        sort: currentSort.value || undefined,
+        page,
+        pageSize: EXPORT_PAGE_SIZE,
+      })
+      if (!res.success) {
+        uiState.showMessage(res.message || '导出失败', 'error')
+        return
+      }
+      total = res.data.total
+      rows.push(...(res.data.records as unknown as Array<Record<string, unknown>>))
+      if (res.data.records.length === 0) break
+      page += 1
+    }
+    if (rows.length === 0) {
+      uiState.showMessage('当前筛选下没有可导出的数据', 'warning')
+      return
+    }
+    const result = await downloadXlsxFile(props.schema.name, buildExportMatrix(exportColumns.value, rows))
+    if (result === 'missing-peer') {
+      downloadCsvFile(props.schema.name, buildExportMatrix(exportColumns.value, rows))
+      uiState.showMessage('未安装 xlsx 依赖，已回退导出 CSV', 'warning')
+      return
+    }
+    uiState.showMessage(`已导出 ${rows.length} 行 Excel`, 'success')
   } catch (err) {
     uiState.showMessage(err instanceof Error ? err.message : '导出失败', 'error')
   } finally {
@@ -686,6 +689,9 @@ function handleBottomTabChange(tabId: string): void {
         </ElButton>
         <ElButton size="small" plain :loading="exporting" @click="handleExportCsv">
           导出CSV
+        </ElButton>
+        <ElButton size="small" plain :loading="exporting" @click="handleExportExcel">
+          导出Excel
         </ElButton>
         <ElButton v-if="deleteOps.canBatchDelete" size="small" type="danger" plain
           :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchDeleteClick">

@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { test, expect } from '@playwright/test'
 
 /**
@@ -18,6 +19,35 @@ test.describe('docs/19 批次 G：平台化与工程', () => {
     await expect(popover.getByText('候选值模式')).toBeVisible()
   })
 
+
+  test('G4.1 导出 Excel：xlsx 下载且为合法 OOXML（PK zip 签名）', async ({ page }) => {
+    await page.goto('/module/module-voucher')
+    await page.waitForTimeout(2000)
+    const excelBtn = page.getByRole('button', { name: '导出Excel' })
+    await expect(excelBtn).toBeVisible({ timeout: 8000 })
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      excelBtn.click(),
+    ])
+    expect(download.suggestedFilename()).toMatch(/\.xlsx$/)
+    const path = await download.path()
+    expect(path).toBeTruthy()
+    // xlsx 是 zip 容器，文件头必须为 PK
+    const head = fs.readFileSync(path!).subarray(0, 2).toString('latin1')
+    expect(head).toBe('PK')
+  })
+
+  test('G4.2 导出 CSV 通道保持可用', async ({ page }) => {
+    await page.goto('/module/module-voucher')
+    await page.waitForTimeout(2000)
+    const csvBtn = page.getByRole('button', { name: '导出CSV' })
+    await expect(csvBtn).toBeVisible({ timeout: 8000 })
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 15000 }),
+      csvBtn.click(),
+    ])
+    expect(download.suggestedFilename()).toMatch(/\.csv$/)
+  })
 
   test('G2.1 键盘导航：点击定位 → 方向键移动 → Enter 进入编辑并保存', async ({ page }) => {
     await page.goto('/module/module-voucher')

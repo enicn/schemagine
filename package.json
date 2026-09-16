@@ -68,7 +68,8 @@
     "vue-router": "^5.0.0",
     "vxe-pc-ui": "^4.13.0",
     "vxe-table": "^4.18.0",
-    "xe-utils": "^4.0.0"
+    "xe-utils": "^4.0.0",
+    "xlsx": ">=0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
@@ -102,7 +103,8 @@
     "vue-tsc": "^3.2.6",
     "vxe-pc-ui": "^4.13.0",
     "vxe-table": "^4.18.13",
-    "xe-utils": "^4.0.4"
+    "xe-utils": "^4.0.4",
+    "xlsx": "^0.18.5"
   },
   "packageManager": "pnpm@12.3.4",
   "engines": {
@@ -111,5 +113,10 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
+  },
+  "peerDependenciesMeta": {
+    "xlsx": {
+      "optional": true
+    }
   }
 }

@@ -27,6 +27,7 @@ import { useCellDetail } from './useCellDetail'
 import { createCellCtx } from './cellCtx'
 import { t } from '@/locales'
 import { GROUP_ROW_FLAG, isGroupRow } from '@/utils/recordGroup'
+import { useKeyboardNav } from './useKeyboardNav'
 import WrapperHeaderCell from './WrapperHeaderCell.vue'
 import WrapperCellContent from './WrapperCellContent.vue'
 import type { WrapperColumn } from './wrapperTypes'
@@ -72,6 +73,8 @@ const props = withDefaults(defineProps<{
   footerMethod?: (params: { columns: Array<{ field?: string }> }) => string[][]
   /** 分组声明（docs/19 F6）：组行展示与小计列标识 */
   groupBy?: { field: string; summaryFields?: string[] }
+  /** 键盘网格导航（docs/19 G2）：方向键移动焦点、Enter 进入编辑；默认开启 */
+  keyboardNav?: boolean
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -82,6 +85,7 @@ const props = withDefaults(defineProps<{
   fixedRowCount: undefined,
   showSelection: false,
   density: 'default',
+  keyboardNav: true,
 })
 
 const emit = defineEmits<{
@@ -234,6 +238,21 @@ const {
   getCellDetailText,
 })
 
+// ---- 键盘网格导航（docs/19 G2）：方向键移动焦点、Enter 进入编辑 ----
+const {
+  focusedCell,
+  setFocusedCell,
+  handleGridKeydown,
+} = useKeyboardNav({
+  tableRef,
+  isEditing: () => !!editingRowId.value,
+  isEditableCell: col => !col.isAction && !col.isRelation && !col.readonly && col.editMode !== 'limited',
+  dataColumns: () => dataColumns.value,
+  data: () => props.data,
+  rowKey: () => props.rowKey,
+  startEdit,
+})
+
 // ---- vxe 事件转发：薄封装，组合上述各域并向宿主上抛 ----
 
 function handleSortChange(params: any): void {
@@ -241,7 +260,14 @@ function handleSortChange(params: any): void {
   emit('sort-change', { field, order: order || null })
 }
 
+function onGridKeydown(e: KeyboardEvent): void {
+  if (props.keyboardNav) handleGridKeydown(e)
+}
+
 function handleCellClick(params: any): void {
+  if (props.keyboardNav && params?.column?.field && !params.column.type) {
+    setFocusedCell(params.row, params.column.field)
+  }
   emit('row-click', { row: params.row, rowIndex: params.rowIndex })
   const col = visibleColumns.value.find(c => c.field === params.column.field)
   if (!col) return
@@ -504,6 +530,11 @@ function getCellClassName({ row, column }: any): string {
   if (col?.isAction) classes.push('action-cell')
   if (col?.isRelation) classes.push('relation-cell')
   if (col && isEditing(row[props.rowKey], col.field)) classes.push('is-editing-cell')
+  if (props.keyboardNav && col && focusedCell.value
+    && String(row[props.rowKey]) === focusedCell.value.rowKeyValue
+    && col.field === focusedCell.value.field) {
+    classes.push('is-focused-cell')
+  }
   if (col?.cellClass) {
     const value = row[column.field]
     classes.push(col.cellClass({ value }))
@@ -550,6 +581,11 @@ defineExpose({
     ref="wrapperRef"
     class="vxe-table-wrapper"
     :class="[`density--${density}`, { 'is-auto-fill': !fixedRowCount }]"
+    :tabindex="keyboardNav ? 0 : undefined"
+    role="grid"
+    :aria-label="t('table.gridLabel')"
+    :aria-rowcount="data.length"
+    @keydown="onGridKeydown"
   >
     <VxeTable
       ref="tableRef"
@@ -752,6 +788,12 @@ defineExpose({
    列总宽超出容器（横向滚动）时 vxe 内联 width 生效、min-width 不参与，固定列层不在选择域内不受影响 */
 .vxe-table-wrapper :deep(.vxe-table--render-default .vxe-table--main-wrapper table) {
   min-width: 100%;
+}
+/* 键盘导航焦点单元格（docs/19 G2）：主色描边，焦点可见 */
+.vxe-table-wrapper :deep(.vxe-body--column.is-focused-cell > .vxe-cell) {
+  outline: 2px solid var(--sg-color-primary);
+  outline-offset: -2px;
+  border-radius: var(--sg-radius-xs);
 }
 /* 分组组行（docs/19 F6）：浅色底 + 加粗区分数据行 */
 .vxe-table-wrapper :deep(.vxe-body--row.is-group-row .vxe-body--column) {

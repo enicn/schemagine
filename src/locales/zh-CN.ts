@@ -5,6 +5,7 @@
  */
 export default {
   table: {
+    gridLabel: '数据表格',
     operationsTitle: '操作',
     view: '查看',
     filter: {

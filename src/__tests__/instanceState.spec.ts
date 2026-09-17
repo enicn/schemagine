@@ -5,7 +5,7 @@ import {
   createUiState,
   createRuntimeContextState,
 } from '@/composables/instanceState'
-import type { ModuleSchema, FieldSchema, RecordEntity, DraftRecord, UndoEntry } from '@/types'
+import type { ModuleSchema, FieldSchema, RecordEntity, DraftRecord, HistoryEntry } from '@/types'
 
 function makeField(overrides: Partial<FieldSchema> = {}): FieldSchema {
   return {
@@ -104,17 +104,65 @@ describe('createRecordState', () => {
     expect(() => s.updateRecordField('nope', 'x', 1, 2)).not.toThrow()
   })
 
-  it('undo 栈上限 50 条，popUndo 后进先出', () => {
+  it('history 双栈：pushHistory 上限 50 且清空 redo，popUndo 后进先出', () => {
     const s = createRecordState()
+    const makeEntry = (i: number): HistoryEntry => ({
+      type: 'cell-edit',
+      changes: [],
+      createdRecords: [],
+      timestamp: i,
+    })
     for (let i = 0; i < 55; i++) {
-      const entry: UndoEntry = { type: 'cell', recordId: String(i), field: 'f', previousValue: i, timestamp: i }
-      s.pushUndo(entry)
+      s.pushHistory(makeEntry(i))
     }
     expect(s.undoStack.length).toBe(50)
-    const popped = s.popUndo()
-    expect(popped?.recordId).toBe('54')
-    s.clearUndo()
+    expect(s.popUndo()?.timestamp).toBe(54)
+    // 新动作入栈使 redo 分支失效
+    s.pushRedo(makeEntry(999))
+    s.pushHistory(makeEntry(1000))
+    expect(s.redoStack.length).toBe(0)
+    // redo 回落走 pushUndo,不清 redo
+    s.pushRedo(makeEntry(1001))
+    s.pushUndo(makeEntry(1002))
+    expect(s.redoStack.length).toBe(1)
+    s.clearHistory()
     expect(s.popUndo()).toBeUndefined()
+    expect(s.popRedo()).toBeUndefined()
+  })
+
+  it('canUndo/canRedo 随双栈联动,$reset 清空双栈', () => {
+    const s = createRecordState()
+    expect(s.canUndo).toBe(false)
+    expect(s.canRedo).toBe(false)
+    const entry: HistoryEntry = { type: 'cell-edit', changes: [], createdRecords: [], timestamp: 1 }
+    s.pushHistory(entry)
+    expect(s.canUndo).toBe(true)
+    const popped = s.popUndo()
+    expect(popped).toBeDefined()
+    s.pushRedo(popped!)
+    expect(s.canRedo).toBe(true)
+    expect(s.canUndo).toBe(false)
+    s.$reset()
+    expect(s.canRedo).toBe(false)
+    expect(s.undoStack).toEqual([])
+    expect(s.redoStack).toEqual([])
+  })
+
+  it('removeRecordLocal/insertRecordLocal 按位移除加回并维护 total', () => {
+    const s = createRecordState()
+    s.setRecords([makeRecord('r1'), makeRecord('r2'), makeRecord('r3')], 10)
+    const removedAt = s.removeRecordLocal('r2')
+    expect(removedAt).toBe(1)
+    expect(s.records.map(r => r.id)).toEqual(['r1', 'r3'])
+    expect(s.totalRecords).toBe(9)
+    expect(s.removeRecordLocal('nope')).toBe(-1)
+    s.insertRecordLocal(makeRecord('r2'), 1)
+    expect(s.records.map(r => r.id)).toEqual(['r1', 'r2', 'r3'])
+    expect(s.totalRecords).toBe(10)
+    // 越界索引收敛到末尾
+    s.removeRecordLocal('r2')
+    s.insertRecordLocal(makeRecord('r2'), 99)
+    expect(s.records.map(r => r.id)).toEqual(['r1', 'r3', 'r2'])
   })
 
   it('草稿行增删改与校验标记', () => {

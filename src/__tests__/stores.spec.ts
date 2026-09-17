@@ -33,13 +33,10 @@ describe('recordStore', () => {
     expect(store.currentRecord?.version).toBe(7)
   })
 
-  it('undo 栈上限 50 条', () => {
+  it('undo 栈已上提为引擎级 history(docs/19 H3),Pinia 旧 store 不再承载', () => {
     const store = useRecordStore()
-    for (let i = 0; i < 55; i++) {
-      store.pushUndo({ type: 'cell', recordId: String(i), field: 'f', previousValue: i, timestamp: i })
-    }
-    expect(store.undoStack.length).toBe(50)
-    expect(store.popUndo()?.recordId).toBe('54')
+    expect('pushUndo' in store).toBe(false)
+    expect('undoStack' in store).toBe(false)
   })
 
   it('草稿行操作与 setErrorsForDraft', () => {

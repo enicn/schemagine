@@ -4,7 +4,7 @@ import { ElDialog, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElSelec
 import { recordService } from '@/services/api/recordService'
 import { schemaService } from '@/services/api/schemaService'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
-import type { FieldSchema, ModuleSchema } from '@/types'
+import type { FieldSchema, ModuleSchema, RecordEntity } from '@/types'
 
 const props = defineProps<{
   visible: boolean
@@ -13,7 +13,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  created: [payload: { id: string; label: string; value: string }]
+  /** record 为创建成功的完整实体(docs/19 H3),供引擎 history 入栈撤销 */
+  created: [payload: { id: string; label: string; value: string; record: RecordEntity }]
   cancel: [payload: void]
   close: [payload: void]
 }>()
@@ -158,7 +159,7 @@ async function handleSubmit(): Promise<void> {
         ? String(fields[labelField.value.key] ?? id)
         : String(fields.name ?? fields.label ?? fields.title ?? id)
       ElMessage.success('创建成功')
-      emit('created', { id, label, value: id })
+      emit('created', { id, label, value: id, record: res.data })
     } else {
       ElMessage.error(res.message || '创建失败')
     }

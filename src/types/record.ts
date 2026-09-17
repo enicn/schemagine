@@ -50,11 +50,33 @@ export interface EditContext {
   recordId: string
 }
 
-export interface UndoEntry {
-  type: 'cell' | 'row' | 'batch'
+/** 单条字段值变更快照（docs/19 H3 history 最小原子）：undo 还原 previous*，redo 重放 newValue */
+export interface FieldChangeSnapshot {
   recordId: string
-  field?: string
+  field: string
   previousValue: unknown
+  newValue: unknown
+  previousVersion: number
+  newVersion: number
+}
+
+/** 创建记录快照：index 为入栈时该记录在实例列表中的位置（undo 移除、redo 按位加回） */
+export interface HistoryCreatedRecord {
+  record: RecordEntity
+  index: number
+}
+
+/**
+ * 引擎级历史条目（docs/19 H3）：一个用户动作一个条目，undo/redo 按动作粒度回放。
+ * 回放均为本地内存操作：字段变更回填值与乐观锁版本；'create' 的撤销仅移除实例
+ * 列表（引擎无 delete 服务，刷新后以服务端数据为准）。
+ */
+export interface HistoryEntry {
+  type: 'cell-edit' | 'batch-edit' | 'create'
+  /** 字段变更集：cell-edit 恒 1 条，batch-edit 为整批；type:'create' 时为空数组 */
+  changes: FieldChangeSnapshot[]
+  /** type:'create' 时为被创建记录快照，其余为空数组 */
+  createdRecords: HistoryCreatedRecord[]
   timestamp: number
 }
 

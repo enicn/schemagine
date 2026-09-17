@@ -110,6 +110,7 @@ export { createSchemaMetaState, createRecordState, createUiState } from './compo
 export { useSchema } from './composables/useSchema'
 export { usePermission } from './composables/usePermission'
 export { useCellEdit } from './composables/useCellEdit'
+export { useRecordHistory } from './composables/useRecordHistory'
 export { useFormula } from './composables/useFormula'
 export { useAggregation } from './composables/useAggregation'
 export { useDraftLifecycle } from './composables/useDraftLifecycle'

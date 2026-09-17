@@ -1,4 +1,5 @@
 import { useRecords, useSchemaMeta, useUi, type RecordState, type SchemaMetaState, type UiState } from '@/composables/instanceState'
+import { useRecordHistory } from '@/composables/useRecordHistory'
 import { recordService } from '@/services/api/recordService'
 import type { CellEditPayload } from '@/types'
 
@@ -10,17 +11,10 @@ export function useCellEdit(
   const recordStore = recordStoreParam ?? useRecords()
   const schemaMeta = schemaMetaParam ?? useSchemaMeta()
   const uiState = uiStateParam ?? useUi()
+  const history = useRecordHistory(recordStore, uiState)
 
   async function onCellEdit(payload: CellEditPayload): Promise<void> {
     const { rowId, field, value, oldValue } = payload
-
-    recordStore.pushUndo({
-      type: 'cell',
-      recordId: rowId,
-      field,
-      previousValue: oldValue,
-      timestamp: Date.now(),
-    })
 
     const record = recordStore.getRecordById(rowId)
     if (!record) return
@@ -32,6 +26,8 @@ export function useCellEdit(
     if (isFormulaField) return
 
     uiState.setEditingCell({ rowId, field })
+    // 入栈基线版本：版本冲突刷新后以服务端当前版本重试，历史快照须与成功那次请求一致
+    let baseVersion = record.version
     try {
       const moduleId = schemaMeta.schema!.id
 
@@ -40,7 +36,7 @@ export function useCellEdit(
         recordId: rowId,
         field,
         value,
-        expectedVersion: record.version,
+        expectedVersion: baseVersion,
       })
 
       if (!res.success && res.errorCode === 'VERSION_CONFLICT') {
@@ -55,19 +51,29 @@ export function useCellEdit(
           )
           const updatedRecord = recordStore.getRecordById(rowId)
           if (updatedRecord) {
+            baseVersion = updatedRecord.version
             res = await recordService.patchField({
               moduleId,
               recordId: rowId,
               field,
               value,
-              expectedVersion: updatedRecord.version,
+              expectedVersion: baseVersion,
             })
           }
         }
       }
 
+      // docs/19 H3:服务端确认成功后才入栈(带服务端返回的新版本),失败不留幻影条目
       if (res.success) {
         recordStore.updateRecordField(rowId, field, value, res.data.version)
+        history.pushCellEdit({
+          recordId: rowId,
+          field,
+          previousValue: oldValue,
+          newValue: value,
+          previousVersion: baseVersion,
+          newVersion: res.data.version,
+        })
       } else {
         handleSaveError(res)
       }
@@ -88,20 +94,7 @@ export function useCellEdit(
     }
   }
 
-  function undo(): void {
-    const entry = recordStore.popUndo()
-    if (!entry) return
-
-    if (entry.type === 'cell' && entry.field) {
-      const record = recordStore.getRecordById(entry.recordId)
-      if (record) {
-        record.fields[entry.field] = entry.previousValue
-      }
-    }
-  }
-
   return {
     onCellEdit,
-    undo,
   }
 }

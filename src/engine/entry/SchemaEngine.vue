@@ -6,6 +6,7 @@ import { setLocale } from '@/locales'
 import { useSchema } from '@/composables/useSchema'
 import { usePermission } from '@/composables/usePermission'
 import { useCellEdit } from '@/composables/useCellEdit'
+import { useRecordHistory } from '@/composables/useRecordHistory'
 import { useFormula } from '@/composables/useFormula'
 import { createSchemaMetaState, createRecordState, createUiState, createRuntimeContextState, SCHEMA_META_KEY, RECORD_STATE_KEY, UI_STATE_KEY, RUNTIME_CONTEXT_KEY } from '@/composables/instanceState'
 import { recordService } from '@/services/api/recordService'
@@ -71,6 +72,7 @@ const schema = useSchema(schemaMeta, uiState)
 provide('loadingModuleId', schema.loadingModuleId)
 const permission = usePermission(schemaMeta)
 const cellEdit = useCellEdit(recordStore, schemaMeta, uiState)
+const history = useRecordHistory(recordStore, uiState)
 const formula = useFormula(recordStore, schemaMeta)
 
 const hasFormulaFields = computed(() => {
@@ -397,6 +399,8 @@ async function handleCreateSave(): Promise<void> {
       recordStore.clearDrafts()
       handleViewModeChange('list')
       await schema.loadModule(props.moduleId)
+      // docs/19 H3:创建入栈(刷新后按 id 定位实例列表位置,支持整批撤销/重做)
+      history.pushCreate(res.data)
       emit('data-changed', { moduleId: props.moduleId })
     } else {
       ElMessage.error(res.message || '创建失败')
@@ -430,6 +434,9 @@ async function handleCreateSaveAndContinue(): Promise<void> {
       ElMessage.success(`成功创建 ${res.data.length} 条记录`)
       recordStore.clearDrafts()
       emit('data-changed', { moduleId: props.moduleId })
+      await schema.loadModule(props.moduleId)
+      // docs/19 H3:创建入栈(保存并继续同样支持撤销/重做)
+      history.pushCreate(res.data)
     } else {
       ElMessage.error(res.message || '创建失败')
     }
@@ -463,6 +470,11 @@ defineExpose({
   refresh: () => schema.loadModule(props.moduleId),
   setViewMode: handleViewModeChange,
   getCurrentRecord: () => recordStore.currentRecord,
+  // 引擎级 history API(docs/19 H3):宿主可编程触发撤销/重做
+  undo: history.undo,
+  redo: history.redo,
+  canUndo: computed(() => recordStore.canUndo),
+  canRedo: computed(() => recordStore.canRedo),
 })
 </script>
 

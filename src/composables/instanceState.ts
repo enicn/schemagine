@@ -1,5 +1,5 @@
 import { ref, computed, reactive, inject, type InjectionKey, type Ref, type ComputedRef } from 'vue'
-import type { ModuleSchema, UserViewConfig, ModulePermissions, FieldSchema, FieldPermission, RecordEntity, DraftRecord, UndoEntry, QueryState, PaginationState, FieldError, ExtendedDialogType } from '@/types'
+import type { ModuleSchema, UserViewConfig, ModulePermissions, FieldSchema, FieldPermission, RecordEntity, DraftRecord, HistoryEntry, QueryState, PaginationState, FieldError, ExtendedDialogType } from '@/types'
 import type { ViewMode } from '@/constants'
 
 // ============================================================
@@ -118,7 +118,11 @@ export interface RecordState {
   records: Ref<RecordEntity[]>['value']
   currentRecord: Ref<RecordEntity | null>['value']
   draftRows: Ref<DraftRecord[]>['value']
-  undoStack: Ref<UndoEntry[]>['value']
+  /** 引擎级历史双栈（docs/19 H3）：undoStack 存用户动作，redoStack 存被撤销动作 */
+  undoStack: Ref<HistoryEntry[]>['value']
+  redoStack: Ref<HistoryEntry[]>['value']
+  canUndo: ComputedRef<boolean>['value']
+  canRedo: ComputedRef<boolean>['value']
   queryState: Ref<QueryState>['value']
   isLoading: Ref<boolean>['value']
   isSaving: Ref<boolean>['value']
@@ -133,9 +137,14 @@ export interface RecordState {
   setPagination: (pagination: Partial<PaginationState>) => void
   getRecordById: (id: string) => RecordEntity | undefined
   updateRecordField: (recordId: string, field: string, value: unknown, newVersion: number) => void
-  pushUndo: (entry: UndoEntry) => void
-  popUndo: () => UndoEntry | undefined
-  clearUndo: () => void
+  removeRecordLocal: (recordId: string) => number
+  insertRecordLocal: (record: RecordEntity, index: number) => void
+  pushHistory: (entry: HistoryEntry) => void
+  popUndo: () => HistoryEntry | undefined
+  pushUndo: (entry: HistoryEntry) => void
+  pushRedo: (entry: HistoryEntry) => void
+  popRedo: () => HistoryEntry | undefined
+  clearHistory: () => void
   setDraftRows: (rows: DraftRecord[]) => void
   updateDraftField: (index: number, field: string, value: unknown) => void
   addDraftRow: (draft: DraftRecord) => number
@@ -152,7 +161,8 @@ export function createRecordState() {
   const records = ref<RecordEntity[]>([])
   const currentRecord = ref<RecordEntity | null>(null)
   const draftRows = ref<DraftRecord[]>([])
-  const undoStack = ref<UndoEntry[]>([])
+  const undoStack = ref<HistoryEntry[]>([])
+  const redoStack = ref<HistoryEntry[]>([])
   const queryState = ref<QueryState>({
     filters: [],
     sort: null,
@@ -162,10 +172,15 @@ export function createRecordState() {
   const isSaving = ref(false)
   const saveError = ref<string | null>(null)
 
+  /** 历史栈容量：undo/redo 各自封顶，超出淘汰最旧条目 */
+  const HISTORY_LIMIT = 50
+
   const totalRecords = computed(() => queryState.value.pagination.total)
   const hasRecords = computed(() => records.value.length > 0)
   const hasDrafts = computed(() => draftRows.value.length > 0)
   const currentPage = computed(() => queryState.value.pagination.page)
+  const canUndo = computed(() => undoStack.value.length > 0)
+  const canRedo = computed(() => redoStack.value.length > 0)
 
   function setRecords(newRecords: RecordEntity[], total: number): void {
     records.value = newRecords
@@ -200,19 +215,58 @@ export function createRecordState() {
     }
   }
 
-  function pushUndo(entry: UndoEntry): void {
+  /** create 撤销用：从实例列表移除记录，返回原位置（未找到返回 -1）；同步扣减 total */
+  function removeRecordLocal(recordId: string): number {
+    const index = records.value.findIndex(r => r.id === recordId)
+    if (index >= 0) {
+      records.value.splice(index, 1)
+      queryState.value.pagination.total = Math.max(0, queryState.value.pagination.total - 1)
+    }
+    return index
+  }
+
+  /** create 重做用：按位插回记录（越界收敛到末尾）；同步递增 total */
+  function insertRecordLocal(record: RecordEntity, index: number): void {
+    const at = Math.min(Math.max(index, 0), records.value.length)
+    records.value.splice(at, 0, record)
+    queryState.value.pagination.total += 1
+  }
+
+  /** 新用户动作入栈：清空 redo 栈（分叉历史失效），超限淘汰最旧 */
+  function pushHistory(entry: HistoryEntry): void {
     undoStack.value.push(entry)
-    if (undoStack.value.length > 50) {
+    if (undoStack.value.length > HISTORY_LIMIT) {
+      undoStack.value.shift()
+    }
+    redoStack.value = []
+  }
+
+  function popUndo(): HistoryEntry | undefined {
+    return undoStack.value.pop()
+  }
+
+  /** redo 回落专用：仅入 undo 栈，不动 redo */
+  function pushUndo(entry: HistoryEntry): void {
+    undoStack.value.push(entry)
+    if (undoStack.value.length > HISTORY_LIMIT) {
       undoStack.value.shift()
     }
   }
 
-  function popUndo(): UndoEntry | undefined {
-    return undoStack.value.pop()
+  function pushRedo(entry: HistoryEntry): void {
+    redoStack.value.push(entry)
+    if (redoStack.value.length > HISTORY_LIMIT) {
+      redoStack.value.shift()
+    }
   }
 
-  function clearUndo(): void {
+  function popRedo(): HistoryEntry | undefined {
+    return redoStack.value.pop()
+  }
+
+  function clearHistory(): void {
     undoStack.value = []
+    redoStack.value = []
   }
 
   function setDraftRows(rows: DraftRecord[]): void {
@@ -262,6 +316,7 @@ export function createRecordState() {
     currentRecord.value = null
     draftRows.value = []
     undoStack.value = []
+    redoStack.value = []
     queryState.value = { filters: [], sort: null, pagination: { page: 1, pageSize: 20, total: 0 } }
     isLoading.value = false
     isSaving.value = false
@@ -273,6 +328,9 @@ export function createRecordState() {
     currentRecord,
     draftRows,
     undoStack,
+    redoStack,
+    canUndo,
+    canRedo,
     queryState,
     isLoading,
     isSaving,
@@ -287,9 +345,14 @@ export function createRecordState() {
     setPagination,
     getRecordById,
     updateRecordField,
-    pushUndo,
+    removeRecordLocal,
+    insertRecordLocal,
+    pushHistory,
     popUndo,
-    clearUndo,
+    pushUndo,
+    pushRedo,
+    popRedo,
+    clearHistory,
     setDraftRows,
     updateDraftField,
     addDraftRow,

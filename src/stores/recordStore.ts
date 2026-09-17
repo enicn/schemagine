@@ -1,12 +1,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { RecordEntity, DraftRecord, UndoEntry, QueryState, PaginationState, FieldError } from '@/types'
+import type { RecordEntity, DraftRecord, QueryState, PaginationState, FieldError } from '@/types'
 
 export const useRecordStore = defineStore('record', () => {
   const records = ref<RecordEntity[]>([])
   const currentRecord = ref<RecordEntity | null>(null)
   const draftRows = ref<DraftRecord[]>([])
-  const undoStack = ref<UndoEntry[]>([])
   const queryState = ref<QueryState>({
     filters: [],
     sort: null,
@@ -55,21 +54,6 @@ export const useRecordStore = defineStore('record', () => {
     }
   }
 
-  function pushUndo(entry: UndoEntry): void {
-    undoStack.value.push(entry)
-    if (undoStack.value.length > 50) {
-      undoStack.value.shift()
-    }
-  }
-
-  function popUndo(): UndoEntry | undefined {
-    return undoStack.value.pop()
-  }
-
-  function clearUndo(): void {
-    undoStack.value = []
-  }
-
   function setDraftRows(rows: DraftRecord[]): void {
     draftRows.value = rows
   }
@@ -116,7 +100,6 @@ export const useRecordStore = defineStore('record', () => {
     records.value = []
     currentRecord.value = null
     draftRows.value = []
-    undoStack.value = []
     queryState.value = { filters: [], sort: null, pagination: { page: 1, pageSize: 20, total: 0 } }
     isLoading.value = false
     isSaving.value = false
@@ -127,7 +110,6 @@ export const useRecordStore = defineStore('record', () => {
     records,
     currentRecord,
     draftRows,
-    undoStack,
     queryState,
     isLoading,
     isSaving,
@@ -142,9 +124,6 @@ export const useRecordStore = defineStore('record', () => {
     setPagination,
     getRecordById,
     updateRecordField,
-    pushUndo,
-    popUndo,
-    clearUndo,
     setDraftRows,
     updateDraftField,
     addDraftRow,

@@ -20,7 +20,8 @@ import { usePermission } from '@/composables/usePermission'
 import { recordService } from '@/services/api/recordService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
-import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
+import { useRecordHistory } from '@/composables/useRecordHistory'
+import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent, FieldChangeSnapshot } from '@/types'
 import type { AggregationItem } from '@/composables/useAggregation'
 
 const props = defineProps<{
@@ -74,6 +75,7 @@ const schemaMeta = useSchemaMeta()
 const uiState = useUi()
 const permission = usePermission(schemaMeta)
 const aggregation = useAggregation()
+const history = useRecordHistory(recordStore, uiState)
 const { isMounted } = useMounted()
 const loadingModuleId = inject<Ref<string | null>>('loadingModuleId', ref(null))
 
@@ -127,6 +129,15 @@ function handleBatchEditClick(): void {
   batchEditVisible.value = true
 }
 
+// ── 撤销/重做（docs/19 H3）：引擎级 history，工具栏按钮回放本地历史 ──
+function handleUndo(): void {
+  history.undo()
+}
+
+function handleRedo(): void {
+  history.redo()
+}
+
 async function handleBatchEditConfirm(): Promise<void> {
   const field = batchEditSelectedField.value
   if (!field || batchEditRunning.value) return
@@ -144,6 +155,7 @@ async function handleBatchEditConfirm(): Promise<void> {
     let skipped = 0
     let notLoaded = 0
     const failedRowIds: string[] = []
+    const changes: FieldChangeSnapshot[] = []
     for (const rowId of uiState.selectedRowIds) {
       const record = recordStore.getRecordById(rowId)
       if (!record) {
@@ -151,7 +163,9 @@ async function handleBatchEditConfirm(): Promise<void> {
         notLoaded++
         continue
       }
-      if (record.fields[field.key] === value) {
+      const previousValue = record.fields[field.key]
+      const previousVersion = record.version
+      if (previousValue === value) {
         skipped++
         continue
       }
@@ -160,15 +174,25 @@ async function handleBatchEditConfirm(): Promise<void> {
         recordId: rowId,
         field: field.key,
         value,
-        expectedVersion: record.version,
+        expectedVersion: previousVersion,
       })
       if (res.success) {
         recordStore.updateRecordField(rowId, field.key, value, res.data.version)
+        changes.push({
+          recordId: rowId,
+          field: field.key,
+          previousValue,
+          newValue: value,
+          previousVersion,
+          newVersion: res.data.version,
+        })
         okCount++
       } else {
         failedRowIds.push(rowId)
       }
     }
+    // docs/19 H3:整批一个历史条目,撤销/重做按动作粒度整批回放
+    history.pushBatchEdit(changes)
     const notLoadedNote = notLoaded > 0 ? `，${notLoaded} 条不在当前页已跳过` : ''
     if (failedRowIds.length > 0) {
       uiState.showMessage(`已更新 ${okCount} 条，失败 ${failedRowIds.length} 条（可能存在版本冲突）${notLoadedNote}`, 'warning')
@@ -682,6 +706,12 @@ function handleBottomTabChange(tabId: string): void {
         <ElButton v-if="showSelection && uiState.selectedRowIds.length > 0" size="small" text
           @click="handleClearSelection">
           清空选择
+        </ElButton>
+        <ElButton v-if="canEditRecords" size="small" plain :disabled="!recordStore.canUndo" @click="handleUndo">
+          撤销
+        </ElButton>
+        <ElButton v-if="canEditRecords" size="small" plain :disabled="!recordStore.canRedo" @click="handleRedo">
+          重做
         </ElButton>
         <ElButton v-if="canEditRecords && batchEditableFields.length > 0" size="small" plain
           :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">

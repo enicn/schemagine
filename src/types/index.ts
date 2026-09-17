@@ -46,7 +46,9 @@ export type {
   FieldError,
   CellEditPayload,
   EditContext,
-  UndoEntry,
+  FieldChangeSnapshot,
+  HistoryCreatedRecord,
+  HistoryEntry,
   RelationEntry,
 } from './record'
 

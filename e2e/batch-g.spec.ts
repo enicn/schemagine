@@ -82,6 +82,7 @@ test.describe('docs/19 批次 G：平台化与工程', () => {
     const editedRow = rows.filter({ hasText: voucherNo }).first()
     await expect(editedRow).toContainText('333', { timeout: 8000 })
   })
+
   test('G1.2 ?locale=en-US：弹层切英文，未覆盖 key 回退中文', async ({ page }) => {
     await page.goto('/module/module-voucher?locale=en-US')
     await page.waitForTimeout(2000)

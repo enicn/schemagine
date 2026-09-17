@@ -2,15 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import { ElDialog, ElButton, ElMessage } from 'element-plus'
 import { useUi } from '@/composables/instanceState'
+import { useRecordHistory } from '@/composables/useRecordHistory'
 import { useFormula } from '@/composables/useFormula'
 import { getDialogComponent } from '@/engine/registry/dialogRegistry'
 import DynamicMaxConfirmDialog from './DynamicMaxConfirmDialog.vue'
 import QuickCreateDialog from './QuickCreateDialog.vue'
 import FormulaDetailPopover from '@/components/field/FormulaDetailPopover.vue'
 import type { FormulaEvaluationContext } from '@/composables/useFormula'
+import type { RecordEntity } from '@/types'
 
 const uiState = useUi()
 const formula = useFormula()
+const history = useRecordHistory()
 
 const visible = computed(() => uiState.dialogVisible)
 const dialogType = computed(() => uiState.dialogType)
@@ -61,7 +64,9 @@ function handleDynamicMaxCancel(): void {
   uiState.closeDialog()
 }
 
-function handleQuickCreateCreated(payload: { id: string; label: string; value: string }): void {
+function handleQuickCreateCreated(payload: { id: string; label: string; value: string; record: RecordEntity }): void {
+  // docs/19 H3:快速创建入栈;目标模块记录不在实例列表时 pushCreate 自动跳过(引擎无 delete 无法回放)
+  history.pushCreate([payload.record])
   uiState.closeDialog()
   ElMessage.success(`已创建: ${payload.label}`)
 }

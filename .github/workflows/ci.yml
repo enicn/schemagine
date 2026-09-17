@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -68,6 +69,23 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+
+  perf-benchmark:
+    # 性能基准(docs/19 §七):可选 job,仅手动触发(workflow_dispatch),不阻塞常规门禁
+    name: Perf Benchmark (optional)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm bench
+      - run: pnpm test:unit --run formulaPerf
 
   build-lib:
     name: Library Build

@@ -162,7 +162,8 @@ export const voucherSchema: ModuleSchema = {
       sortable: true,
       filterable: false,
       defaultValue: 0.13,
-      decimal: 0,
+      // docs/19 H5 附带修复:默认值 0.13 需要两位小数,decimal:0 与之矛盾导致创建校验必然拦截
+      decimal: 2,
       aggregation: 'average',
       suffixStr: '%',
     },

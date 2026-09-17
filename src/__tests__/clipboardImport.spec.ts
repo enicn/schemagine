@@ -5,6 +5,9 @@ import {
   isHeaderFullyMatched,
   isImportableField,
   parseTsvGrid,
+  parseCsvGrid,
+  parseXlsxGrid,
+  precheckImportRows,
 } from '../utils/clipboardImport'
 import type { FieldSchema } from '../types'
 
@@ -158,5 +161,104 @@ describe('convertCellValue 按类型转换', () => {
   it('text/fk：保留原文', () => {
     expect(convertCellValue(' 张三 ', makeField({ key: 't', type: 'text' }))).toBe('张三')
     expect(convertCellValue('供应商A', makeField({ key: 'fk', type: 'fk' }))).toBe('供应商A')
+  })
+})
+
+describe('parseCsvGrid CSV 解析（docs/19 H5）', () => {
+  it('基础逗号分隔与 BOM 去除', () => {
+    expect(parseCsvGrid('凭证日期,金额\n2026-09-01,100')).toEqual([
+      ['凭证日期', '金额'],
+      ['2026-09-01', '100'],
+    ])
+    expect(parseCsvGrid('\uFEFFa,b\n1,2')).toEqual([['a', 'b'], ['1', '2']])
+  })
+
+  it('引号单元格内含逗号、换行与转义引号', () => {
+    expect(parseCsvGrid('a,b\n"x,1","line1\nline2"\n"c","x""y"')).toEqual([
+      ['a', 'b'],
+      ['x,1', 'line1\nline2'],
+      ['c', 'x"y'],
+    ])
+  })
+
+  it('分隔符嗅探:分号与制表符 CSV 兼容', () => {
+    expect(parseCsvGrid('a;b;c\n1;2;3')).toEqual([['a', 'b', 'c'], ['1', '2', '3']])
+    expect(parseCsvGrid('a\tb\n1\t2')).toEqual([['a', 'b'], ['1', '2']])
+  })
+
+  it('CRLF 与末尾空行过滤', () => {
+    expect(parseCsvGrid('a,b\r\n1,2\r\n\r\n')).toEqual([['a', 'b'], ['1', '2']])
+  })
+})
+
+describe('parseXlsxGrid xlsx 解析（docs/19 H5,可选 peer）', () => {
+  it('解析 xlsx 二进制首表为字符串网格', async () => {
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['名称', '金额'], ['甲', '100'], ['乙', '200']]), 'Sheet1')
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
+    const result = await parseXlsxGrid(buf)
+    expect('grid' in result && result.grid).toEqual([
+      ['名称', '金额'],
+      ['甲', '100'],
+      ['乙', '200'],
+    ])
+  })
+
+  it('非法二进制返回 parse-failed 或空网格,均不抛出', async () => {
+    // 空缓冲:xlsx 库宽松处理为单空单元格网格
+    const empty = await parseXlsxGrid(new ArrayBuffer(0))
+    expect('grid' in empty && empty.grid).toEqual([['']])
+    // 损坏的 zip 签名:进入 parse-failed 分支
+    const corrupt = await parseXlsxGrid(new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x01, 0x02, 0x03]).buffer)
+    expect('error' in corrupt && corrupt.error).toBe('parse-failed')
+  })
+})
+
+describe('precheckImportRows 行级预检（docs/19 H5）', () => {
+  const amount = makeField({ key: 'amount', type: 'currency', label: '金额', required: true })
+  const status = makeField({
+    key: 'status', type: 'select', label: '状态',
+    options: [{ label: '待审核', value: 'pending_audit' }, { label: '已审核', value: 'approved' }],
+  })
+
+  it('必填缺失报错且带行号字段定位', () => {
+    const issues = precheckImportRows([['', 'approved']], [amount, status])
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ rowIndex: 1, fieldKey: 'amount', fieldLabel: '金额' })
+  })
+
+  it('类型转换失败(金额列填文本)带原文与行号', () => {
+    const issues = precheckImportRows([['100', 'approved'], ['abc', 'approved']], [amount, status])
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ rowIndex: 2, fieldKey: 'amount' })
+    expect(issues[0]!.message).toContain('abc')
+  })
+
+  it('布尔/枚举无法解析时报错;枚举 label 自动转 value', () => {
+    const boolField = makeField({ key: 'ok', type: 'boolean', label: '是否' })
+    const issues = precheckImportRows([['100', '已审核', 'maybe']], [amount, status, boolField])
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ rowIndex: 1, fieldKey: 'ok', fieldLabel: '是否' })
+  })
+
+  it('校验规则错误(金额为负)行级报出', () => {
+    const withMin = makeField({
+      key: 'amount', type: 'currency', label: '金额', required: true,
+      validationRules: [{ type: 'min', value: 0, message: '金额必须大于等于0', level: 'error' }],
+    })
+    const issues = precheckImportRows([['-5', 'approved']], [withMin, status])
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.message).toContain('金额必须大于等于0')
+  })
+
+  it('映射列全空的行跳过不报错;合法行零问题', () => {
+    const issues = precheckImportRows([['', ''], ['', ''], ['100', 'approved']], [amount, status])
+    expect(issues).toHaveLength(0)
+  })
+
+  it('未映射列(字段为 null)不参与预检', () => {
+    const issues = precheckImportRows([['任意文本']], [null])
+    expect(issues).toHaveLength(0)
   })
 })

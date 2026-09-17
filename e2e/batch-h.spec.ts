@@ -105,3 +105,72 @@ test.describe('docs/19 批次 H3:引擎级 undo/redo', () => {
     await expect(editedRow).toContainText('777', { timeout: 5000 })
   })
 })
+
+test.describe('docs/19 批次 H5:文件导入', () => {
+  /** 打开新增视图的导入对话框并附上 CSV 文件 */
+  async function openImportDialogWithCsv(page: Page, csv: string): Promise<void> {
+    await page.goto('/module/module-voucher')
+    await page.getByRole('button', { name: '新增' }).click({ timeout: 8000 })
+    await page.getByRole('button', { name: '导入数据' }).click()
+    const dialog = page.locator('.el-dialog').filter({ hasText: '导入数据' })
+    await expect(dialog).toBeVisible({ timeout: 5000 })
+    await dialog.locator('input[type="file"]').setInputFiles({
+      name: 'import.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    })
+    // 解析成功后进入映射向导(显示导入按钮)
+    await expect(dialog.locator('button').filter({ hasText: /导入 \d+ 行/ })).toBeVisible({ timeout: 5000 })
+  }
+
+  test('H5.1 导入 CSV 新增 3 行(表头自动匹配 → 保存落库)', async ({ page }) => {
+    const csv = [
+      '凭证日期,金额,凭证类型,状态',
+      '2026-06-01,111.5,收款凭证,已审核',
+      '2026-06-02,222,付款凭证,待审核',
+      '2026-06-03,333,转账凭证,已审核',
+    ].join('\n')
+    await openImportDialogWithCsv(page, csv)
+
+    const dialog = page.locator('.el-dialog').filter({ hasText: '导入数据' })
+    // 表头自动匹配成功提示
+    await expect(dialog.locator('.match-ok')).toContainText('4/4')
+    // 导入 → 覆盖初始空行,生成 3 条草稿
+    await dialog.locator('button').filter({ hasText: '导入 3 行' }).click()
+    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.el-message').filter({ hasText: '已从文件导入 3 行' })).toBeVisible({ timeout: 5000 })
+
+    // 保存 → batchCreate → 回列表,种子 5 行 + 新增 3 行
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(page.locator('.vxe-table--main-wrapper .vxe-body--row')).toHaveCount(8, { timeout: 15000 })
+    await expect(page.locator('.aggregation-bar')).toContainText('8')
+  })
+
+  test('H5.2 列映射错配:行级预检报错定位,缺省中止、可跳过错误行', async ({ page }) => {
+    // 金额列第 2 行为非数字 → 预检报错定位到行+字段
+    const csv = [
+      '凭证日期,金额,凭证类型',
+      '2026-06-01,100,收款凭证',
+      '2026-06-02,abc,付款凭证',
+    ].join('\n')
+    await openImportDialogWithCsv(page, csv)
+
+    const dialog = page.locator('.el-dialog').filter({ hasText: '导入数据' })
+    await expect(dialog.locator('.issue-panel')).toBeVisible({ timeout: 5000 })
+    await expect(dialog.locator('.issue-summary')).toContainText('发现 1 个问题')
+    await expect(dialog.locator('.issue-item').first()).toContainText('第 2 行')
+    await expect(dialog.locator('.issue-item').first()).toContainText('「金额」')
+    await expect(dialog.locator('.issue-item').first()).toContainText('abc')
+
+    // 缺省中止:导入按钮禁用;勾选跳过 → 可导入其余 1 行
+    const importBtn = dialog.locator('button').filter({ hasText: /导入 2 行/ })
+    await expect(importBtn).toBeDisabled()
+    await dialog.locator('.issue-panel .el-checkbox').click()
+    await expect(dialog.locator('button').filter({ hasText: '导入 1 行（跳过 1 行错误）' })).toBeEnabled()
+    await dialog.locator('button').filter({ hasText: '导入 1 行（跳过 1 行错误）' }).click()
+    await expect(dialog).not.toBeVisible({ timeout: 5000 })
+
+    await page.getByRole('button', { name: '保存', exact: true }).click()
+    await expect(page.locator('.vxe-table--main-wrapper .vxe-body--row')).toHaveCount(6, { timeout: 15000 })
+  })
+})

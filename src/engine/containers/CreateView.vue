@@ -324,7 +324,7 @@ async function resolveFkValue(targetModule: string, label: string): Promise<stri
   return label
 }
 
-async function handlePasteImport(payload: { rows: Array<Record<string, unknown>> }): Promise<void> {
+async function handlePasteImport(payload: { rows: Array<Record<string, unknown>>; source?: 'clipboard' | 'file' }): Promise<void> {
   const rows = payload.rows
   if (rows.length === 0) return
 
@@ -372,7 +372,7 @@ async function handlePasteImport(payload: { rows: Array<Record<string, unknown>>
   lifecycle.evaluateFormulas(context)
 
   emit('draft-change', { drafts: draftRows.value })
-  ElMessage.success(`已从剪贴板导入 ${rows.length} 行`)
+  ElMessage.success(`已从${payload.source === 'file' ? '文件' : '剪贴板'}导入 ${rows.length} 行`)
 }
 
 const dragAddActive = ref(false)
@@ -487,7 +487,7 @@ onUnmounted(() => {
         class="paste-import-btn"
         @click="pasteDialogVisible = true"
       >
-        从Excel粘贴
+        导入数据
       </ElButton>
       <ColumnSettingsPopover
         :fields="allFieldSchemas"

@@ -353,6 +353,9 @@ async function handleCreateSave(): Promise<void> {
   const warnings: string[] = []
   drafts.forEach((draft, idx) => {
     for (const field of schemaMeta.visibleFields) {
+      // docs/19 H5 附带修复:readonly 字段(如「自动生成」编号)不可由用户填写,
+      // required 校验会永久阻断创建,交由服务端 autoFill 兜底,此处跳过
+      if (field.readonly) continue
       const decimalError = validateDecimalValue(draft.fields[field.key], field)
       if (decimalError) {
         errors.push(`第${idx + 1}行「${field.label}」: ${decimalError}`)

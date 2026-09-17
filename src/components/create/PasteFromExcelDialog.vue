@@ -6,6 +6,9 @@ import {
   guessHeaderMapping,
   isHeaderFullyMatched,
   parseTsvGrid,
+  parseCsvGrid,
+  parseXlsxGrid,
+  precheckImportRows,
   isImportableField,
 } from '@/utils/clipboardImport'
 import type { FieldSchema } from '@/types'
@@ -17,10 +20,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [value: boolean]
-  confirm: [payload: { rows: Array<Record<string, unknown>>; mappedCount: number }]
+  confirm: [payload: { rows: Array<Record<string, unknown>>; mappedCount: number; source: 'clipboard' | 'file' }]
 }>()
 
 const PREVIEW_ROW_LIMIT = 5
+/** 错误清单最多展示条数(超出仅提示总数) */
+const ISSUE_DISPLAY_LIMIT = 50
 
 const stage = ref<'input' | 'map'>('input')
 const manualText = ref('')
@@ -30,6 +35,11 @@ const columnMappings = ref<Array<string | null>>([])
 const autoMatched = ref(false)
 const draggingKey = ref('')
 const reading = ref(false)
+/** docs/19 H5:数据来源,决定完成提示语 */
+const dataSource = ref<'clipboard' | 'file'>('clipboard')
+/** docs/19 H5:行级预检发现错误行时,勾选则跳过错误行,不勾选中止导入 */
+const skipErrorRows = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const candidateFields = computed(() => props.fields.filter(isImportableField))
 
@@ -47,6 +57,25 @@ const dataRowCount = computed(() => dataRows.value.length)
 const previewRows = computed(() => dataRows.value.slice(0, PREVIEW_ROW_LIMIT))
 const mappedCount = computed(() => columnMappings.value.filter(Boolean).length)
 const importDisabled = computed(() => mappedCount.value === 0 || dataRowCount.value === 0)
+
+// ── 行级预检(docs/19 H5):列映射/类型转换变化时即时重算,错误行可跳过或中止 ──
+const columnFields = computed<Array<FieldSchema | null>>(() =>
+  columnMappings.value.map(key => (key ? fieldByKey.value.get(key) ?? null : null)),
+)
+
+const rowIssues = computed(() => precheckImportRows(dataRows.value, columnFields.value))
+const issueRowCount = computed(() => new Set(rowIssues.value.map(i => i.rowIndex)).size)
+const validRowCount = computed(() => dataRowCount.value - issueRowCount.value)
+const hasBlockingIssues = computed(() => rowIssues.value.length > 0 && !skipErrorRows.value)
+const importBlocked = computed(() => importDisabled.value || hasBlockingIssues.value)
+const displayedIssues = computed(() => rowIssues.value.slice(0, ISSUE_DISPLAY_LIMIT))
+
+const importButtonText = computed(() => {
+  if (rowIssues.value.length > 0 && skipErrorRows.value) {
+    return `导入 ${validRowCount.value} 行（跳过 ${issueRowCount.value} 行错误）`
+  }
+  return `导入 ${dataRowCount.value} 行`
+})
 
 const isFieldMapped = computed(() => {
   const set = new Set<string>()
@@ -69,6 +98,66 @@ function resetState(): void {
   autoMatched.value = false
   draggingKey.value = ''
   reading.value = false
+  dataSource.value = 'clipboard'
+  skipErrorRows.value = false
+}
+
+function applyGrid(parsed: string[][], source: 'clipboard' | 'file'): void {
+  grid.value = parsed
+  dataSource.value = source
+  // 仅一行数据时没有表头可言，默认整行作为数据
+  includeFirstRow.value = parsed.length === 1
+  const guessed = guessHeaderMapping(parsed[0] ?? [], candidateFields.value)
+  columnMappings.value = guessed.map(f => f?.key ?? null)
+  autoMatched.value = isHeaderFullyMatched(parsed[0] ?? [], guessed)
+  skipErrorRows.value = false
+  stage.value = 'map'
+}
+
+// ── 文件导入(docs/19 H5):CSV 走文本解析,xlsx 走可选 peer(与导出共用),解析后进入同一映射向导 ──
+async function handleFileChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  reading.value = true
+  try {
+    const isXlsx = /\.(xlsx|xls)$/i.test(file.name) || file.type.includes('sheet') || file.type.includes('excel')
+    if (isXlsx) {
+      const result = await parseXlsxGrid(await file.arrayBuffer())
+      if ('error' in result) {
+        if (result.error === 'missing-peer') {
+          ElMessage.warning('解析 xlsx 需要可选依赖「xlsx」（与导出共用）；未安装时请改用 CSV 文件或剪贴板粘贴')
+        } else {
+          ElMessage.error(`文件解析失败：${result.message ?? '不是有效的 Excel 文件'}`)
+        }
+        return
+      }
+      if (result.grid.length === 0) {
+        ElMessage.warning('文件内容为空或无法解析为表格')
+        return
+      }
+      applyGrid(result.grid, 'file')
+      return
+    }
+
+    const text = await file.text()
+    const parsed = parseCsvGrid(text)
+    if (parsed.length === 0) {
+      ElMessage.warning('文件内容为空或无法解析为表格，请确认是 CSV 文件')
+      return
+    }
+    applyGrid(parsed, 'file')
+  } catch {
+    ElMessage.error('文件读取失败，请重试')
+  } finally {
+    reading.value = false
+  }
+}
+
+function handleSelectFile(): void {
+  fileInputRef.value?.click()
 }
 
 function parseFromText(text: string): void {
@@ -77,13 +166,7 @@ function parseFromText(text: string): void {
     ElMessage.warning('剪贴板内容为空或无法解析为表格，请确认已复制 Excel 数据区域')
     return
   }
-  grid.value = parsed
-  // 仅一行数据时没有表头可言，默认整行作为数据
-  includeFirstRow.value = parsed.length === 1
-  const guessed = guessHeaderMapping(parsed[0] ?? [], candidateFields.value)
-  columnMappings.value = guessed.map(f => f?.key ?? null)
-  autoMatched.value = isHeaderFullyMatched(parsed[0] ?? [], guessed)
-  stage.value = 'map'
+  applyGrid(parsed, 'clipboard')
 }
 
 async function tryAutoReadClipboard(): Promise<void> {
@@ -188,8 +271,12 @@ function previewCell(row: string[], columnIndex: number): string {
 }
 
 function handleImport(): void {
+  // docs/19 H5:勾选跳过时,预检报错的行整行不导入;未勾选时按钮已禁用(中止)
+  const errorRowIndexes = new Set(rowIssues.value.map(i => i.rowIndex))
+
   const rows: Array<Record<string, unknown>> = []
-  for (const row of dataRows.value) {
+  dataRows.value.forEach((row, rowIdx) => {
+    if (skipErrorRows.value && errorRowIndexes.has(rowIdx + 1)) return
     const record: Record<string, unknown> = {}
     let hasValue = false
     columnMappings.value.forEach((key, columnIndex) => {
@@ -205,12 +292,12 @@ function handleImport(): void {
     if (hasValue) {
       rows.push(record)
     }
-  }
+  })
   if (rows.length === 0) {
     ElMessage.warning('没有可导入的数据行')
     return
   }
-  emit('confirm', { rows, mappedCount: mappedCount.value })
+  emit('confirm', { rows, mappedCount: mappedCount.value, source: dataSource.value })
   close()
 }
 
@@ -225,7 +312,7 @@ watch(() => props.visible, (visible) => {
 <template>
   <ElDialog
     :model-value="visible"
-    title="从 Excel 粘贴"
+    title="导入数据"
     width="880px"
     :close-on-click-modal="false"
     class="paste-excel-dialog"
@@ -233,13 +320,23 @@ watch(() => props.visible, (visible) => {
   >
     <div v-if="stage === 'input'" class="paste-stage">
       <p class="paste-hint">
-        请先在 Excel 中复制数据区域，然后点击「读取剪贴板」；
+        支持 CSV / xlsx 文件导入，或先在 Excel 中复制数据区域后点击「读取剪贴板」；
         若浏览器未授权读取剪贴板，可直接在下方文本框中按 Ctrl+V 粘贴。
       </p>
       <div class="paste-actions">
-        <ElButton type="primary" :loading="reading" @click="handleReadClipboard">
+        <ElButton type="primary" :loading="reading" @click="handleSelectFile">
+          选择文件（CSV / xlsx）
+        </ElButton>
+        <ElButton :loading="reading" @click="handleReadClipboard">
           读取剪贴板
         </ElButton>
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          class="paste-file-input"
+          @change="handleFileChange"
+        />
       </div>
       <textarea
         v-model="manualText"
@@ -338,7 +435,28 @@ watch(() => props.visible, (visible) => {
         <p v-if="dataRowCount > previewRows.length" class="preview-note">
           仅预览前 {{ previewRows.length }} 行，导入时包含全部 {{ dataRowCount }} 行数据
         </p>
-    </div>
+
+        <!-- 行级预检(docs/19 H5):带行号的错误清单;勾选跳过则错误行不导入,不勾选则中止 -->
+        <div v-if="rowIssues.length > 0" class="issue-panel">
+          <div class="issue-summary">
+            <span class="issue-title">行级预检发现 {{ rowIssues.length }} 个问题（涉及 {{ issueRowCount }} 行）：</span>
+            <ElCheckbox v-model="skipErrorRows" size="small">
+              跳过 {{ issueRowCount }} 个错误行，导入其余 {{ validRowCount }} 行
+            </ElCheckbox>
+          </div>
+          <ul class="issue-list">
+            <li v-for="(issue, idx) in displayedIssues" :key="idx" class="issue-item">
+              第 {{ issue.rowIndex }} 行<template v-if="issue.fieldLabel">「{{ issue.fieldLabel }}」</template>：{{ issue.message }}
+            </li>
+          </ul>
+          <p v-if="rowIssues.length > displayedIssues.length" class="issue-more">
+            仅显示前 {{ displayedIssues.length }} 条，其余 {{ rowIssues.length - displayedIssues.length }} 条不再展示
+          </p>
+          <p v-if="!skipErrorRows" class="issue-block-hint">
+            存在错误行时导入已中止；勾选「跳过错误行」后可导入其余 {{ validRowCount }} 行。
+          </p>
+        </div>
+      </div>
 
     <template #footer>
       <ElButton v-if="stage === 'input'" @click="close">取消</ElButton>
@@ -355,10 +473,10 @@ watch(() => props.visible, (visible) => {
       <ElButton
         v-if="stage !== 'input'"
         type="primary"
-        :disabled="importDisabled"
+        :disabled="importBlocked"
         @click="handleImport"
       >
-        导入 {{ dataRowCount }} 行
+        {{ importButtonText }}
       </ElButton>
     </template>
   </ElDialog>
@@ -373,6 +491,48 @@ watch(() => props.visible, (visible) => {
 }
 .paste-actions {
   margin-bottom: var(--sg-spacing-4);
+}
+.paste-file-input {
+  display: none;
+}
+.issue-panel {
+  margin-top: var(--sg-spacing-4);
+  padding: var(--sg-spacing-3) var(--sg-spacing-4);
+  border: 1px solid var(--sg-color-danger-light-7, var(--sg-border-color-light));
+  border-radius: var(--sg-radius-md);
+  background: var(--sg-color-danger-light-9, var(--sg-fill-color-lighter));
+}
+.issue-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sg-spacing-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sg-spacing-2);
+}
+.issue-title {
+  font-size: var(--sg-font-size-sm);
+  font-weight: 600;
+  color: var(--sg-color-danger);
+}
+.issue-list {
+  margin: 0;
+  padding: 0 0 0 var(--sg-spacing-5);
+  max-height: 120px;
+  overflow: auto;
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-text-color-regular);
+  line-height: 1.7;
+}
+.issue-more {
+  margin: var(--sg-spacing-1) 0 0;
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-text-color-secondary);
+}
+.issue-block-hint {
+  margin: var(--sg-spacing-1) 0 0;
+  font-size: var(--sg-font-size-xs);
+  color: var(--sg-color-warning);
 }
 .paste-textarea {
   box-sizing: border-box;

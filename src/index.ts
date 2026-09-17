@@ -89,6 +89,9 @@ export { reorderColumnsByDrag } from './utils/columnDrag'
 // 批量字段更新执行器(docs/19 批次 H4):两阶段(apply+补偿回写),整体生效或整体不生效
 export { executeBatchPatch, survivingChanges } from './utils/batchPatch'
 export type { BatchPatchOutcome, BatchPatchAppliedRow } from './utils/batchPatch'
+// 表格数据导入(docs/19 批次 H5):TSV/CSV/xlsx 解析与行级预检(剪贴板/文件导入共用管线)
+export { parseTsvGrid, parseDelimitedGrid, parseCsvGrid, parseXlsxGrid, precheckImportRows } from './utils/clipboardImport'
+export type { XlsxParseResult, ImportRowIssue } from './utils/clipboardImport'
 
 // === 展示口径工具（宿主与引擎同源，防两处口径漂移） ===
 export { formatMoney } from './utils/formatMoney'

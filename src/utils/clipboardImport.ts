@@ -1,15 +1,24 @@
 import type { FieldSchema } from '@/types'
+import { validateFieldValue } from '@/utils/fieldValidation'
 
 /**
- * Excel 剪贴板导入工具：
+ * 表格数据导入工具（docs/19 批次 H5；剪贴板粘贴与文件导入共用）：
  *  1. parseTsvGrid      —— 解析 Excel 复制的 TSV 文本（含引号包裹的换行/Tab 单元格）
- *  2. guessHeaderMapping —— 按第一行猜测各列对应的 Schema 字段
- *  3. convertCellValue   —— 按字段类型把单元格文本转换为草稿字段值
- *  4. isImportableField  —— 过滤不可导入的字段类型
+ *  2. parseCsvGrid      —— 解析 CSV 文件文本（BOM、引号转义、分隔符嗅探 , ; Tab）
+ *  3. parseXlsxGrid     —— 解析 xlsx 文件二进制（可选 peer 依赖 xlsx，与 G4 导出共用）
+ *  4. guessHeaderMapping —— 按第一行猜测各列对应的 Schema 字段
+ *  5. convertCellValue   —— 按字段类型把单元格文本转换为草稿字段值
+ *  6. precheckImportRows —— 行级预检：逐行逐字段报错（行号定位），错误行可跳过或中止
+ *  7. isImportableField  —— 过滤不可导入的字段类型
  */
 
 /** 解析 Excel 复制的 TSV 文本为二维网格。自动过滤整行为空的行 */
 export function parseTsvGrid(text: string): string[][] {
+  return parseDelimitedGrid(text, '\t')
+}
+
+/** 按指定分隔符解析引号感知的二维网格。自动过滤整行为空的行 */
+export function parseDelimitedGrid(text: string, delimiter: string): string[][] {
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   const rows: string[][] = []
   let row: string[] = []
@@ -38,7 +47,7 @@ export function parseTsvGrid(text: string): string[][] {
     }
     if (ch === '"') {
       inQuotes = true
-    } else if (ch === '\t') {
+    } else if (ch === delimiter) {
       flushCell()
     } else if (ch === '\n') {
       flushCell()
@@ -55,6 +64,54 @@ export function parseTsvGrid(text: string): string[][] {
   }
 
   return rows.filter(r => r.some(c => c.trim() !== ''))
+}
+
+/** CSV 分隔符候选：取首行出现次数最多者（欧洲 locale 分号、Excel 另存制表符均兼容） */
+function sniffDelimiter(text: string): string {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? ''
+  let best = ','
+  let bestCount = -1
+  for (const d of [',', ';', '\t']) {
+    const count = firstLine.split(d).length - 1
+    if (count > bestCount) {
+      best = d
+      bestCount = count
+    }
+  }
+  return best
+}
+
+/** 解析 CSV 文件文本：去 BOM、嗅探分隔符、引号转义。自动过滤整行为空的行 */
+export function parseCsvGrid(text: string): string[][] {
+  const stripped = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text
+  return parseDelimitedGrid(stripped, sniffDelimiter(stripped))
+}
+
+export type XlsxParseResult =
+  | { grid: string[][] }
+  | { error: 'missing-peer' | 'parse-failed'; message?: string }
+
+/**
+ * 解析 xlsx/xls 文件二进制为二维网格（单元格取格式化文本）。
+ * 依赖可选 peer `xlsx`（与导出通道共用，docs/19 G4），未安装返回 missing-peer。
+ */
+export async function parseXlsxGrid(data: ArrayBuffer): Promise<XlsxParseResult> {
+  let XLSX: typeof import('xlsx')
+  try {
+    XLSX = await import('xlsx')
+  } catch {
+    return { error: 'missing-peer' }
+  }
+  try {
+    const wb = XLSX.read(data, { type: 'array', cellDates: false })
+    const sheetName = wb.SheetNames[0]
+    if (!sheetName) return { grid: [] }
+    const sheet = wb.Sheets[sheetName]!
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' })
+    return { grid: rows.map(row => row.map(cell => String(cell ?? ''))) }
+  } catch (err) {
+    return { error: 'parse-failed', message: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 function normalizeHeaderText(text: string): string {
@@ -228,4 +285,61 @@ export function convertCellValue(rawText: string, field: FieldSchema): unknown {
       // text / phone / email / url / json / fk（fk 的 label→值解析由调用方异步完成）
       return text
   }
+}
+
+/** 行级预检问题(docs/19 H5):rowIndex 为数据行号(1 起,不含表头),供导入向导定位展示 */
+export interface ImportRowIssue {
+  rowIndex: number
+  fieldKey: string | null
+  fieldLabel: string | null
+  message: string
+}
+
+/** 类型中文名,用于"无法解析"类预检提示 */
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  number: '数字', currency: '金额', money: '金额', percent: '百分比',
+  date: '日期', datetime: '日期时间', boolean: '布尔',
+}
+
+/**
+ * 行级预检(docs/19 H5):按列映射逐行逐字段求值,给出带行号的错误清单。
+ * 口径:原始文本非空但类型转换失败 → 解析错误;转换结果过 validateFieldValue
+ * (required/validationRules,与保存链路同源)。整行映射列全空的行跳过(导入时本就丢弃)。
+ */
+export function precheckImportRows(
+  dataRows: string[][],
+  columnFields: Array<FieldSchema | null>,
+): ImportRowIssue[] {
+  const issues: ImportRowIssue[] = []
+
+  dataRows.forEach((row, rowIdx) => {
+    let hasAnyValue = false
+    const rowIssues: ImportRowIssue[] = []
+
+    columnFields.forEach((field, colIdx) => {
+      if (!field) return
+      const raw = (row[colIdx] ?? '').trim()
+      if (raw !== '') hasAnyValue = true
+
+      const converted = convertCellValue(raw, field)
+      if (raw !== '' && converted === undefined) {
+        const typeLabel = FIELD_TYPE_LABELS[field.type] ?? field.type
+        rowIssues.push({
+          rowIndex: rowIdx + 1,
+          fieldKey: field.key,
+          fieldLabel: field.label,
+          message: `「${raw}」无法解析为${typeLabel}类型`,
+        })
+        return
+      }
+      const result = validateFieldValue(field, converted)
+      for (const message of result.errors) {
+        rowIssues.push({ rowIndex: rowIdx + 1, fieldKey: field.key, fieldLabel: field.label, message })
+      }
+    })
+
+    if (hasAnyValue) issues.push(...rowIssues)
+  })
+
+  return issues
 }

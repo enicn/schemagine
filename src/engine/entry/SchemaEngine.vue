@@ -53,6 +53,8 @@ const emit = defineEmits<{
   'request-open-dialog': [payload: { dialogType: ExtendedDialogType; payload: Record<string, unknown> }]
   'action-trigger': [payload: ActionTriggerEvent]
   'row-action': [payload: RowActionEvent]
+  /** 批量字段更新(docs/19 H4 宿主执行契约):schema.operations.batchPatch.enabled 时上抛,宿主原子执行(失败整体回滚)后调 refresh() */
+  'batch-patch': [payload: { moduleId: string; ids: string[]; patch: Record<string, unknown> }]
   'cell-click': [payload: { field: string; rowId: string | null }]
   'edit-activated': [payload: { rowId: string; field: string }]
   'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
@@ -636,6 +638,7 @@ defineExpose({
                 @presets-change="handlePresetsChange"
                 @column-order-change="handleColumnOrderChange"
                 @action-trigger="(p) => emit('action-trigger', p)"
+                @batch-patch="(p: { moduleId: string; ids: string[]; patch: Record<string, unknown> }) => emit('batch-patch', p)"
                 @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
                 @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"
                 @edit-closed="(p: { rowId: string; field: string; value: unknown }) => emit('edit-closed', p)"

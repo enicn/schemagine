@@ -88,6 +88,7 @@ export type {
   LockColumnEvent,
   RowActionEvent,
   ActionTriggerEvent,
+  BatchPatchEvent,
   BuiltinDialogType,
   ExtendedDialogType,
 } from './events'

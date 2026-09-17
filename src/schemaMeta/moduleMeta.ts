@@ -110,8 +110,8 @@ export const MODULE_META: PropertyMeta[] = [
   {
     key: 'operations', target: 'module', label: '标准数据操作', group: 'edit', appliesTo: 'all', kind: 'object',
     surfaces: ['render'],
-    description: '引擎内置标准操作配置(当前仅 delete):{ delete: { enabled, batch, label, batchLabel, confirmTitle, confirmMessage, batchConfirmTitle, batchConfirmMessage } };启用后渲染行级/批量删除入口(需同时满足 permissions.delete),确认后引擎发标准化事件、由宿主执行。',
-    example: { delete: { enabled: true, batch: true } },
+    description: '引擎内置标准操作配置:{ delete: { enabled, batch, label, batchLabel, confirmTitle, confirmMessage, batchConfirmTitle, batchConfirmMessage }, batchPatch: { enabled } };delete 启用后渲染行级/批量删除入口(需同时满足 permissions.delete),确认后引擎发标准化事件、由宿主执行;batchPatch.enabled(docs/19 H4)启用后批量编辑经 batch-patch 事件交由宿主原子执行(失败整体回滚),缺省引擎本地逐条提交并带失败补偿回写。',
+    example: { delete: { enabled: true, batch: true }, batchPatch: { enabled: true } },
   },
   {
     key: 'groupBy', target: 'module', label: '分组小计', group: 'display', appliesTo: 'all', kind: 'object',

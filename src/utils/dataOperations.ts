@@ -9,6 +9,8 @@ export interface ResolvedDataOperations {
   canDelete: boolean
   /** 批量删除是否可用：canDelete && operations.delete.batch */
   canBatchDelete: boolean
+  /** 批量编辑是否走宿主执行契约：operations.batchPatch.enabled（docs/19 H4，true 时引擎 emit batch-patch、原子性由宿主保证） */
+  batchPatchDelegated: boolean
   /** 行级删除按钮文案 */
   label: string
   /** 批量删除按钮文案 */
@@ -46,6 +48,7 @@ export function resolveDataOperations(
   return {
     canDelete,
     canBatchDelete,
+    batchPatchDelegated: schema?.operations?.batchPatch?.enabled === true,
     label: config.label ?? DEFAULT_LABEL,
     batchLabel: config.batchLabel ?? DEFAULT_BATCH_LABEL,
     confirmTitle: config.confirmTitle ?? DEFAULT_CONFIRM_TITLE,

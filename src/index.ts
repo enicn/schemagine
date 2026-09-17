@@ -86,6 +86,9 @@ export {
 } from './utils/filterConditions'
 export type { FilterMatchType } from './utils/filterConditions'
 export { reorderColumnsByDrag } from './utils/columnDrag'
+// 批量字段更新执行器(docs/19 批次 H4):两阶段(apply+补偿回写),整体生效或整体不生效
+export { executeBatchPatch, survivingChanges } from './utils/batchPatch'
+export type { BatchPatchOutcome, BatchPatchAppliedRow } from './utils/batchPatch'
 
 // === 展示口径工具（宿主与引擎同源，防两处口径漂移） ===
 export { formatMoney } from './utils/formatMoney'

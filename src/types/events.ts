@@ -36,6 +36,25 @@ export interface ActionTriggerEvent {
   }
 }
 
+/**
+ * 批量字段更新事件(docs/19 H4,宿主执行·原子语义):
+ *
+ * Schema 配置 `operations.batchPatch.enabled: true` 时,批量编辑对话框确认后引擎
+ * 不再本地逐条 patchField,而是 emit `batch-patch` 交由宿主执行。契约约定:
+ * - 宿主须以**原子语义**执行:补丁对 ids 要么全部生效、要么全部不生效(任一记录
+ *   失败由宿主在自己的后端整体回滚);
+ * - 执行完成后宿主调用 engineRef.refresh() 重新拉取(引擎此路径不做本地乐观更新,
+ *   也不写入撤销栈——数据真源在宿主侧)。
+ */
+export interface BatchPatchEvent {
+  /** 目标模块 id */
+  moduleId: string
+  /** 目标记录主键集合(勾选行,含跨页勾选) */
+  ids: string[]
+  /** 应用的字段补丁;批量编辑为单字段补丁,如 { status: 'approved' } */
+  patch: Record<string, unknown>
+}
+
 export interface CellEditEvent extends CellEditPayload {
   rowId: string
   field: string

@@ -8,6 +8,7 @@ import SchemaFilterBar from '@/components/filter/SchemaFilterBar.vue'
 import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue } from '@/utils/fieldValidation'
+import { executeBatchPatch, survivingChanges } from '@/utils/batchPatch'
 import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterSummary'
 import { buildExportMatrix, downloadCsvFile, downloadXlsxFile } from '@/utils/tableExport'
 import { flattenFilterConditions, removeFieldFromConditions, cloneFilterConditions, isFilterGroup } from '@/utils/filterConditions'
@@ -21,7 +22,7 @@ import { recordService } from '@/services/api/recordService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
 import { useRecordHistory } from '@/composables/useRecordHistory'
-import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent, FieldChangeSnapshot } from '@/types'
+import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
 import type { AggregationItem } from '@/composables/useAggregation'
 
 const props = defineProps<{
@@ -51,6 +52,8 @@ const emit = defineEmits<{
   'presets-change': [presets: FilterPreset[]]
   /** 列拖拽后的新列序(字段 key 列表),由 SchemaEngine 合并进 UserViewConfig.columns(docs/19 批次 E4) */
   'column-order-change': [newOrder: string[]]
+  /** 批量字段更新上抛(docs/19 H4 宿主执行契约):schema.operations.batchPatch.enabled 时由批量编辑对话框触发,宿主原子执行后 refresh */
+  'batch-patch': [payload: { moduleId: string; ids: string[]; patch: Record<string, unknown> }]
 }>()
 
 // 摘要与 SchemaFilterBar 同一格式化口径(docs/19 批次 E;含组合过滤组拍平)
@@ -149,55 +152,58 @@ async function handleBatchEditConfirm(): Promise<void> {
     return
   }
 
+  // docs/19 H4:宿主执行契约(schema.operations.batchPatch.enabled)→ 引擎只收集与校验,
+  // emit batch-patch 由宿主原子执行(失败由宿主整体回滚),完成后宿主 refresh()。
+  // 此路径不做本地乐观更新、不入撤销栈(数据真源在宿主侧)。
+  if (deleteOps.value.batchPatchDelegated) {
+    emit('batch-patch', {
+      moduleId: props.schema.id,
+      ids: [...uiState.selectedRowIds],
+      patch: { [field.key]: value },
+    })
+    batchEditVisible.value = false
+    return
+  }
+
   batchEditRunning.value = true
   try {
-    let okCount = 0
-    let skipped = 0
-    let notLoaded = 0
-    const failedRowIds: string[] = []
-    const changes: FieldChangeSnapshot[] = []
-    for (const rowId of uiState.selectedRowIds) {
-      const record = recordStore.getRecordById(rowId)
-      if (!record) {
-        // 跨页勾选(docs/19 批次 E6)选中的行可能不在当前页数据里(拿不到乐观锁版本)
-        notLoaded++
-        continue
-      }
-      const previousValue = record.fields[field.key]
-      const previousVersion = record.version
-      if (previousValue === value) {
-        skipped++
-        continue
-      }
-      const res = await recordService.patchField({
-        moduleId: props.schema.id,
-        recordId: rowId,
-        field: field.key,
-        value,
-        expectedVersion: previousVersion,
-      })
-      if (res.success) {
-        recordStore.updateRecordField(rowId, field.key, value, res.data.version)
-        changes.push({
-          recordId: rowId,
-          field: field.key,
-          previousValue,
-          newValue: value,
-          previousVersion,
-          newVersion: res.data.version,
-        })
-        okCount++
-      } else {
-        failedRowIds.push(rowId)
-      }
+    // 缺省路径:引擎本地逐条提交(docs/19 H4 批量事务语义)——存在失败时对已成功行
+    // 补偿回写,尽量达成整体生效或整体不生效;提示按"整体"口径而非部分成功。
+    const outcome = await executeBatchPatch({
+      ids: uiState.selectedRowIds,
+      field: field.key,
+      value,
+      getRecord: (id) => {
+        const record = recordStore.getRecordById(id)
+        return record ? { fields: record.fields, version: record.version } : undefined
+      },
+      patchField: params => recordService.patchField({ moduleId: props.schema.id, ...params }),
+    })
+
+    // 按结果集应用本地状态并汇入撤销栈(仅仍生效的行)
+    for (const row of outcome.succeeded) {
+      const stillApplied = !outcome.rolledBack || outcome.revertFailed.includes(row.recordId)
+      if (!stillApplied) continue
+      recordStore.updateRecordField(row.recordId, field.key, value, row.newVersion)
     }
-    // docs/19 H3:整批一个历史条目,撤销/重做按动作粒度整批回放
-    history.pushBatchEdit(changes)
-    const notLoadedNote = notLoaded > 0 ? `，${notLoaded} 条不在当前页已跳过` : ''
-    if (failedRowIds.length > 0) {
-      uiState.showMessage(`已更新 ${okCount} 条，失败 ${failedRowIds.length} 条（可能存在版本冲突）${notLoadedNote}`, 'warning')
+    history.pushBatchEdit(survivingChanges(field.key, value, outcome))
+
+    const notLoadedNote = outcome.notLoaded > 0 ? `，${outcome.notLoaded} 条不在当前页已跳过` : ''
+    if (!outcome.rolledBack) {
+      uiState.showMessage(
+        `已更新 ${outcome.succeeded.length} 条${outcome.skipped > 0 ? `（跳过 ${outcome.skipped} 条未变化）` : ''}${notLoadedNote}`,
+        'success',
+      )
+    } else if (outcome.revertFailed.length === 0) {
+      uiState.showMessage(
+        `批量更新失败：${outcome.failed.length} 条提交失败（可能存在版本冲突），已整体回滚，数据未变更${notLoadedNote}`,
+        'warning',
+      )
     } else {
-      uiState.showMessage(`已更新 ${okCount} 条${skipped > 0 ? `（跳过 ${skipped} 条未变化）` : ''}${notLoadedNote}`, 'success')
+      uiState.showMessage(
+        `批量更新失败：已回滚 ${outcome.reverted.length} 条，${outcome.revertFailed.length} 条回滚失败仍为新值，请刷新核对${notLoadedNote}`,
+        'warning',
+      )
     }
     batchEditVisible.value = false
   } finally {

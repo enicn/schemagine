@@ -71,9 +71,20 @@ export interface TreeConfig {
   expandAll?: boolean
 }
 
-/** 标准数据操作 —— 删除（行级删除 + 批量删除） */
+/** 标准数据操作 —— 删除（行级删除 + 批量删除）与批量字段更新（宿主执行契约） */
 export interface DataOperationsConfig {
   delete?: DeleteOperationConfig
+  /** 批量字段更新（docs/19 H4）：启用后批量编辑经 batch-patch 事件交由宿主原子执行，缺省引擎本地逐条提交 */
+  batchPatch?: BatchPatchOperationConfig
+}
+
+export interface BatchPatchOperationConfig {
+  /**
+   * 启用宿主执行契约（默认 false = 引擎本地逐条 patchField 提交）。
+   * 启用后批量编辑对话框确认 → 引擎 emit `batch-patch`（BatchPatchEvent），
+   * 宿主以原子语义执行（失败由宿主整体回滚），完成后经 refresh() 重新拉取。
+   */
+  enabled?: boolean
 }
 
 export interface DeleteOperationConfig {

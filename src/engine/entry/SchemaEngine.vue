@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch, computed, ref, provide, nextTick } from 'vue'
+import { onMounted, onUnmounted, watch, computed, ref, provide, nextTick } from 'vue'
 import { ElButton, ElTag, ElTooltip, ElMessage } from 'element-plus'
 import type { ViewMode } from '@/constants'
 import { setLocale } from '@/locales'
@@ -9,7 +9,8 @@ import { useCellEdit } from '@/composables/useCellEdit'
 import { useRecordHistory } from '@/composables/useRecordHistory'
 import { useFormula } from '@/composables/useFormula'
 import { createSchemaMetaState, createRecordState, createUiState, createRuntimeContextState, SCHEMA_META_KEY, RECORD_STATE_KEY, UI_STATE_KEY, RUNTIME_CONTEXT_KEY } from '@/composables/instanceState'
-import { recordService } from '@/services/api/recordService'
+import { recordService, peekRecordService } from '@/services/api/recordService'
+import { useRecordSubscription } from '@/composables/useRecordSubscription'
 import ErrorBoundary from '@/engine/providers/ErrorBoundary.vue'
 import SchemaContextProvider from '@/engine/providers/SchemaContextProvider.vue'
 import ViewContainer from '@/engine/containers/ViewContainer.vue'
@@ -127,6 +128,28 @@ onMounted(async () => {
       message: schemaMeta.loadError,
     })
   }
+  subscribeRemoteChanges()
+})
+
+// ── 实时数据订阅（docs/19 I1）：宿主在 recordService.subscribeRecords 提供传输时,
+// 模块加载完成后订阅推送,引擎增量合并;模块切换重订阅,卸载退订 ──
+const { mergeRemoteChange } = useRecordSubscription(recordStore, uiState)
+let unsubscribeRecords: (() => void) | null = null
+
+function subscribeRemoteChanges(): void {
+  unsubscribeRecords?.()
+  unsubscribeRecords = null
+  const unsubscribe = peekRecordService()?.subscribeRecords?.(props.moduleId, mergeRemoteChange)
+  if (unsubscribe) unsubscribeRecords = unsubscribe
+}
+
+watch(() => props.moduleId, () => {
+  if (schemaMeta.isLoaded) subscribeRemoteChanges()
+})
+
+onUnmounted(() => {
+  unsubscribeRecords?.()
+  unsubscribeRecords = null
 })
 
 watch(

@@ -4,6 +4,7 @@ import { schemaService } from '@/services/api/schemaService'
 import { userViewConfigService } from '@/services/api/userViewConfigService'
 import { readStorage, writeStorage } from '@/services/mock/mockStorage'
 import { applyBuiltinOperations } from '@/utils/dataOperations'
+import { reportSchemaDiagnostics, validateSchema } from '@/schemaMeta/validateSchema'
 import type { ModuleSchema, UserViewConfig, ModulePermissions, RecordEntity } from '@/types'
 import type { ViewMode } from '@/constants'
 
@@ -53,6 +54,11 @@ export function useSchema(schemaMetaParam?: SchemaMetaState, uiStateParam?: UiSt
 
       runFieldKeyMigration(schema, moduleId)
       viewConfig = ensureViewConfigCompatibility(schema, viewConfig)
+      // 运行时 Schema 诊断(docs/19 批次 I2):setSchema 之前校验,DEV 下 console 友好输出,不阻断加载
+      const diagnostics = validateSchema(schema)
+      if (diagnostics.length > 0 && import.meta.env.DEV) {
+        reportSchemaDiagnostics(moduleId, diagnostics)
+      }
       // 标准数据操作（删除）：按配置×权限合成内置操作字段（在列配置兼容处理之后，避免混入用户列设置）
       schemaMeta.setSchema(applyBuiltinOperations(schema, permissions))
       schemaMeta.setPermissions(permissions)

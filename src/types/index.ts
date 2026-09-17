@@ -72,6 +72,8 @@ export type {
   FieldValueCandidateListResponse,
   ErrorCode,
   StandardError,
+  RecordsChangePayload,
+  UnsubscribeRecords,
 } from './service'
 
 export type {

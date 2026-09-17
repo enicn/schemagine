@@ -139,6 +139,8 @@ export interface RecordState {
   updateRecordField: (recordId: string, field: string, value: unknown, newVersion: number) => void
   removeRecordLocal: (recordId: string) => number
   insertRecordLocal: (record: RecordEntity, index: number) => void
+  /** 远端推送行合并(docs/19 I1):存在则整体替换(同步 currentRecord),不存在则追加;返回合并方式 */
+  mergeRemoteRecord: (record: RecordEntity) => 'updated' | 'added'
   pushHistory: (entry: HistoryEntry) => void
   popUndo: () => HistoryEntry | undefined
   pushUndo: (entry: HistoryEntry) => void
@@ -230,6 +232,28 @@ export function createRecordState() {
     const at = Math.min(Math.max(index, 0), records.value.length)
     records.value.splice(at, 0, record)
     queryState.value.pagination.total += 1
+  }
+
+  /**
+   * 实时推送合并原语（docs/19 I1）：远端记录为完整数据,按 id upsert。
+   * 追加计为 added（同步递增 total）;更新计为 updated（不改 total）。
+   */
+  function mergeRemoteRecord(record: RecordEntity): 'updated' | 'added' {
+    const existing = records.value.find(r => r.id === record.id)
+    if (existing) {
+      existing.fields = { ...record.fields }
+      existing.version = record.version
+      existing.updatedAt = record.updatedAt
+      if (currentRecord.value?.id === record.id) {
+        currentRecord.value.fields = { ...record.fields }
+        currentRecord.value.version = record.version
+        currentRecord.value.updatedAt = record.updatedAt
+      }
+      return 'updated'
+    }
+    records.value.push({ ...record, fields: { ...record.fields } })
+    queryState.value.pagination.total += 1
+    return 'added'
   }
 
   /** 新用户动作入栈：清空 redo 栈（分叉历史失效），超限淘汰最旧 */
@@ -347,6 +371,7 @@ export function createRecordState() {
     updateRecordField,
     removeRecordLocal,
     insertRecordLocal,
+    mergeRemoteRecord,
     pushHistory,
     popUndo,
     pushUndo,

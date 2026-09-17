@@ -8,6 +8,7 @@ import type {
   FieldValueCandidateQueryParams,
   FieldValueCandidateListResponse,
 } from '@/types'
+import type { RecordsChangePayload, UnsubscribeRecords } from '@/types'
 import { createErrorResponse, createServiceFallback } from './base'
 
 export interface IRecordService {
@@ -17,6 +18,13 @@ export interface IRecordService {
   patchField(params: PatchFieldParams): Promise<ApiResponse<RecordEntity>>
   create(params: CreateRecordParams): Promise<ApiResponse<RecordEntity>>
   batchCreate(params: CreateRecordParams[]): Promise<ApiResponse<RecordEntity[]>>
+  /**
+   * 可选:订阅记录变更推送(docs/19 I1 实时数据契约)。返回退订函数;未实现则引擎
+   * 不订阅(数据仍经 list/refresh 拉取)。传输层(轮询/SSE/WebSocket)由宿主实现,
+   * 引擎只负责按 RecordsChangePayload 增量合并。mock 提供 createMockRecordSubscription
+   * 轮询示例实现。
+   */
+  subscribeRecords?(moduleId: string, cb: (change: RecordsChangePayload) => void): UnsubscribeRecords
 }
 
 let implementation: IRecordService | null = null

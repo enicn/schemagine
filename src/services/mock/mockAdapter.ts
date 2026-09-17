@@ -4,7 +4,7 @@ import type {
   RecordEntity, RecordListResponse, UserViewConfig,
   CandidateQueryParams, CandidateListResponse, ColumnConfig, CandidateOption,
   FieldValueCandidateQueryParams, FieldValueCandidateListResponse, FieldValueCandidateOption,
-  RelationEntry,
+  RelationEntry, RecordsChangePayload, UnsubscribeRecords,
 } from '@/types'
 import type { IRecordService } from '@/services/api/recordService'
 import type { ISchemaService } from '@/services/api/schemaService'
@@ -732,5 +732,45 @@ export function initMockServices(): void {
       }
     })
     markStorageInitialized()
+  }
+}
+
+// ============================================================
+// 轮询订阅示例（docs/19 I1）：演示宿主如何实现 subscribeRecords
+// ============================================================
+
+export interface MockPollingOptions {
+  /** 轮询间隔毫秒，默认 5000 */
+  intervalMs?: number
+}
+
+/**
+ * mock 轮询订阅示例（docs/19 I1 实时数据契约）：定时重读该模块的存储快照,
+ * diff 出 upserts（version/updatedAt 变化或新行）/ deletes 后回调。
+ * 生产宿主以 SSE/WebSocket 替换传输即可,引擎侧合并逻辑不变。用法：
+ *
+ *   const subscription = createMockRecordSubscription({ intervalMs: 5000 })
+ *   setRecordService(Object.assign(new MockRecordService(), subscription))
+ */
+export function createMockRecordSubscription(options?: MockPollingOptions) {
+  return {
+    subscribeRecords(moduleId: string, cb: (change: RecordsChangePayload) => void): UnsubscribeRecords {
+      let lastSnapshot = readStorage<RecordEntity[]>(getRecordsKey(moduleId), [])
+      const timer = setInterval(() => {
+        const next = readStorage<RecordEntity[]>(getRecordsKey(moduleId), [])
+        const upserts = next.filter((record) => {
+          const prev = lastSnapshot.find(p => p.id === record.id)
+          return !prev || prev.version !== record.version || prev.updatedAt !== record.updatedAt
+        })
+        const deletes = lastSnapshot
+          .filter(prev => !next.some(record => record.id === prev.id))
+          .map(prev => prev.id)
+        lastSnapshot = next
+        if (upserts.length > 0 || deletes.length > 0) {
+          cb({ moduleId, upserts, deletes })
+        }
+      }, options?.intervalMs ?? 5000)
+      return () => clearInterval(timer)
+    },
   }
 }

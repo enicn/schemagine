@@ -100,7 +100,13 @@ export type { EnumTagStyle, EnumTagTone } from './utils/enumTag'
 
 // === Mock 适配器（开发/演示用） ===
 export { initMockServices, MockRecordService } from './services/mock/mockAdapter'
+export { createMockRecordSubscription } from './services/mock/mockAdapter'
+export type { MockPollingOptions } from './services/mock/mockAdapter'
 export { resetAllStorage } from './services/mock/mockStorage'
+
+// === 运行时 Schema 诊断（docs/19 批次 I2） ===
+export { validateSchema } from './schemaMeta/validateSchema'
+export type { SchemaDiagnostic } from './schemaMeta/validateSchema'
 
 // === 全部类型 ===
 export type * from './types'
@@ -117,6 +123,7 @@ export { useSchema } from './composables/useSchema'
 export { usePermission } from './composables/usePermission'
 export { useCellEdit } from './composables/useCellEdit'
 export { useRecordHistory } from './composables/useRecordHistory'
+export { useRecordSubscription } from './composables/useRecordSubscription'
 export { useFormula } from './composables/useFormula'
 export { useAggregation } from './composables/useAggregation'
 export { useDraftLifecycle } from './composables/useDraftLifecycle'

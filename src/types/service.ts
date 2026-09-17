@@ -1,3 +1,5 @@
+import type { RecordEntity } from './record'
+
 
 export type FilterOperator =
   | 'eq'
@@ -141,3 +143,15 @@ export interface StandardError {
   details?: unknown[]
   timestamp: string
 }
+
+/** 记录变更推送载荷（docs/19 I1 实时数据契约）：宿主经轮询/SSE/WebSocket 等传输感知变更后回调 */
+export interface RecordsChangePayload {
+  moduleId: string
+  /** 变更行的完整记录（upsert 语义：按 id 合并，存在则整体替换，不存在则追加） */
+  upserts?: RecordEntity[]
+  /** 被删除的记录 id */
+  deletes?: string[]
+}
+
+/** 退订函数（docs/19 I1） */
+export type UnsubscribeRecords = () => void

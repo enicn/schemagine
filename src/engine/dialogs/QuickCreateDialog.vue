@@ -3,7 +3,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { ElDialog, ElButton, ElForm, ElFormItem, ElInput, ElInputNumber, ElSelect, ElOption, ElDatePicker, ElSwitch, ElMessage } from 'element-plus'
 import { recordService } from '@/services/api/recordService'
 import { schemaService } from '@/services/api/schemaService'
-import { validateFieldValue } from '@/utils/fieldValidation'
+import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 import type { FieldSchema, ModuleSchema } from '@/types'
 
 const props = defineProps<{
@@ -119,6 +119,18 @@ async function handleSubmit(): Promise<void> {
     await formRef.value.validate()
   } catch {
     return
+  }
+
+  // docs/19 批次 H1:行级校验(跨字段规则),口径与行内编辑/创建保存一致
+  if (targetSchema.value?.rowValidationRules?.length) {
+    const rowValidation = validateRecordRow(targetSchema.value.rowValidationRules, { ...formModel })
+    if (!rowValidation.valid) {
+      ElMessage.warning(rowValidation.errors[0])
+      return
+    }
+    if (rowValidation.warnings.length > 0) {
+      ElMessage.info(rowValidation.warnings[0])
+    }
   }
 
   submitting.value = true

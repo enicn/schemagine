@@ -325,6 +325,7 @@ defineExpose({
       :density="density"
       :expand-slot="expandSlot"
       :span-method="spanMethod"
+      :schema-row-rules="schema.rowValidationRules"
       :footer-method="footerMethod"
       :group-by="schema.groupBy"
       :tree-config="schema.treeConfig

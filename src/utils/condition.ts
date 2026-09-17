@@ -32,6 +32,14 @@ function isEmptyValue(value: unknown): boolean {
   return false
 }
 
+/** 数值比较:任一侧转不成数字(如 ISO 日期字符串)时回落字符串比较 */
+function compareOrdered(left: unknown, right: unknown, cmp: (n: number, m: number) => boolean, strCmp: (a: string, b: string) => boolean): boolean {
+  const ln = Number(left)
+  const rn = Number(right)
+  if (Number.isNaN(ln) || Number.isNaN(rn)) return strCmp(String(left), String(right))
+  return cmp(ln, rn)
+}
+
 function compare(operator: ConditionOperator, left: unknown, right: unknown): boolean {
   switch (operator) {
     case 'eq':
@@ -39,13 +47,13 @@ function compare(operator: ConditionOperator, left: unknown, right: unknown): bo
     case 'neq':
       return left !== right
     case 'gt':
-      return Number(left) > Number(right)
+      return compareOrdered(left, right, (a, b) => a > b, (a, b) => a > b)
     case 'gte':
-      return Number(left) >= Number(right)
+      return compareOrdered(left, right, (a, b) => a >= b, (a, b) => a >= b)
     case 'lt':
-      return Number(left) < Number(right)
+      return compareOrdered(left, right, (a, b) => a < b, (a, b) => a < b)
     case 'lte':
-      return Number(left) <= Number(right)
+      return compareOrdered(left, right, (a, b) => a <= b, (a, b) => a <= b)
     case 'in':
       return Array.isArray(right) ? right.includes(left as never) : false
     case 'notIn':

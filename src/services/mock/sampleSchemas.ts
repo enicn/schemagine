@@ -482,6 +482,15 @@ export const apSchema: ModuleSchema = {
     direction: 'asc',
     summaryFields: ['amount'],
   },
+  rowValidationRules: [
+    {
+      key: 'paidNotExceedAmount',
+      message: '已付金额不能大于应付金额',
+      level: 'error',
+      fields: ['amount', 'paidAmount'],
+      when: { left: { record: 'paidAmount' }, operator: 'gt', right: { record: 'amount' } },
+    },
+  ],
   listEditMode: 'select-then-edit',
   listActions: [
     {

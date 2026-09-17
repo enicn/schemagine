@@ -20,6 +20,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   operations: true,
   treeConfig: true,
   groupBy: true,
+  rowValidationRules: true,
   migrations: true,
   status: true,
 }
@@ -117,6 +118,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: '分组与小计声明(docs/19 F6):{ field, direction, summaryFields }。field 为分组字段;组行显示组值与条数,summaryFields 各列显示组内小计;按列 footer 合计取字段 aggregation:sum(与聚合统计条同口径)。',
     example: { field: 'status', direction: 'asc', summaryFields: ['amount'] },
+  },
+  {
+    key: 'rowValidationRules', target: 'module', label: '行级校验', group: 'edit', appliesTo: 'all', kind: 'object',
+    surfaces: ['form'],
+    description: '行级校验规则(docs/19 H1):RowValidationRule[] 跨字段规则,when 以整行字段值为上下文({ record: 字段 } 互引可表达 dateEnd > dateStart),level error 拦截/warning 放行;与字段级校验同口径接入行内编辑、创建保存、快速创建三入口。',
+    example: [{ key: 'dateRange', message: '结束日期需晚于开始日期', level: 'error', fields: ['dateStart', 'dateEnd'], when: { left: { record: 'dateEnd' }, operator: 'lte', right: { record: 'dateStart' } } }],
   },
   {
     key: 'treeConfig', target: 'module', label: '树形数据', group: 'display', appliesTo: 'all', kind: 'object',

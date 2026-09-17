@@ -8,9 +8,9 @@ import type { Ref } from 'vue'
 import type { Component } from 'vue'
 import { mediaService } from '@/services/api/mediaService'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
-import { validateFieldValue } from '@/utils/fieldValidation'
+import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 import { t } from '@/locales'
-import type { CandidateOption } from '@/types'
+import type { CandidateOption, RowValidationRule } from '@/types'
 import type { WrapperColumn } from './wrapperTypes'
 import type { useFkOptions } from './useFkOptions'
 
@@ -25,6 +25,8 @@ export interface InlineEditDeps {
   visibleColumns: () => WrapperColumn[]
   wrapperRef: Ref<HTMLDivElement | null>
   fk: ReturnType<typeof useFkOptions>
+  /** 行级校验规则（docs/19 H1）：确认前以整行为上下文求值 */
+  rowValidationRules: () => RowValidationRule[] | undefined
 }
 
 export function useInlineEdit(
@@ -308,6 +310,20 @@ export function useInlineEdit(
           ElMessage.info(`${col.title}: ${validation.warnings[0]}`)
         })
       }
+    }
+    // docs/19 批次 H1:行级校验(跨字段规则),以编辑后的整行为上下文,口径与创建保存/快速创建一致
+    const rowValidation = validateRecordRow(deps.rowValidationRules(), { ...row, [col.field]: val })
+    if (!rowValidation.valid) {
+      cancelEdit()
+      import('element-plus').then(({ ElMessage }) => {
+        ElMessage.warning(rowValidation.errors[0])
+      })
+      return
+    }
+    if (rowValidation.warnings.length > 0) {
+      import('element-plus').then(({ ElMessage }) => {
+        ElMessage.info(rowValidation.warnings[0])
+      })
     }
     const field = col.field
     const oldValue = row[field]

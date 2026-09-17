@@ -14,7 +14,7 @@ import 'vxe-pc-ui/lib/style.css'
 import type { VxeTableInstance } from 'vxe-table'
 import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
-import type { FilterClause } from '@/types'
+import type { FilterClause, RowValidationRule } from '@/types'
 import { resolveScrollY } from './virtualScroll'
 import { resolveDensityHeights } from './tableDensity'
 import type { TableDensity } from './tableDensity'
@@ -75,6 +75,8 @@ const props = withDefaults(defineProps<{
   groupBy?: { field: string; summaryFields?: string[] }
   /** 键盘网格导航（docs/19 G2）：方向键移动焦点、Enter 进入编辑；默认开启 */
   keyboardNav?: boolean
+  /** 行级校验规则（docs/19 H1）：行内编辑确认前整行求值 */
+  schemaRowRules?: RowValidationRule[]
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -206,6 +208,7 @@ const {
   visibleColumns: () => visibleColumns.value,
   wrapperRef,
   fk,
+  rowValidationRules: () => props.schemaRowRules,
 })
 
 /** 单元格展示全文（与列渲染同口径：datetime 走专用格式化，fk 直读缓存避免 formatDisplay 的 HTML 转义，其余走 formatDisplay） */

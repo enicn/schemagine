@@ -16,6 +16,8 @@ export interface ModuleSchema {
   treeConfig?: TreeConfig
   /** 分组与小计声明（docs/19 F6）：声明后列表按字段值分组渲染组行与组内小计 */
   groupBy?: GroupByConfig
+  /** 行级校验规则（docs/19 H1）：跨字段规则（如 dateEnd > dateStart），三入口同口径拦截 */
+  rowValidationRules?: RowValidationRule[]
   /** @since 2.0 版本迁移列表：按 fromVersion 升序排列 */
   migrations?: SchemaMigration[]
   status: 'active' | 'disabled' | 'error'
@@ -32,6 +34,25 @@ export interface ModuleSchema {
  * 组行携带组值/条数/组内小计；按列 footer 合计取 fields 中 aggregation:'sum'
  * 字段（与聚合统计条 useAggregation 同口径），经 vxe footer-method 渲染。
  */
+/**
+ * 行级校验规则（docs/19 批次 H1）。when 以整行字段值为 record 上下文求值
+ * （条件系统支持 { record: '字段' } 互引），true = 触发规则；
+ * level='error' 拦截提交，'warning' 放行仅提示。与字段级校验同口径接入
+ * 行内编辑确认、创建视图保存、快速创建弹窗三入口。
+ */
+export interface RowValidationRule {
+  /** 规则标识 */
+  key: string
+  /** 触发提示文案 */
+  message: string
+  /** error=拦截；warning=放行仅提示 */
+  level: 'error' | 'warning'
+  /** 声明依赖字段（文档与工具提示用；求值恒以整行为上下文） */
+  fields?: string[]
+  /** 触发条件（字段互引用 { record: 'dateEnd' } 形式） */
+  when: Condition
+}
+
 export interface GroupByConfig {
   /** 分组字段（字段 key，建议低基数枚举/文本列） */
   field: string

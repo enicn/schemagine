@@ -21,7 +21,7 @@ import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
 import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
-import { validateFieldValue } from '@/utils/fieldValidation'
+import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 
 const props = defineProps<{
   moduleId: string
@@ -361,6 +361,14 @@ async function handleCreateSave(): Promise<void> {
       for (const message of result.warnings) {
         warnings.push(`第${idx + 1}行「${field.label}」: ${message}`)
       }
+    }
+    // docs/19 批次 H1:行级校验(跨字段规则),整行求值
+    const rowValidation = validateRecordRow(schemaMeta.schema?.rowValidationRules, draft.fields)
+    for (const message of rowValidation.errors) {
+      errors.push(`第${idx + 1}行: ${message}`)
+    }
+    for (const message of rowValidation.warnings) {
+      warnings.push(`第${idx + 1}行: ${message}`)
     }
   })
   if (errors.length > 0) {

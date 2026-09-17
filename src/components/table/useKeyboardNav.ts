@@ -58,7 +58,8 @@ export function useKeyboardNav(deps: KeyboardNavDeps) {
     const found = findRowByKey(focused.rowKeyValue)
     if (!found) return
     const cellEl = deps.tableRef.value?.getCellElement(found.row, focused.field) as HTMLElement | null
-    cellEl?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    // jsdom(组件单测)无 scrollIntoView
+    cellEl?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }
 
   /** 上下移动（行），返回是否移动成功 */

@@ -270,7 +270,7 @@ function handleNullFilterToggle(field: FieldSchema): void {
 function syncCommittedToDraft(): void {
   const isBarManagedClause = (clause: FilterClause): boolean =>
     props.fields.some(f => f.key === clause.field)
-  const { foreign, managed, matchType: parsedMatch } = splitBarConditions(props.modelValue, isBarManagedClause)
+  const { foreign, managed } = splitBarConditions(props.modelValue, isBarManagedClause)
   localClauses.value = managed.map(c => ({ ...c }))
   foreignClauses.value = foreign.map(c => ({ ...c }))
   for (const key of Object.keys(dateFilterModes)) {

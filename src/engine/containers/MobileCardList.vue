@@ -58,6 +58,43 @@ const cellEdit = useCellEdit(recordStore, schemaMeta, uiState)
 
 const canEdit = computed(() => permission.canEdit.value && !props.readonly)
 
+// ── 吸顶基准补偿：Chromium 的 sticky top 吸附在滚动容器内容盒顶边（csswg-drafts 互操作分歧，
+// 实测 top:0 会被宿主滚动容器的 padding-top 顶下来），吸顶后其上方留出一条缝隙、卡片从其中
+// 穿过并造成"抖动"观感。运行时量取最近滚动祖先的 padding-top 反向偏移，让筛选栏贴住滚动口
+// 可视顶边、实底直接盖住整条缝隙。
+const toolbarRef = ref<HTMLElement | null>(null)
+
+function resolveScrollParent(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return node
+    node = node.parentElement
+  }
+  return null
+}
+
+function applyStickyCompensation(): void {
+  const toolbar = toolbarRef.value
+  if (!toolbar) return
+  const scroller = resolveScrollParent(toolbar)
+  if (!scroller) return
+  const padTop = parseFloat(getComputedStyle(scroller).paddingTop)
+  toolbar.style.setProperty('--sg-mobile-sticky-top', padTop > 0 ? `-${padTop}px` : '0px')
+}
+
+onMounted(() => {
+  // 挂载即同步量一次：rAF 在后台/被遮挡标签页会被节流（不触发），不能作为唯一时机
+  applyStickyCompensation()
+  // 下一帧再量一次：宿主可能在挂载后才完成滚动容器的布局/类名装配
+  requestAnimationFrame(applyStickyCompensation)
+  window.addEventListener('resize', applyStickyCompensation)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', applyStickyCompensation)
+})
+
 const projection = computed(() => deriveCardProjection(props.schema))
 const searchFieldKeys = computed(() => resolveSearchFields(props.schema))
 const chips = computed(() => buildFilterSummaryItems(flattenFilterConditions(props.filters), props.schema.fields))
@@ -303,8 +340,8 @@ function handleRowActionClick(action: DetailRowAction): void {
 
 <template>
   <div class="sg-mobile-list">
-    <!-- sticky 搜索栏（相对宿主滚动容器吸附） -->
-    <div class="sg-mobile-toolbar">
+    <!-- sticky 搜索栏（相对宿主滚动容器吸附；top 由吸顶基准补偿写入） -->
+    <div ref="toolbarRef" class="sg-mobile-toolbar">
       <div v-if="searchFieldKeys.length > 0 || filterableFields.length > 0" class="sg-mobile-toolbar__row">
         <ElInput
           v-if="searchFieldKeys.length > 0"
@@ -484,11 +521,13 @@ function handleRowActionClick(action: DetailRowAction): void {
   min-height: 0;
 }
 
-/* sticky 搜索栏：相对滚动容器（.hb-schemagine-page__content）吸附；
-   实底背景 + 底边线压住滚过的卡片 */
+/* sticky 搜索栏：相对最近滚动祖先（宿主提供的滚动容器）吸附；
+   实底背景 + 底边线压住滚过的卡片。top 默认 0，挂载后由吸顶基准补偿覆写
+   （抵消滚动容器 padding-top 造成的吸附下移，见脚本区说明）。
+   注意：引擎源码不得引用任何具体宿主类名——滚动容器契约见 docs/17 §1.7 */
 .sg-mobile-toolbar {
   position: sticky;
-  top: 0;
+  top: var(--sg-mobile-sticky-top, 0px);
   z-index: 5;
   display: flex;
   flex-direction: column;

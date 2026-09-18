@@ -1,4 +1,4 @@
-import type { ModuleSchema, FieldSchema, CardViewConfig } from '@/types'
+import type { ModuleSchema, FieldSchema } from '@/types'
 
 /**
  * 移动端卡片投影（管理端移动适配 §3.4）：零配置可用是本方案卖点——
@@ -75,7 +75,6 @@ function resolveMetaFields(
 /** 由 schema 推导卡片投影；cardView 声明项逐项覆盖推导默认值 */
 export function deriveCardProjection(schema: ModuleSchema): CardProjection {
   const fields = visibleFields(schema)
-  const config: CardViewConfig = schema.cardView ?? {}
 
   const titleField = resolveTitleField(schema, fields)
   const statusField = resolveStatusField(schema, fields)

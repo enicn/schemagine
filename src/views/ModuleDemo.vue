@@ -203,4 +203,13 @@ function onError(payload: { moduleId: string; code: string; message: string }): 
   overflow: hidden;
   padding: var(--sg-spacing-8);
 }
+
+/* 窄屏（演示宿主的移动形态）：内容回归自然高度，滚动归属本容器——
+   演练通用宿主的滚动契约（引擎外层滚动容器 + padding-top 场景），引擎不感知宿主类名 */
+@media (max-width: 767.98px) {
+  .app-main {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
 </style>

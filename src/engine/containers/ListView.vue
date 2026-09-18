@@ -876,7 +876,7 @@ function handleBottomTabChange(tabId: string): void {
   height: 100%;
 }
 
-/* 移动形态：列表回归文档流自然高度，滚动归属宿主 .hb-schemagine-page__content（§3.2） */
+/* 移动形态：列表回归文档流自然高度，滚动归属宿主提供的滚动容器（§3.2） */
 .list-view.is-mobile {
   height: auto;
 }

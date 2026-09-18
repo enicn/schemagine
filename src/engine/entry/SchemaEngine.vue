@@ -730,7 +730,11 @@ defineExpose({
 
 <style scoped>
 .schema-engine {
+  /* 布局自足契约（docs/17 §1.7）：根元素撑满父容器并作为可收缩的 flex 子项——
+     宿主只需提供普通容器（或 flex 容器 + overflow:auto 滚动层），
+     禁止宿主用 :deep 穿透引擎内部做布局矫正 */
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

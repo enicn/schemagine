@@ -44,6 +44,9 @@ export interface ListQueryParams {
   moduleId: string
   /** 过滤条件：顶层隐式 AND；组合逻辑（OR/嵌套）用 FilterGroup 表达（docs/19 批次 E2） */
   filters?: FilterCondition[]
+  /** 关键词跨字段搜索（移动端搜索通道 §3.6）：按模块 searchFields 跨字段 OR 包含匹配，
+   *  支持方（后端/宿主适配层）下推 keyword 参数；不支持方忽略（不当作字段条件） */
+  keyword?: string
   sort?: SortParam
   page: number
   pageSize: number

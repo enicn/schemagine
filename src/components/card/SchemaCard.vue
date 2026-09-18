@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { ElCard, ElButton, ElTag } from 'element-plus'
+import { ElCard, ElButton, ElTag, ElMessageBox } from 'element-plus'
 import type { FieldSchema, RecordEntity, CardFieldLayout, CardLayoutConfig } from '@/types'
 import CardGridField from './CardGridField.vue'
 import { useRuntimeContext } from '@/composables/instanceState'
 import { isFieldEditableInContext, isFieldVisibleInContext } from '@/utils/condition'
+import { builtinEditorForType } from '@/components/field/editorMap'
+import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 
 const props = defineProps<{
   fieldSchemas: FieldSchema[]
@@ -12,6 +14,13 @@ const props = defineProps<{
   editable?: boolean
   cardLayout?: CardLayoutConfig | null
   autoEdit?: boolean
+  /** 三段式编辑手柄模式（移动详情面板 §3.7）：可编辑字段 label 行右端出手柄，点手柄单字段编辑；
+   *  桌面 CardView 不传，整卡草稿编辑行为不变（零回归） */
+  fieldHandle?: boolean
+  /** 卡片标题字段 key（缺省 record.id，移动端投影 titleField 覆盖硬编码） */
+  titleField?: string
+  /** 保存单字段手柄编辑（fieldHandle 模式必传）：返回 true=成功退出编辑态，false=保留编辑器 */
+  saveField?: (payload: { field: string; value: unknown; oldValue: unknown }) => Promise<boolean>
 }>()
 
 const emit = defineEmits<{
@@ -25,6 +34,8 @@ const editDraft = ref<Record<string, unknown>>({})
 const runtimeContext = useRuntimeContext()
 
 function startEdit(): void {
+  // 手柄编辑态与整卡草稿互斥：进入草稿编辑前先退出手柄
+  exitHandleEdit()
   editDraft.value = { ...props.record.fields }
   editing.value = true
 }
@@ -74,6 +85,14 @@ const visibleFields = computed(() => {
   return props.fieldSchemas.filter(f => isFieldVisibleInContext(f, conditionCtx.value))
 })
 
+const titleDisplay = computed(() => {
+  if (props.titleField) {
+    const v = props.record.fields[props.titleField]
+    if (v !== undefined && v !== null && v !== '') return String(v)
+  }
+  return props.record.id
+})
+
 const statusField = computed(() => {
   const statusSchema = props.fieldSchemas.find(f => f.key === 'status')
   if (statusSchema) {
@@ -121,6 +140,80 @@ function isEditableField(field: FieldSchema): boolean {
   if (!props.editable) return false
   return isFieldEditableInContext(field, conditionCtx.value)
 }
+
+// ── 三段式编辑手柄（§3.7）：可编辑判定 + 全局单字段互斥仲裁 ──
+const NON_HANDLE_EDITABLE_TYPES = new Set([
+  'formula', 'one-to-many', 'many-to-many', 'reverse-ref', 'action',
+  'json', 'image', 'attachment', 'mediaImage',
+])
+
+/** 手柄出现判定（§3.7.2）：readonly/limited 字段不出手柄；无编辑器的类型不出手柄 */
+function canHandleEdit(field: FieldSchema): boolean {
+  if (!props.fieldHandle || !props.editable) return false
+  if (field.readonly || field.editMode === 'limited') return false
+  if (NON_HANDLE_EDITABLE_TYPES.has(field.type)) return false
+  if (builtinEditorForType(field.type) === undefined && !getFieldTypeDefinition(field.type)?.editor) return false
+  return isFieldEditableInContext(field, conditionCtx.value)
+}
+
+const handleEditingField = ref<string | null>(null)
+const fieldRefs = new Map<string, InstanceType<typeof CardGridField>>()
+
+function setFieldRef(fieldKey: string, el: unknown): void {
+  if (el) fieldRefs.set(fieldKey, el as InstanceType<typeof CardGridField>)
+  else fieldRefs.delete(fieldKey)
+}
+
+function exitHandleEdit(): void {
+  handleEditingField.value = null
+}
+
+/** 点手柄：若另一字段在编辑且有脏值 → 阻止切换并提示；无脏值静默切换（§3.7.1） */
+async function handleFieldClick(fieldKey: string): Promise<void> {
+  if (handleEditingField.value === fieldKey) return
+  const current = handleEditingField.value
+  if (current) {
+    const currentRef = fieldRefs.get(current)
+    if (currentRef?.isDirty?.()) {
+      try {
+        await ElMessageBox.confirm('上一字段的修改尚未保存，先处理它再编辑其他字段', '未保存的修改', {
+          type: 'warning',
+          confirmButtonText: '放弃并切换',
+          cancelButtonText: '留在当前编辑',
+        })
+        currentRef.discardDraft?.()
+      } catch {
+        return
+      }
+    }
+  }
+  handleEditingField.value = fieldKey
+}
+
+function handleFieldCancel(): void {
+  handleEditingField.value = null
+}
+
+/** ✓ 保存：走宿主注入的单字段通道（与行内编辑同终点 editablePatch）；失败保留编辑器 */
+async function handleFieldConfirm(fieldKey: string, value: unknown): Promise<void> {
+  if (!props.saveField) {
+    handleEditingField.value = null
+    return
+  }
+  const oldValue = props.record.fields[fieldKey]
+  const ok = await props.saveField({ field: fieldKey, value, oldValue })
+  if (ok) {
+    handleEditingField.value = null
+  }
+}
+
+// 暴露编辑态（响应式）：宿主详情动作排据此做「编辑中禁用」互斥
+defineExpose({
+  startEdit,
+  cancelEdit,
+  editing,
+  handleEditingField,
+})
 </script>
 
 <template>
@@ -128,14 +221,14 @@ function isEditableField(field: FieldSchema): boolean {
     <template #header>
       <div class="card-header">
         <div class="card-title">
-          <span class="card-record-id">{{ record.id }}</span>
+          <span class="card-record-id">{{ titleDisplay }}</span>
           <ElTag v-if="statusField" size="small" type="info" effect="plain">
             {{ statusField }}
           </ElTag>
         </div>
         <div class="card-actions">
           <ElButton
-            v-if="!editing && editable"
+            v-if="!editing && editable && !fieldHandle"
             size="small"
             type="primary"
             link
@@ -155,6 +248,7 @@ function isEditableField(field: FieldSchema): boolean {
       <CardGridField
         v-for="item in fieldLayouts"
         :key="item.field"
+        :ref="(el: unknown) => setFieldRef(item.field, el)"
         :field-schema="item.schema"
         :value="getFieldValue(item.field)"
         :layout="item"
@@ -162,7 +256,12 @@ function isEditableField(field: FieldSchema): boolean {
         :edit-value="editing ? editDraft[item.field] : undefined"
         :readonly="item.schema.readonly"
         :disabled="!isEditableField(item.schema)"
+        :handle-visible="canHandleEdit(item.schema)"
+        :handle-active="handleEditingField === item.field"
         @update:edit-value="(val: unknown) => handleFieldUpdate(item.field, val)"
+        @handle-click="handleFieldClick(item.field)"
+        @handle-cancel="handleFieldCancel"
+        @handle-confirm="(val: unknown) => handleFieldConfirm(item.field, val)"
       />
     </div>
   </ElCard>

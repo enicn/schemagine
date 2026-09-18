@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElSelect, ElOption, ElDatePicker, ElMessage } from 'element-plus'
 import type { ListAction, FilterClause } from '@/types'
 import SchemaEngineDialog from '@/engine/dialogs/SchemaEngineDialog.vue'
+import { resolveListActionMobilePolicy } from '@/utils/mobileActions'
 
 const props = defineProps<{
   actions: ListAction[]
@@ -10,11 +11,24 @@ const props = defineProps<{
   /** 当前列表勾选的 Row ID（供 custom 动作携带上下文，如批量操作） */
   selectedRowIds?: string[]
   onPopupAction?: (action: ListAction) => void
+  /** 移动端策略消费（§3.3）：hidden 裁剪、block 置灰提示桌面端；缺省桌面全量渲染 */
+  mobile?: boolean
 }>()
 
 const emit = defineEmits<{
   'action-trigger': [payload: { action: ListAction; context?: Record<string, unknown> }]
 }>()
+
+const DESKTOP_ONLY_TIP = '该操作请在桌面端完成'
+
+const visibleActions = computed<ListAction[]>(() => {
+  if (!props.mobile) return props.actions
+  return props.actions.filter((a) => resolveListActionMobilePolicy(a) !== 'hidden')
+})
+
+function actionBlocked(action: ListAction): boolean {
+  return !!props.mobile && resolveListActionMobilePolicy(action) === 'block'
+}
 
 const popupDialogVisible = ref(false)
 const popupModuleId = ref('')
@@ -26,6 +40,10 @@ const formData = ref<Record<string, any>>({})
 const formSubmitting = ref(false)
 
 function handleActionClick(action: ListAction): void {
+  if (actionBlocked(action)) {
+    ElMessage.info(DESKTOP_ONLY_TIP)
+    return
+  }
   if (action.type === 'popup-schema') {
     if (props.onPopupAction) {
       props.onPopupAction(action)
@@ -76,9 +94,10 @@ async function handleFormSubmit(): Promise<void> {
 <template>
   <div class="list-action-bar">
     <div class="action-bar-left">
-      <template v-for="action in actions" :key="action.id">
-        <ElButton size="small" @click="handleActionClick(action)">
+      <template v-for="action in visibleActions" :key="action.id">
+        <ElButton size="small" :disabled="actionBlocked(action)" @click="handleActionClick(action)">
           {{ action.label }}
+          <span v-if="actionBlocked(action)" class="action-desktop-badge">桌面端</span>
         </ElButton>
       </template>
     </div>
@@ -158,5 +177,17 @@ async function handleFormSubmit(): Promise<void> {
   display: flex;
   align-items: center;
   gap: var(--sg-spacing-3);
+}
+.action-desktop-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--sg-spacing-1);
+  padding: 0 var(--sg-spacing-2);
+  height: 16px;
+  border-radius: var(--sg-radius-md);
+  border: 1px solid var(--sg-border-color);
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+  background: var(--sg-fill-color-lighter);
 }
 </style>

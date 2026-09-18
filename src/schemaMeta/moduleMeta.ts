@@ -18,6 +18,8 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   formulaConfig: true,
   listActions: true,
   operations: true,
+  searchFields: true,
+  cardView: true,
   treeConfig: true,
   groupBy: true,
   rowValidationRules: true,
@@ -112,6 +114,18 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: '引擎内置标准操作配置:{ delete: { enabled, batch, label, batchLabel, confirmTitle, confirmMessage, batchConfirmTitle, batchConfirmMessage }, batchPatch: { enabled } };delete 启用后渲染行级/批量删除入口(需同时满足 permissions.delete),确认后引擎发标准化事件、由宿主执行;batchPatch.enabled(docs/19 H4)启用后批量编辑经 batch-patch 事件交由宿主原子执行(失败整体回滚),缺省引擎本地逐条提交并带失败补偿回写。',
     example: { delete: { enabled: true, batch: true }, batchPatch: { enabled: true } },
+  },
+  {
+    key: 'searchFields', target: 'module', label: '搜索字段', group: 'display', appliesTo: 'all', kind: 'string[]',
+    surfaces: ['render'],
+    description: '顶部搜索框作用的字段集(移动适配 §3.6):搜索经 list 通道 keyword 参数下推,支持方按字段跨字段 OR 包含匹配;缺省取第一个 text 字段,无 text 字段则不渲染搜索框。',
+    example: ['name', 'origin'],
+  },
+  {
+    key: 'cardView', target: 'module', label: '移动卡片投影', group: 'display', appliesTo: 'all', kind: 'object',
+    surfaces: ['render'],
+    description: '移动端卡片列表投影配置(移动适配 §3.4):{ titleField, statusField, fields, thumbField } 全部可省,省略项按 schema 字段类型推导(零配置可用);声明项逐项覆盖推导默认值。',
+    example: { titleField: 'name', statusField: 'status', fields: ['price', 'updated_at'], thumbField: 'image' },
   },
   {
     key: 'groupBy', target: 'module', label: '分组小计', group: 'display', appliesTo: 'all', kind: 'object',

@@ -12,6 +12,11 @@ export interface ModuleSchema {
   listActions?: ListAction[]
   /** 标准数据操作配置：由引擎内置渲染与交互，宿主仅消费标准化事件执行业务 */
   operations?: DataOperationsConfig
+  /** 移动端顶部搜索框作用的字段集（管理端移动适配 §3.6）：缺省取第一个 text 字段。
+   *  搜索经 ListQueryParams.keyword 下推（后端 searchFields 同名配置跨字段 OR 包含匹配） */
+  searchFields?: string[]
+  /** 移动端卡片投影（§3.4）：缺省按字段类型推导（零配置可用），声明后逐项覆盖 */
+  cardView?: CardViewConfig
   /** 树形数据声明（docs/19 F2）：声明后列表按树形渲染（vxe tree-config） */
   treeConfig?: TreeConfig
   /** 分组与小计声明（docs/19 F6）：声明后列表按字段值分组渲染组行与组内小计 */
@@ -275,6 +280,21 @@ export interface ListAction {
   icon?: string
   order?: number
   target?: ActionTargetConfig
+  /** 移动端策略（§3.3）：allow=放行 / block=置灰提示桌面端 / hidden=不渲染。
+   *  缺省按类型内建规则（工具栏 custom 携勾选上下文=hidden，其余放行） */
+  mobile?: 'allow' | 'block' | 'hidden'
+}
+
+/** 移动端卡片投影配置（ModuleSchema.cardView，§3.4）：全部可省，省略项按 schema 推导 */
+export interface CardViewConfig {
+  /** 卡片标题字段；缺省第一个 text 字段，兜底 record.id */
+  titleField?: string
+  /** 右上状态标签字段；缺省名为 status 的 select/status，兜底第一个带 options/statusMap 的枚举字段 */
+  statusField?: string
+  /** 元字段行（· 连接）；缺省其余可见字段前 4 个（排除媒体/关联与已用字段） */
+  fields?: string[]
+  /** 左侧缩略图字段；缺省第一个 mediaImage/image 字段（无则不出缩略图） */
+  thumbField?: string
 }
 
 /** delete 类型：引擎内置的标准删除操作（操作列固定渲染，不参与排序/隐藏/拖拽） */
@@ -289,6 +309,8 @@ export interface RowActionConfig {
   /** 危险操作红字样式；不改变 type 语义（custom 也可标红） */
   danger?: boolean
   target?: ActionTargetConfig
+  /** 移动端策略（§3.3）：allow=详情面板动作排可点 / block=置灰提示桌面端（缺省）/ hidden=不渲染 */
+  mobile?: 'allow' | 'block' | 'hidden'
 }
 
 export interface ActionTargetConfig {

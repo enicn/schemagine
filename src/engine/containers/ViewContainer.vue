@@ -58,4 +58,16 @@ const currentView = computed(() => {
   height: 200px;
   color: var(--sg-text-color-secondary);
 }
+
+/* 移动形态（§3.2）：内容回归文档流自然高度，滚动归属宿主容器；
+   overflow 必须放开，否则 position:sticky 搜索栏不会相对宿主滚动容器吸附 */
+@media (max-width: 767.98px) {
+  .view-container {
+    height: auto;
+  }
+  .view-content {
+    flex: none;
+    overflow: visible;
+  }
+}
 </style>

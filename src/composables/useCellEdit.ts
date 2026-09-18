@@ -13,17 +13,17 @@ export function useCellEdit(
   const uiState = uiStateParam ?? useUi()
   const history = useRecordHistory(recordStore, uiState)
 
-  async function onCellEdit(payload: CellEditPayload): Promise<void> {
+  async function onCellEdit(payload: CellEditPayload): Promise<boolean> {
     const { rowId, field, value, oldValue } = payload
 
     const record = recordStore.getRecordById(rowId)
-    if (!record) return
+    if (!record) return false
 
     const schemaField = schemaMeta.getField(field)
-    if (!schemaField) return
+    if (!schemaField) return false
 
     const isFormulaField = schemaField.type === 'formula'
-    if (isFormulaField) return
+    if (isFormulaField) return false
 
     uiState.setEditingCell({ rowId, field })
     // 入栈基线版本：版本冲突刷新后以服务端当前版本重试，历史快照须与成功那次请求一致
@@ -74,12 +74,14 @@ export function useCellEdit(
           previousVersion: baseVersion,
           newVersion: res.data.version,
         })
-      } else {
-        handleSaveError(res)
+        return true
       }
+      handleSaveError(res)
+      return false
     } catch (err) {
       const message = err instanceof Error ? err.message : '保存失败'
       uiState.showMessage(message, 'error')
+      return false
     } finally {
       uiState.setEditingCell(null)
     }

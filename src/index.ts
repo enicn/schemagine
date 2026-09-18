@@ -13,12 +13,15 @@ export { default as ViewContainer } from './engine/containers/ViewContainer.vue'
 export { default as ListView } from './engine/containers/ListView.vue'
 export { default as CardView } from './engine/containers/CardView.vue'
 export { default as CreateView } from './engine/containers/CreateView.vue'
+export { default as MobileCardList } from './engine/containers/MobileCardList.vue'
 
 // === 可复用组件 ===
 export { default as SchemaTable } from './components/table/SchemaTable.vue'
 export { default as VxeTableWrapper } from './components/table/VxeTableWrapper.vue'
 export { default as SchemaFilterBar } from './components/filter/SchemaFilterBar.vue'
+export { default as FilterConditionControls } from './components/filter/FilterConditionControls.vue'
 export { default as SchemaCard } from './components/card/SchemaCard.vue'
+export { default as MobileCardItem } from './components/card/MobileCardItem.vue'
 export { default as FieldEditorFactory } from './components/field/FieldEditorFactory.vue'
 export { default as ValueRenderer } from './components/field/editors/ValueRenderer.vue'
 
@@ -97,6 +100,12 @@ export type { XlsxParseResult, ImportRowIssue } from './utils/clipboardImport'
 export { formatMoney } from './utils/formatMoney'
 export { resolveEnumTagStyle, resolveEnumColor, parseCssColor } from './utils/enumTag'
 export type { EnumTagStyle, EnumTagTone } from './utils/enumTag'
+// 移动端适配（管理后台移动适配 §3.3-§3.6）：卡片投影/搜索字段推导 + 动作降级策略 + 视口断点
+export { deriveCardProjection, resolveSearchFields } from './utils/cardProjection'
+export type { CardProjection } from './utils/cardProjection'
+export { resolveListActionMobilePolicy, resolveRowActionMobilePolicy } from './utils/mobileActions'
+export type { MobileActionPolicy } from './utils/mobileActions'
+export { useViewportMode, MOBILE_MEDIA_QUERY } from './composables/useViewportMode'
 
 // === Mock 适配器（开发/演示用） ===
 export { initMockServices, MockRecordService } from './services/mock/mockAdapter'

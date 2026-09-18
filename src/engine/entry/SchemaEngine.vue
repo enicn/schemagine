@@ -11,6 +11,7 @@ import { useFormula } from '@/composables/useFormula'
 import { createSchemaMetaState, createRecordState, createUiState, createRuntimeContextState, SCHEMA_META_KEY, RECORD_STATE_KEY, UI_STATE_KEY, RUNTIME_CONTEXT_KEY } from '@/composables/instanceState'
 import { recordService, peekRecordService } from '@/services/api/recordService'
 import { useRecordSubscription } from '@/composables/useRecordSubscription'
+import { useViewportMode } from '@/composables/useViewportMode'
 import ErrorBoundary from '@/engine/providers/ErrorBoundary.vue'
 import SchemaContextProvider from '@/engine/providers/SchemaContextProvider.vue'
 import ViewContainer from '@/engine/containers/ViewContainer.vue'
@@ -91,6 +92,8 @@ const cycleAlert = computed(() => {
 
 const currentCreateMode = ref<'list' | 'card'>('list')
 const autoEditCard = ref(false)
+// 移动端形态（§3.2/§3.3）：强制卡片列表形态、工具栏裁剪（视图切换/列设置/卡片布局不渲染）
+const { isMobile } = useViewportMode()
 
 const relationEditorState = ref<{
   field: string
@@ -189,7 +192,8 @@ function handleViewModeChange(mode: 'list' | 'card' | 'create'): void {
   schema.setViewMode(mode)
   if (mode === 'create') {
     recordStore.clearDrafts()
-    currentCreateMode.value = schemaMeta.schema?.createMode ?? 'list'
+    // 移动端无卡片浏览/卡片布局概念，新建固定列表表单形态（垂直流式天然适配）
+    currentCreateMode.value = isMobile.value ? 'list' : (schemaMeta.schema?.createMode ?? 'list')
   }
 }
 
@@ -555,7 +559,7 @@ defineExpose({
               <div class="toolbar-actions">
                 <template v-if="uiState.viewMode === 'list'">
                   <ElButton
-                    v-if="isSelectThenEditMode && permission.canEdit.value && !readonly"
+                    v-if="isSelectThenEditMode && !isMobile && permission.canEdit.value && !readonly"
                     size="small"
                     type="primary"
                     :disabled="uiState.selectedRowIds.length === 0"
@@ -564,7 +568,7 @@ defineExpose({
                     编辑
                   </ElButton>
                   <ColumnSettingsPopover
-                    v-if="schemaMeta.schema"
+                    v-if="schemaMeta.schema && !isMobile"
                     :fields="schemaMeta.schema.fields"
                     :columns="schemaMeta.viewConfig?.columns ?? []"
                     @save="handleColumnSettingsSave"
@@ -575,7 +579,7 @@ defineExpose({
                     </ElButton>
                   </ColumnSettingsPopover>
                 </template>
-                <template v-else-if="uiState.viewMode === 'card'">
+                <template v-else-if="uiState.viewMode === 'card' && !isMobile">
                   <CardLayoutSettingsPopover
                     v-if="schemaMeta.schema"
                     :fields="schemaMeta.schema.fields"
@@ -599,14 +603,14 @@ defineExpose({
                 </ElTooltip>
                 <template v-if="uiState.viewMode === 'create'">
                   <ElButton
-                    v-if="currentCreateMode !== 'list'"
+                    v-if="!isMobile && currentCreateMode !== 'list'"
                     size="small"
                     @click="currentCreateMode = 'list'"
                   >
                     列表新增
                   </ElButton>
                   <ElButton
-                    v-if="currentCreateMode !== 'card'"
+                    v-if="!isMobile && currentCreateMode !== 'card'"
                     size="small"
                     @click="currentCreateMode = 'card'"
                   >
@@ -622,14 +626,14 @@ defineExpose({
                 </template>
                 <template v-else>
                   <ElButton
-                    v-if="uiState.viewMode !== 'list' && permission.canView.value"
+                    v-if="!isMobile && uiState.viewMode !== 'list' && permission.canView.value"
                     size="small"
                     @click="handleViewModeChange('list')"
                   >
                     列表视图
                   </ElButton>
                   <ElButton
-                    v-if="uiState.viewMode !== 'card' && permission.canView.value && schemaMeta.schema?.moduleType !== 'list'"
+                    v-if="!isMobile && uiState.viewMode !== 'card' && permission.canView.value && schemaMeta.schema?.moduleType !== 'list'"
                     size="small"
                     @click="handleViewModeChange('card')"
                   >
@@ -763,5 +767,20 @@ defineExpose({
 .toolbar-actions {
   display: flex;
   gap: var(--sg-spacing-4);
+}
+
+/* 移动形态（§3.2）：引擎根不再撑满定高（滚动归属宿主容器），工具栏收纳防换行溢出 */
+@media (max-width: 767.98px) {
+  .schema-engine {
+    height: auto;
+  }
+  .engine-toolbar {
+    flex-wrap: wrap;
+    gap: var(--sg-spacing-2);
+    padding: var(--sg-spacing-3) var(--sg-spacing-4);
+  }
+  .toolbar-actions {
+    gap: var(--sg-spacing-2);
+  }
 }
 </style>

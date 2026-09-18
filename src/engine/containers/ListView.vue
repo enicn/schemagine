@@ -5,6 +5,7 @@ import SchemaTable from '@/components/table/SchemaTable.vue'
 import SchemaPagination from '@/components/table/SchemaPagination.vue'
 import FieldEditorFactory from '@/components/field/FieldEditorFactory.vue'
 import SchemaFilterBar from '@/components/filter/SchemaFilterBar.vue'
+import MobileCardList from '@/engine/containers/MobileCardList.vue'
 import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue } from '@/utils/fieldValidation'
@@ -18,6 +19,7 @@ import ListActionBar from '@/engine/actions/ListActionBar.vue'
 import type { FieldSchema } from '@/types'
 import { useAggregation } from '@/composables/useAggregation'
 import { usePermission } from '@/composables/usePermission'
+import { useViewportMode } from '@/composables/useViewportMode'
 import { recordService } from '@/services/api/recordService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
@@ -80,6 +82,7 @@ const permission = usePermission(schemaMeta)
 const aggregation = useAggregation()
 const history = useRecordHistory(recordStore, uiState)
 const { isMounted } = useMounted()
+const { isMobile } = useViewportMode()
 const loadingModuleId = inject<Ref<string | null>>('loadingModuleId', ref(null))
 
 // 标准数据操作（删除/批量删除）：配置 × 权限，由引擎内置交互
@@ -223,7 +226,10 @@ watch(() => props.externalFilters, (newFilters) => {
 
 const currentSort = ref<SortParam | null>(schemaMeta.viewConfig?.defaultSort ? { ...schemaMeta.viewConfig.defaultSort } : null)
 const currentPage = ref(1)
-const pageSize = ref(schemaMeta.viewConfig?.pageSize ?? 20)
+// 移动端固定默认 20（触底加载逐页追加，§3.5）；桌面沿用用户视图配置
+const pageSize = ref(isMobile.value ? 20 : (schemaMeta.viewConfig?.pageSize ?? 20))
+// 顶部搜索关键词（移动端 §3.6）：走 list 通道 keyword 参数（后端 searchFields 跨字段 OR）
+const searchKeyword = ref('')
 
 // ── 保存视图(docs/19 批次 E3):FilterPreset 命名保存当前过滤+排序,经 SchemaEngine 持久化 ──
 const presets = computed<FilterPreset[]>(() => schemaMeta.viewConfig?.filterPresets ?? [])
@@ -333,6 +339,7 @@ async function fetchData(): Promise<void> {
     const res = await recordService.list({
       moduleId: props.schema.id,
       filters: filters.value,
+      keyword: searchKeyword.value.trim() || undefined,
       sort: currentSort.value || undefined,
       page: currentPage.value,
       pageSize: pageSize.value,
@@ -341,7 +348,7 @@ async function fetchData(): Promise<void> {
     if (!isMounted.value) return
 
     if (res.success) {
-      recordStore.setRecords(res.data.records, res.data.total)
+      recordStore.setRecords(res.data.records, res.data.total, res.data.hasMore)
       recordStore.setPagination({ page: res.data.page, pageSize: res.data.pageSize, total: res.data.total })
     } else {
       uiState.showMessage(res.message || '查询失败', 'error')
@@ -354,7 +361,7 @@ async function fetchData(): Promise<void> {
   }
 }
 
-watch([currentPage, pageSize, filters, currentSort], () => {
+watch([currentPage, pageSize, filters, currentSort, searchKeyword], () => {
   fetchData()
   // 查询状态上抛:SchemaEngine 据此把 pageSize/defaultSort 持久化到 UserViewConfig(仅真变化时写,docs/19 批次 E5)
   emit('query-change', {
@@ -686,7 +693,26 @@ function handleBottomTabChange(tabId: string): void {
 </script>
 
 <template>
-  <div class="list-view">
+  <div class="list-view" :class="{ 'is-mobile': isMobile }">
+    <!-- 移动端形态（§3.2）：卡片列表 + 触底加载，工具栏/表格/分页等桌面形态整体不渲染 -->
+    <MobileCardList
+      v-if="isMobile"
+      :schema="schema"
+      :filters="filters"
+      :sort="currentSort"
+      :keyword="searchKeyword"
+      :tabs="filterTabs"
+      :active-tab-id="activeTabId"
+      :list-actions="listActions"
+      @update:keyword="searchKeyword = $event"
+      @search="handleSearch"
+      @remove-filter="handleRemoveFilter"
+      @tab-change="handleBottomTabChange"
+      @row-action="handleRowAction"
+      @action-trigger="handleListAction"
+    />
+
+    <template v-else>
     <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport || (canEditRecords && batchEditableFields.length > 0) || showFilterControls || showSelection"
       class="list-toolbar">
       <div v-if="listActions.length > 0 || showFilterControls" class="list-toolbar__left">
@@ -839,6 +865,7 @@ function handleBottomTabChange(tabId: string): void {
         </ElButton>
       </template>
     </ElDialog>
+    </template>
   </div>
 </template>
 
@@ -847,6 +874,11 @@ function handleBottomTabChange(tabId: string): void {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* 移动形态：列表回归文档流自然高度，滚动归属宿主 .hb-schemagine-page__content（§3.2） */
+.list-view.is-mobile {
+  height: auto;
 }
 
 .list-toolbar {

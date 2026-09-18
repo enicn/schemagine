@@ -131,7 +131,11 @@ export interface RecordState {
   hasRecords: ComputedRef<boolean>['value']
   hasDrafts: ComputedRef<boolean>['value']
   currentPage: ComputedRef<number>['value']
-  setRecords: (newRecords: RecordEntity[], total: number) => void
+  /** 最近一次列表响应是否还有下一页（信封缺省时为 null，消费方以 loaded<total 推导兜底） */
+  hasMoreRecords: boolean | null
+  setRecords: (newRecords: RecordEntity[], total: number, hasMore?: boolean) => void
+  /** 触底加载追加（移动端 §3.5）：按 id 去重后接尾追加，防翻页期间数据位移造成重复行 */
+  appendRecords: (rows: RecordEntity[], total: number, hasMore?: boolean) => number
   setCurrentRecord: (record: RecordEntity | null) => void
   setQueryState: (state: Partial<QueryState>) => void
   setPagination: (pagination: Partial<PaginationState>) => void
@@ -173,6 +177,8 @@ export function createRecordState() {
   const isLoading = ref(false)
   const isSaving = ref(false)
   const saveError = ref<string | null>(null)
+  /** 最近一次 list 响应的 hasMore（信封未携带时为 null → 消费方以 loaded<total 推导） */
+  const hasMoreRecords = ref<boolean | null>(null)
 
   /** 历史栈容量：undo/redo 各自封顶，超出淘汰最旧条目 */
   const HISTORY_LIMIT = 50
@@ -184,9 +190,24 @@ export function createRecordState() {
   const canUndo = computed(() => undoStack.value.length > 0)
   const canRedo = computed(() => redoStack.value.length > 0)
 
-  function setRecords(newRecords: RecordEntity[], total: number): void {
+  function setRecords(newRecords: RecordEntity[], total: number, hasMore?: boolean): void {
     records.value = newRecords
     queryState.value.pagination.total = total
+    hasMoreRecords.value = hasMore ?? null
+  }
+
+  function appendRecords(rows: RecordEntity[], total: number, hasMore?: boolean): number {
+    const seen = new Set(records.value.map(r => r.id))
+    let added = 0
+    for (const row of rows) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      records.value.push(row)
+      added += 1
+    }
+    queryState.value.pagination.total = total
+    hasMoreRecords.value = hasMore ?? null
+    return added
   }
 
   function setCurrentRecord(record: RecordEntity | null): void {
@@ -345,6 +366,7 @@ export function createRecordState() {
     isLoading.value = false
     isSaving.value = false
     saveError.value = null
+    hasMoreRecords.value = null
   }
 
   return reactive({
@@ -363,7 +385,9 @@ export function createRecordState() {
     hasRecords,
     hasDrafts,
     currentPage,
+    hasMoreRecords,
     setRecords,
+    appendRecords,
     setCurrentRecord,
     setQueryState,
     setPagination,

@@ -19,6 +19,7 @@ export type {
   ListActionType,
   RowActionConfig,
   RowActionType,
+  CardViewConfig,
   ActionTargetConfig,
   ActionFilterRule,
   ActionFormField,

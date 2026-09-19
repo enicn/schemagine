@@ -87,7 +87,7 @@ const defaultColumns = computed(() => {
 
 async function handleReset(): Promise<void> {
   try {
-    await ElMessageBox.confirm('重置将恢复列设置为系统默认值，确认重置？', '确认重置', {
+    await ElMessageBox.confirm('重置将恢复列表设置为系统默认值，确认重置？', '确认重置', {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
       type: 'warning',
@@ -103,7 +103,7 @@ function handleSave(): void {
   const sorted = [...localColumns.value].sort((a, b) => a.order - b.order)
   emit('save', sorted)
   popoverVisible.value = false
-  ElMessage.success('列设置已保存')
+  ElMessage.success('列表设置已保存')
 }
 
 function handleCancel(): void {
@@ -136,7 +136,7 @@ function getFieldType(fieldKey: string): string {
 
     <div class="column-settings">
       <div class="settings-header">
-        <span>列设置</span>
+        <span>列表设置</span>
         <ElButton size="small" text @click="handleReset">恢复默认</ElButton>
       </div>
 

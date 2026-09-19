@@ -35,7 +35,7 @@ export const META_SURFACE_LABELS: Record<MetaSurface, string> = {
   'inline-edit': '行内编辑',
   filter: '列头筛选',
   form: '表单(新建/编辑)',
-  card: '卡片视图',
+  card: '卡片界面',
 }
 
 export const META_KIND_LABELS: Record<MetaKind, string> = {

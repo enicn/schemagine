@@ -124,6 +124,9 @@ importers:
 
   .:
     dependencies:
+      '@element-plus/icons-vue':
+        specifier: ^2.3.2
+        version: 2.3.2(vue@3.6.0-beta.17(typescript@6.0.3))
       mathjs:
         specifier: ^15.2.0
         version: 15.2.0

@@ -45,6 +45,10 @@ export function useColumnBuilding(
   const OP_COLUMN_PADDING = 16
   /** 操作按钮间距 */
   const OP_LINK_GAP = 12
+  /** 带图标按钮（行级编辑/删除）的图标+间距占位：图标 13px + 右距 3px */
+  const OP_ICON_WIDTH = 16
+  /** 与 VxeTableWrapper.opIcon 对应：这两类按钮渲染图标 */
+  const opHasIcon = (c: WrapperColumn): boolean => !!c.actionDanger || c.field === '__rowEdit__'
 
   let opTextCtx: CanvasRenderingContext2D | null | undefined
   /** 以 .op-link 实际字体（token：--sg-font-size-md + --sg-font-family）测按钮文本宽 */
@@ -70,7 +74,7 @@ export function useColumnBuilding(
       let maxWidth = -1
       for (const row of props.data) {
         const ops = visibleOps(row)
-        const width = ops.reduce((s, c) => s + measureOpTextWidth(c.title), 0)
+        const width = ops.reduce((s, c) => s + measureOpTextWidth(c.title) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
         if (width > maxWidth) {
           maxWidth = width
           priced = ops
@@ -78,7 +82,7 @@ export function useColumnBuilding(
       }
       if (priced.length === 0) priced = buttons
     }
-    const content = priced.reduce((w, c) => w + measureOpTextWidth(c.title), 0)
+    const content = priced.reduce((w, c) => w + measureOpTextWidth(c.title) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
     return Math.ceil(OP_COLUMN_PADDING * 2 + OP_LINK_GAP * (priced.length - 1) + content)
   })
 

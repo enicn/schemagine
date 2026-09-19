@@ -466,7 +466,7 @@ watch(() => props.visible, (show) => {
               @save="handleColumnSettingsSave"
               @reset="handleColumnSettingsReset"
             >
-              <ElButton size="small">列设置</ElButton>
+              <ElButton size="small">列表设置</ElButton>
             </ColumnSettingsPopover>
           </template>
           <template v-else-if="viewMode === 'card'">
@@ -477,7 +477,7 @@ watch(() => props.visible, (show) => {
               @save="handleCardLayoutSave"
               @reset="handleCardLayoutReset"
             >
-              <ElButton size="small">卡片布局</ElButton>
+              <ElButton size="small">卡片设置</ElButton>
             </CardLayoutSettingsPopover>
           </template>
           <ElButton
@@ -485,14 +485,14 @@ watch(() => props.visible, (show) => {
             size="small"
             @click="handleViewModeChange('list')"
           >
-            列表视图
+            列表界面
           </ElButton>
           <ElButton
             v-if="viewMode !== 'card' && moduleType !== 'list'"
             size="small"
             @click="handleViewModeChange('card')"
           >
-            卡片视图
+            卡片界面
           </ElButton>
         </div>
         <div class="popup-toolbar-right">

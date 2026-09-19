@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onUnmounted } from 'vue'
+import { Check, Close, Delete, Promotion, Setting, Upload } from '@element-plus/icons-vue'
 import { ElButton, ElCheckbox, ElMessage } from 'element-plus'
 import { useRecords, useSchemaMeta, useRuntimeContext } from '@/composables/instanceState'
 import { useRuntimeCacheStore } from '@/stores/runtimeCacheStore'
@@ -17,6 +18,8 @@ import type { FieldSchema, DraftRecord, ColumnConfig } from '@/types'
 
 defineProps<{
   submitting?: boolean
+  /** 工具栏收敛档位（SchemaEngine 透传）：'conservative' 隐藏导入数据/列表设置等高级入口 */
+  toolbarMode?: 'full' | 'conservative'
 }>()
 
 const emit = defineEmits<{
@@ -481,9 +484,10 @@ onUnmounted(() => {
 
 <template>
   <div class="create-view">
-    <div class="create-topbar">
+    <div v-if="toolbarMode !== 'conservative'" class="create-topbar">
       <ElButton
         size="small"
+        :icon="Upload"
         class="paste-import-btn"
         @click="pasteDialogVisible = true"
       >
@@ -496,8 +500,8 @@ onUnmounted(() => {
         @save="handleColumnSettingsSave"
         @reset="handleColumnSettingsReset"
       >
-        <ElButton size="small">
-          列设置
+        <ElButton size="small" :icon="Setting">
+          列表设置
         </ElButton>
       </ColumnSettingsPopover>
     </div>
@@ -640,6 +644,7 @@ onUnmounted(() => {
           size="small"
           type="danger"
           plain
+          :icon="Delete"
           @click="batchDelete"
         >
           删除选中 ({{ selectedIds.size }})
@@ -664,10 +669,11 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="toolbar-right">
-        <ElButton size="small" @click="handleCancel">取消</ElButton>
+        <ElButton size="small" :icon="Close" @click="handleCancel">取消</ElButton>
         <ElButton
           size="small"
           type="primary"
+          :icon="Check"
           :loading="submitting"
           @click="handleSave"
         >
@@ -676,6 +682,7 @@ onUnmounted(() => {
         <ElButton
           size="small"
           type="success"
+          :icon="Promotion"
           :loading="submitting"
           @click="handleSaveAndContinue"
         >
@@ -853,6 +860,37 @@ onUnmounted(() => {
   height: 16px;
   background: var(--sg-border-color);
   flex-shrink: 0;
+}
+
+/* 移动端窄屏（§3.2，断点与 useViewportMode 一致）：工具栏换行收纳，
+   聚合指标降级为次行（不与操作按钮争宽），内边距收紧 */
+@media (max-width: 767.98px) {
+  .create-view {
+    height: auto;
+    padding: var(--sg-spacing-4);
+  }
+  .create-toolbar {
+    flex-wrap: wrap;
+    gap: var(--sg-spacing-2) var(--sg-spacing-4);
+  }
+  .toolbar-left {
+    order: 1;
+  }
+  .toolbar-right {
+    order: 2;
+    margin-left: auto;
+  }
+  .toolbar-aggregations {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: var(--sg-spacing-2) var(--sg-spacing-6);
+    font-size: var(--sg-font-size-sm);
+  }
+  .aggregation-divider {
+    display: none;
+  }
 }
 .skeleton-row td {
   padding: 0 var(--sg-spacing-6);

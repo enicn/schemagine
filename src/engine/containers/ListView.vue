@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, inject, type Ref } from 'vue'
+import { CircleClose, Delete, Download, EditPen, RefreshLeft, RefreshRight } from '@element-plus/icons-vue'
 import { ElTag, ElButton, ElMessageBox, ElDialog, ElSelect, ElOption } from 'element-plus'
 import SchemaTable from '@/components/table/SchemaTable.vue'
 import SchemaPagination from '@/components/table/SchemaPagination.vue'
@@ -38,6 +39,10 @@ const props = defineProps<{
   tableHeight?: string | number
   /** 密度档位（docs/19 F1）：透传 SchemaTable → VxeTableWrapper */
   density?: 'compact' | 'default' | 'large'
+  /** 引擎只读形态（SchemaEngine 透传 SchemaTable）：隐藏内置行级编辑入口 */
+  readonly?: boolean
+  /** 工具栏收敛档位（SchemaEngine 透传）：'conservative' 隐藏撤销/重做/命名视图/批量编辑/导出等高级入口 */
+  toolbarMode?: 'full' | 'conservative'
 }>()
 
 const emit = defineEmits<{
@@ -49,6 +54,8 @@ const emit = defineEmits<{
   'edit-activated': [payload: { rowId: string; field: string }]
   'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
+  /** 内置行级编辑（select-then-edit）：请求以卡片视图编辑态打开该行，由 SchemaEngine 本地处理 */
+  'row-edit': [payload: { rowId: string }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'action-trigger': [payload: ActionTriggerEvent]
   /** 保存视图变更(FilterPreset 增删/设默认),由 SchemaEngine 持久化到 UserViewConfig(docs/19 批次 E3) */
@@ -239,6 +246,18 @@ const activePresetId = ref('')
 const activePreset = computed<FilterPreset | null>(() => presets.value.find(p => p.id === activePresetId.value) ?? null)
 const hasFilterableFields = computed(() => props.schema.fields.some(f => f.filterable))
 const showFilterControls = computed(() => hasFilterableFields.value || presets.value.length > 0)
+// 保守工具栏（toolbarMode='conservative'）：只留筛选/业务动作/批量删除，命名视图与高级操作整体隐藏
+const conservativeToolbar = computed(() => props.toolbarMode === 'conservative')
+const showPresetControls = computed(() => showFilterControls.value && !conservativeToolbar.value)
+const showToolbarLeft = computed(() =>
+  listActions.value.length > 0
+  || (conservativeToolbar.value ? hasFilterableFields.value : showFilterControls.value),
+)
+const showToolbarRight = computed(() =>
+  conservativeToolbar.value
+    ? deleteOps.value.canBatchDelete || showSelection.value
+    : canExport.value || deleteOps.value.canBatchDelete || (canEditRecords.value && batchEditableFields.value.length > 0) || showSelection.value,
+)
 
 function applyPreset(preset: FilterPreset): void {
   filters.value = cloneFilterConditions(preset.filters)
@@ -441,6 +460,11 @@ function handleFormulaDetailOpen(payload: { field: string; rowId?: string }): vo
 }
 
 function handleRowAction(payload: RowActionEvent): void {
+  // 内置行级编辑（select-then-edit 操作列「编辑」）：保留 actionId，本地转卡片编辑态，不上抛宿主
+  if (payload.actionId === '__rowEdit__') {
+    emit('row-edit', { rowId: payload.rowId })
+    return
+  }
   // 标准删除操作：引擎统一二次确认后再上抛，宿主只负责执行
   if (payload.actionId === 'delete') {
     void confirmRowDelete(payload)
@@ -715,12 +739,12 @@ function handleBottomTabChange(tabId: string): void {
     />
 
     <template v-else>
-    <div v-if="listActions.length > 0 || deleteOps.canBatchDelete || canExport || (canEditRecords && batchEditableFields.length > 0) || showFilterControls || showSelection"
+    <div v-if="showToolbarLeft || showToolbarRight"
       class="list-toolbar">
-      <div v-if="listActions.length > 0 || showFilterControls" class="list-toolbar__left">
+      <div v-if="showToolbarLeft" class="list-toolbar__left">
         <SchemaFilterBar v-if="hasFilterableFields" :fields="schema.fields" :model-value="filters"
           @update:model-value="handleSearch" @search="handleSearch" />
-        <template v-if="showFilterControls">
+        <template v-if="showPresetControls">
           <ElSelect :model-value="activePresetId" placeholder="视图" size="small" clearable class="preset-select"
             @change="handlePresetSelect" @clear="handlePresetClear">
             <ElOption v-for="p in presets" :key="p.id" :value="p.id"
@@ -736,29 +760,29 @@ function handleBottomTabChange(tabId: string): void {
         <ListActionBar v-if="listActions.length > 0" :actions="listActions" :active-filters="flatFilterClauses"
           :selected-row-ids="uiState.selectedRowIds" @action-trigger="handleListAction" />
       </div>
-      <div v-if="canExport || deleteOps.canBatchDelete || (canEditRecords && batchEditableFields.length > 0) || showSelection" class="list-toolbar__right">
+      <div v-if="showToolbarRight" class="list-toolbar__right">
         <ElButton v-if="showSelection && uiState.selectedRowIds.length > 0" size="small" text
-          @click="handleClearSelection">
+          :icon="CircleClose" @click="handleClearSelection">
           清空选择
         </ElButton>
-        <ElButton v-if="canEditRecords" size="small" plain :disabled="!recordStore.canUndo" @click="handleUndo">
+        <ElButton v-if="!conservativeToolbar && canEditRecords" size="small" plain :icon="RefreshLeft" :disabled="!recordStore.canUndo" @click="handleUndo">
           撤销
         </ElButton>
-        <ElButton v-if="canEditRecords" size="small" plain :disabled="!recordStore.canRedo" @click="handleRedo">
+        <ElButton v-if="!conservativeToolbar && canEditRecords" size="small" plain :icon="RefreshRight" :disabled="!recordStore.canRedo" @click="handleRedo">
           重做
         </ElButton>
-        <ElButton v-if="canEditRecords && batchEditableFields.length > 0" size="small" plain
-          :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">
+        <ElButton v-if="!conservativeToolbar && canEditRecords && batchEditableFields.length > 0" size="small" plain
+          :icon="EditPen" :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">
           批量编辑{{ uiState.selectedRowIds.length > 0 ? ` (${uiState.selectedRowIds.length})` : '' }}
         </ElButton>
-        <ElButton size="small" plain :loading="exporting" @click="handleExportCsv">
+        <ElButton v-if="!conservativeToolbar" size="small" plain :icon="Download" :loading="exporting" @click="handleExportCsv">
           导出CSV
         </ElButton>
-        <ElButton size="small" plain :loading="exporting" @click="handleExportExcel">
+        <ElButton v-if="!conservativeToolbar" size="small" plain :icon="Download" :loading="exporting" @click="handleExportExcel">
           导出Excel
         </ElButton>
         <ElButton v-if="deleteOps.canBatchDelete" size="small" type="danger" plain
-          :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchDeleteClick">
+          :icon="Delete" :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchDeleteClick">
           {{ deleteOps.batchLabel }}{{ uiState.selectedRowIds.length > 0 ? ` (${uiState.selectedRowIds.length})` : '' }}
         </ElButton>
       </div>
@@ -796,14 +820,15 @@ function handleBottomTabChange(tabId: string): void {
     <SchemaTable ref="schemaTableRef" :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []"
       :sort-state="currentSort" :filter-clauses="flatFilterClauses" :editable="tableEditable"
       :selected-row-id="selectedRowId" :show-selection="showSelection" :loading="recordStore.isLoading"
-      :height="tableHeight" :density="density" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
+      :height="tableHeight" :density="density" :readonly="readonly" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
       @row-click="handleRowClick" @cell-edit="handleCellEdit"
       @column-drag-end="handleColumnDragEnd"
       @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
       @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"
       @edit-closed="(p: { rowId: string; field: string; value: unknown }) => emit('edit-closed', p)"
       @open-quick-create="handleOpenQuickCreate" @formula-detail-open="handleFormulaDetailOpen"
-      @row-action="handleRowAction" @open-relation-editor="handleOpenRelationEditor"
+      @row-action="handleRowAction" @row-edit="(p: { rowId: string }) => emit('row-edit', p)"
+      @open-relation-editor="handleOpenRelationEditor"
       @selection-change="handleSelectionChange" />
 
     <div v-if="aggregationSummary.length > 0" class="aggregation-bar">

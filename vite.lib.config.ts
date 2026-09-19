@@ -24,7 +24,7 @@ export default defineConfig({
       // 外置所有 peers（含子路径，如 vxe-table/lib/style.css 等 CSS）。
       // Vite 8(rolldown) 的字符串 external 不再对子路径做前缀匹配，必须改用函数。
       external: (id: string) =>
-        /^(vue|vue-router|pinia|element-plus|vxe-table|vxe-pc-ui|xe-utils|mathjs)(\/|$)/.test(id),
+        /^(vue|vue-router|pinia|element-plus|@element-plus\/icons-vue|vxe-table|vxe-pc-ui|xe-utils|mathjs)(\/|$)/.test(id),
       output: {
         globals: {
           vue: 'Vue',

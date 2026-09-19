@@ -5,6 +5,7 @@
  * 状态与动作经 TableCtx 注入（见 cellCtx.ts），与原先同作用域模板等价。
  */
 import { ElPopover, ElInput, ElCheckbox, ElCheckboxGroup, ElButton, ElSwitch, ElDatePicker } from 'element-plus'
+import { Top, Bottom, Close } from '@element-plus/icons-vue'
 import { t } from '@/locales'
 import type { WrapperColumn } from './wrapperTypes'
 import type { TableCtx } from './cellCtx'
@@ -17,6 +18,11 @@ const props = defineProps<{
 }>()
 
 const ctx = props.ctx
+
+/** 升/降序按钮激活态：当前列正按该方向排序 */
+function isSortActive(order: 'asc' | 'desc'): boolean {
+  return ctx.sortConfig?.field === props.col.field && ctx.sortConfig?.order === order
+}
 </script>
 
 <template>
@@ -46,16 +52,35 @@ const ctx = props.ctx
 
       <div class="header-popover">
         <div class="header-popover__sort">
-          <ElButton size="small" type="success" plain @click="ctx.applyHeaderSort(col.field, 'asc')">
-            <span class="sort-icon sort-icon--asc">↑</span>
+          <ElButton
+            size="small"
+            type="success"
+            plain
+            :class="{ 'is-sorted': isSortActive('asc') }"
+            :icon="Top"
+            @click="ctx.applyHeaderSort(col.field, 'asc')"
+          >
             {{ t('table.filter.asc') }}
           </ElButton>
-          <ElButton size="small" type="danger" plain @click="ctx.applyHeaderSort(col.field, 'desc')">
-            <span class="sort-icon sort-icon--desc">↓</span>
+          <ElButton
+            size="small"
+            type="danger"
+            plain
+            :class="{ 'is-sorted': isSortActive('desc') }"
+            :icon="Bottom"
+            @click="ctx.applyHeaderSort(col.field, 'desc')"
+          >
             {{ t('table.filter.desc') }}
           </ElButton>
-          <ElButton size="small" text type="info" @click="ctx.applyHeaderSort(col.field, null)">
-            <span class="sort-icon sort-icon--clear">×</span>
+          <!-- 仅当前列已设排序时提供清除；未排序列的清除无意义 -->
+          <ElButton
+            v-if="ctx.sortConfig?.field === col.field && ctx.sortConfig?.order"
+            size="small"
+            text
+            type="info"
+            :icon="Close"
+            @click="ctx.applyHeaderSort(col.field, null)"
+          >
             {{ t('table.filter.clearSort') }}
           </ElButton>
         </div>

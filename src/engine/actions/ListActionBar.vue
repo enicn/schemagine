@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { Files, Operation, Promotion } from '@element-plus/icons-vue'
 import { ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElSelect, ElOption, ElDatePicker, ElMessage } from 'element-plus'
+import type { Component } from 'vue'
 import type { ListAction, FilterClause } from '@/types'
 import SchemaEngineDialog from '@/engine/dialogs/SchemaEngineDialog.vue'
 import { resolveListActionMobilePolicy } from '@/utils/mobileActions'
@@ -20,6 +22,13 @@ const emit = defineEmits<{
 }>()
 
 const DESKTOP_ONLY_TIP = '该操作请在桌面端完成'
+
+/** 动作类型的默认图标（custom 动作语义由宿主定义，用通用操作图标） */
+const ACTION_TYPE_ICONS: Record<string, Component> = {
+  custom: Operation,
+  'popup-schema': Files,
+  'form-submit': Promotion,
+}
 
 const visibleActions = computed<ListAction[]>(() => {
   if (!props.mobile) return props.actions
@@ -95,7 +104,7 @@ async function handleFormSubmit(): Promise<void> {
   <div class="list-action-bar">
     <div class="action-bar-left">
       <template v-for="action in visibleActions" :key="action.id">
-        <ElButton size="small" :disabled="actionBlocked(action)" @click="handleActionClick(action)">
+        <ElButton size="small" :icon="ACTION_TYPE_ICONS[action.type]" :disabled="actionBlocked(action)" @click="handleActionClick(action)">
           {{ action.label }}
           <span v-if="actionBlocked(action)" class="action-desktop-badge">桌面端</span>
         </ElButton>

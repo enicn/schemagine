@@ -6,14 +6,14 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await page.waitForTimeout(2000)
   })
 
-  // ===== 1. 列设置面板 =====
-  test('1.1 列设置按钮 - 列表视图下可见', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  // ===== 1. 列表设置面板 =====
+  test('1.1 列表设置按钮 - 列表视图下可见', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
   })
 
-  test('1.2 列设置面板 - 打开与字段列表渲染', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  test('1.2 列表设置面板 - 打开与字段列表渲染', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
     await colSettingBtn.click()
     await page.waitForTimeout(800)
@@ -30,8 +30,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await expect(headerFields).toContainText('排序')
   })
 
-  test('1.3 列设置面板 - 字段列表包含凭证模块字段', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  test('1.3 列表设置面板 - 字段列表包含凭证模块字段', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
     await colSettingBtn.click()
     await page.waitForTimeout(800)
@@ -49,8 +49,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     expect(joined).toContain('税额')
   })
 
-  test('1.4 列设置面板 - 列显隐切换与保存', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  test('1.4 列表设置面板 - 列显隐切换与保存', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
     await colSettingBtn.click()
     await page.waitForTimeout(800)
@@ -63,8 +63,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await expect(saveBtn).toBeVisible()
   })
 
-  test('1.5 列设置面板 - 恢复默认功能存在', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  test('1.5 列表设置面板 - 恢复默认功能存在', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
     await colSettingBtn.click()
     await page.waitForTimeout(800)
@@ -471,8 +471,8 @@ test.describe('P2 Schema 引擎高级特性', () => {
   })
 
   // ===== 8. 模块切换 =====
-  test('8.1 模块切换后列设置按钮仍存在', async ({ page }) => {
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+  test('8.1 模块切换后列表设置按钮仍存在', async ({ page }) => {
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
 
     const apRadio = page.locator('.el-radio-button', { hasText: '应付账款' })
@@ -481,18 +481,18 @@ test.describe('P2 Schema 引擎高级特性', () => {
     await page.waitForTimeout(2000)
 
     await expect(page.getByText('应付账款').first()).toBeVisible({ timeout: 10000 })
-    const colSettingBtn2 = page.locator('button', { hasText: '列设置' })
+    const colSettingBtn2 = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn2).toBeVisible({ timeout: 8000 })
   })
 
-  test('8.2 空模块切换后列设置按钮仍存在', async ({ page }) => {
+  test('8.2 空模块切换后列表设置按钮仍存在', async ({ page }) => {
     const emptyRadio = page.locator('.el-radio-button', { hasText: '空模块' })
     await expect(emptyRadio).toBeVisible()
     await emptyRadio.click()
     await page.waitForTimeout(2000)
 
     await expect(page.getByText('空模块（无数据）').first()).toBeVisible({ timeout: 10000 })
-    const colSettingBtn = page.locator('button', { hasText: '列设置' })
+    const colSettingBtn = page.locator('button', { hasText: '列表设置' })
     await expect(colSettingBtn).toBeVisible({ timeout: 8000 })
   })
 

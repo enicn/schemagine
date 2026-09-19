@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { Check, Close } from '@element-plus/icons-vue'
 import { ElButton, ElCard } from 'element-plus'
 import { useRecords, useSchemaMeta, useRuntimeContext } from '@/composables/instanceState'
 import { useDraftLifecycle } from '@/composables/useDraftLifecycle'
@@ -191,10 +192,11 @@ function isEditable(field: FieldSchema): boolean {
     <div class="card-create-toolbar">
       <div class="toolbar-spacer"></div>
       <div class="toolbar-actions">
-        <ElButton size="small" @click="handleCancel">取消</ElButton>
+        <ElButton size="small" :icon="Close" @click="handleCancel">取消</ElButton>
         <ElButton
           size="small"
           type="primary"
+          :icon="Check"
           :loading="submitting"
           @click="handleSave"
         >

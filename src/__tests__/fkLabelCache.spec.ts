@@ -4,7 +4,9 @@ import { cacheFkLabel, cacheFkOptions, getCachedFkLabel, resolveFkLabelForSummar
 import type { FieldSchema, FilterClause } from '@/types'
 
 const recordServiceMock = vi.hoisted(() => ({
-  getDetail: vi.fn(async (_moduleId: string, recordId: string) => ({
+  getDetail: vi.fn<
+    (_moduleId: string, recordId: string) => Promise<{ success: boolean; data: { id: string; fields: { name: string } } }>
+  >(async (_moduleId, recordId) => ({
     success: true,
     data: { id: recordId, fields: { name: `名称${recordId}` } },
   })),

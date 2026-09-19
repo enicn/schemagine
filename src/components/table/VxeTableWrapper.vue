@@ -26,6 +26,9 @@ import { useInlineEdit } from './useInlineEdit'
 import { useCellDetail } from './useCellDetail'
 import { createCellCtx } from './cellCtx'
 import { t } from '@/locales'
+import { Delete, Edit } from '@element-plus/icons-vue'
+import { ElIcon } from 'element-plus'
+import type { Component } from 'vue'
 import { GROUP_ROW_FLAG, isGroupRow } from '@/utils/recordGroup'
 import { useKeyboardNav } from './useKeyboardNav'
 import WrapperHeaderCell from './WrapperHeaderCell.vue'
@@ -286,6 +289,13 @@ function handleCellClick(params: any): void {
 function handleOpClick(row: Record<string, unknown>, col: WrapperColumn): void {
   // 标准删除操作统一以 'delete' 作为 actionId 上抛，与字段 key 解耦
   emit('row-action', { row, actionId: col.actionDanger ? 'delete' : col.field })
+}
+
+/** 行级操作按钮的匹配图标：标准删除/内置行级编辑；schema 自定义动作语义未知不带图标 */
+function opIcon(col: WrapperColumn): Component | null {
+  if (col.actionDanger) return Delete
+  if (col.field === '__rowEdit__') return Edit
+  return null
 }
 
 function handleCellDblclick(params: any): void {
@@ -629,6 +639,8 @@ defineExpose({
         <slot name="empty" />
       </template>
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
+      <!-- 勾选列保持默认左对齐：全选框与行勾选框的同轴由下方样式补齐表头内边距实现
+           （居中方案受表头/表体单元格 2px 宽度差影响，中心恒差 1px） -->
       <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
       <!-- 行展开列（docs/19 F4）：展开区内容经宿主插槽渲染（B2 插槽透传机制） -->
       <VxeColumn v-if="expandSlot" type="expand" width="48" fixed="left">
@@ -727,7 +739,9 @@ defineExpose({
               :class="{ 'op-link--danger': op.actionDanger }"
               @click.stop="handleOpClick(row, op)"
             >
-              {{ op.title }}
+              <ElIcon v-if="opIcon(op)" class="op-link__icon" :size="13">
+                <component :is="opIcon(op)" />
+              </ElIcon>{{ op.title }}
             </button>
           </span>
         </template>
@@ -793,6 +807,14 @@ defineExpose({
   min-width: 100%;
 }
 /* 键盘导航焦点单元格（docs/19 G2）：主色描边，焦点可见 */
+/* 勾选列上下同轴：header-cell-config.padding=false 清零了表头单元格内边距，
+   而表体 .vxe-cell 带 vxe 默认水平内边距，左对齐的表头勾选框因此比行勾选框靠左 8px。
+   表头勾选列补齐同一 token 的内边距，使表头/表体图标左缘由同一条公式决定（居中方案
+   会受表头/表体单元格 2px 宽度差影响，中心恒差 1px，不可用） */
+.vxe-table-wrapper :deep(.vxe-table--header .vxe-header--column.col--checkbox .vxe-cell) {
+  padding-left: var(--vxe-ui-table-cell-padding-default, 8px);
+  padding-right: var(--vxe-ui-table-cell-padding-default, 8px);
+}
 .vxe-table-wrapper :deep(.vxe-body--column.is-focused-cell > .vxe-cell) {
   outline: 2px solid var(--sg-color-primary);
   outline-offset: -2px;
@@ -922,6 +944,10 @@ defineExpose({
 .op-link:hover {
   text-decoration: underline;
   color: var(--sg-color-primary-light-3);
+}
+.op-link__icon {
+  margin-right: 3px;
+  vertical-align: -2px;
 }
 .op-link--danger {
   color: var(--sg-color-danger);
@@ -1453,17 +1479,6 @@ defineExpose({
   color: var(--sg-color-primary-dark-2);
 }
 
-:deep(.sort-icon) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1em;
-  margin-right: var(--sg-spacing-1);
-  font-size: var(--sg-font-size-base);
-  line-height: 1;
-  color: currentColor;
-}
-
 .cell-highlighted :deep(.filter-match-highlight) {
   display: inline;
 }
@@ -1515,6 +1530,41 @@ defineExpose({
   gap: var(--sg-spacing-3);
   padding-bottom: var(--sg-spacing-4);
   border-bottom: 1px solid var(--sg-border-color-lighter);
+}
+/* 升/降序按钮状态由引擎全权接管。弹层 teleport 到 body，宿主的全局按钮主题
+   （如 !important 强制 success 实底）会穿透进来吞掉激活态对比，故三态钉死：
+   默认白底彩字 → hover 浅色底 → 激活（当前列正按该方向排序）实底白字 */
+.schemagine-header-popover .header-popover__sort .el-button--success:not(.is-sorted) {
+  background: var(--el-color-white) !important;
+  border-color: var(--el-color-success) !important;
+  color: var(--el-color-success) !important;
+}
+.schemagine-header-popover .header-popover__sort .el-button--success:not(.is-sorted):hover,
+.schemagine-header-popover .header-popover__sort .el-button--success:not(.is-sorted):focus {
+  background: var(--el-color-success-light-9) !important;
+}
+.schemagine-header-popover .header-popover__sort .el-button--success.is-sorted,
+.schemagine-header-popover .header-popover__sort .el-button--success.is-sorted:hover,
+.schemagine-header-popover .header-popover__sort .el-button--success.is-sorted:focus {
+  background: var(--el-color-success) !important;
+  border-color: var(--el-color-success) !important;
+  color: var(--el-color-white) !important;
+}
+.schemagine-header-popover .header-popover__sort .el-button--danger:not(.is-sorted) {
+  background: var(--el-color-white) !important;
+  border-color: var(--el-color-danger) !important;
+  color: var(--el-color-danger) !important;
+}
+.schemagine-header-popover .header-popover__sort .el-button--danger:not(.is-sorted):hover,
+.schemagine-header-popover .header-popover__sort .el-button--danger:not(.is-sorted):focus {
+  background: var(--el-color-danger-light-9) !important;
+}
+.schemagine-header-popover .header-popover__sort .el-button--danger.is-sorted,
+.schemagine-header-popover .header-popover__sort .el-button--danger.is-sorted:hover,
+.schemagine-header-popover .header-popover__sort .el-button--danger.is-sorted:focus {
+  background: var(--el-color-danger) !important;
+  border-color: var(--el-color-danger) !important;
+  color: var(--el-color-white) !important;
 }
 .schemagine-header-popover .header-popover__filter {
   display: flex;

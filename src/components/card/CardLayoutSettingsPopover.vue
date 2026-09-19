@@ -127,7 +127,7 @@ function handleCancel(): void {
 
     <div class="card-layout-settings">
       <div class="settings-header">
-        <span>卡片布局设置</span>
+        <span>卡片设置</span>
         <ElButton size="small" text @click="handleReset">恢复默认</ElButton>
       </div>
 

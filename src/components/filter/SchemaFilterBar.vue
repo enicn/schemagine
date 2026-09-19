@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { Filter } from '@element-plus/icons-vue'
 import { ElButton, ElButtonGroup, ElPopover, ElTag } from 'element-plus'
 import type { FieldSchema, FilterCondition } from '@/types'
 import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
@@ -100,7 +101,7 @@ defineExpose({
         @update:visible="handlePopoverVisibleChange"
       >
         <template #reference>
-          <ElButton size="small" :type="activeFilterCount > 0 ? 'primary' : ''">
+          <ElButton size="small" :icon="Filter" :type="activeFilterCount > 0 ? 'primary' : ''">
             <span class="filter-btn-label">筛选</span>
             <ElTag v-if="activeFilterCount > 0" size="small" class="filter-count-badge" round>
               {{ activeFilterCount }}

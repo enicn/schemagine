@@ -85,7 +85,7 @@ export const MODULE_META: PropertyMeta[] = [
       { value: 'select-then-edit', label: '单击选中 + 右上角编辑', desc: '跳转卡片编辑态' },
     ],
     surfaces: ['inline-edit', 'card'],
-    description: '列表视图的编辑交互模式:双击单元格行内编辑,或单击选中后经右上角「编辑」进入卡片编辑。',
+    description: '列表界面的编辑交互模式:双击单元格行内编辑,或点操作列「编辑」进入卡片编辑。',
   },
   {
     key: 'createMode', target: 'module', label: '新建方式', group: 'edit', appliesTo: 'all', kind: 'enum',

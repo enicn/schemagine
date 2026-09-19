@@ -38,7 +38,7 @@ watch(dialogType, (type) => {
 const dialogTitle = computed(() => {
   const titles: Record<string, string> = {
     'quick-create': '快速创建',
-    'column-settings': '列设置',
+    'column-settings': '列表设置',
     'formula-detail': '公式详情',
     'dynamic-max-confirm': '动态最大值确认',
     'version-conflict': '版本冲突',

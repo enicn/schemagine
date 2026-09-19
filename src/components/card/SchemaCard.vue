@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { Check, Close, Edit } from '@element-plus/icons-vue'
 import { ElCard, ElButton, ElTag, ElMessageBox } from 'element-plus'
 import type { FieldSchema, RecordEntity, CardFieldLayout, CardLayoutConfig } from '@/types'
 import CardGridField from './CardGridField.vue'
@@ -31,6 +32,10 @@ const emit = defineEmits<{
 
 const editing = ref(false)
 const editDraft = ref<Record<string, unknown>>({})
+// 三段式手柄的全局单字段互斥仲裁（§3.7）；必须先于 startEdit 声明——
+// autoEdit 的 immediate watch 在 setup 阶段同步调用 startEdit → exitHandleEdit，
+// 声明靠后会踩 TDZ（ReferenceError），autoEdit 静默失效（卡片永不进入编辑态）
+const handleEditingField = ref<string | null>(null)
 const runtimeContext = useRuntimeContext()
 
 function startEdit(): void {
@@ -156,7 +161,6 @@ function canHandleEdit(field: FieldSchema): boolean {
   return isFieldEditableInContext(field, conditionCtx.value)
 }
 
-const handleEditingField = ref<string | null>(null)
 const fieldRefs = new Map<string, InstanceType<typeof CardGridField>>()
 
 function setFieldRef(fieldKey: string, el: unknown): void {
@@ -232,13 +236,14 @@ defineExpose({
             size="small"
             type="primary"
             link
+            :icon="Edit"
             @click="startEdit"
           >
             编辑
           </ElButton>
           <template v-if="editing">
-            <ElButton size="small" type="primary" @click="saveEdit">保存</ElButton>
-            <ElButton size="small" @click="cancelEdit">取消</ElButton>
+            <ElButton size="small" type="primary" :icon="Check" @click="saveEdit">保存</ElButton>
+            <ElButton size="small" :icon="Close" @click="cancelEdit">取消</ElButton>
           </template>
         </div>
       </div>

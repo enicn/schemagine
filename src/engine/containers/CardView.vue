@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { ElButton, ElPagination } from 'element-plus'
 import SchemaCard from '@/components/card/SchemaCard.vue'
 import { useRecords, useSchemaMeta } from '@/composables/instanceState'
@@ -84,6 +85,7 @@ function handlePageChange(page: number): void {
       <div class="card-navigator">
         <ElButton
           size="small"
+          :icon="ArrowLeft"
           :disabled="currentIndex <= 0"
           @click="handlePrev"
         >
@@ -95,6 +97,7 @@ function handlePageChange(page: number): void {
         </span>
         <ElButton
           size="small"
+          :icon="ArrowRight"
           :disabled="currentIndex >= records.length - 1"
           @click="handleNext"
         >

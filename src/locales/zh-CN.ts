@@ -7,6 +7,7 @@ export default {
   table: {
     gridLabel: '数据表格',
     operationsTitle: '操作',
+    editAction: '编辑',
     view: '查看',
     filter: {
       asc: '升序',

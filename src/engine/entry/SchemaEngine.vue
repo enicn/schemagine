@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch, computed, ref, provide, nextTick } from 'vue'
+import { Back, DocumentAdd, Grid, Menu, Plus, Postcard, Refresh, Setting } from '@element-plus/icons-vue'
 import { ElButton, ElTag, ElTooltip, ElMessage } from 'element-plus'
 import type { ViewMode } from '@/constants'
 import { setLocale } from '@/locales'
@@ -36,6 +37,9 @@ const props = defineProps<{
   tableHeight?: string | number
   /** 列表密度档位（docs/19 F1）：compact/default/large，透传 ListView → SchemaTable → VxeTableWrapper */
   density?: 'compact' | 'default' | 'large'
+  /** 工具栏收敛档位：'conservative' 只保留 CRUD 必要入口、列表/卡片设置与 schema 声明的业务动作，
+   *  隐藏撤销/重做、命名视图、批量编辑、导入/导出等高级入口（面向大众用户的保守策略） */
+  toolbarMode?: 'full' | 'conservative'
   /** 引擎语言（docs/19 G1）：语言包须先经 registerLocale 注册；未传保持当前语言 */
   locale?: string
   /** 当前用户角色（docs/19 G3）：FieldPermission.roleBased 判定输入 */
@@ -74,7 +78,7 @@ provide(RUNTIME_CONTEXT_KEY, runtimeContext)
 
 const schema = useSchema(schemaMeta, uiState)
 provide('loadingModuleId', schema.loadingModuleId)
-const permission = usePermission(schemaMeta)
+const permission = usePermission(schemaMeta, runtimeContext)
 const cellEdit = useCellEdit(recordStore, schemaMeta, uiState)
 const history = useRecordHistory(recordStore, uiState)
 const formula = useFormula(recordStore, schemaMeta)
@@ -92,8 +96,11 @@ const cycleAlert = computed(() => {
 
 const currentCreateMode = ref<'list' | 'card'>('list')
 const autoEditCard = ref(false)
-// 移动端形态（§3.2/§3.3）：强制卡片列表形态、工具栏裁剪（视图切换/列设置/卡片布局不渲染）
+// 移动端形态（§3.2/§3.3）：强制卡片列表形态、工具栏裁剪（视图切换/列表设置/卡片设置不渲染）
 const { isMobile } = useViewportMode()
+// 卡片态的列表切换按钮语义：列表型模块进卡片只可能是行级「编辑」带入，属"返回"；
+// 卡片型模块（默认卡片界面）才是真正的视图"切换"
+const isCardDefaultModule = computed(() => schemaMeta.schema?.moduleType === 'card')
 
 const relationEditorState = ref<{
   field: string
@@ -197,17 +204,13 @@ function handleViewModeChange(mode: 'list' | 'card' | 'create'): void {
   }
 }
 
-const isSelectThenEditMode = computed(() => {
-  return schemaMeta.schema?.listEditMode === 'select-then-edit'
-})
-
-function handleEditSelectedRow(): void {
-  const selectedId = uiState.selectedRowIds[0]
-  if (!selectedId) {
-    ElMessage.warning('请先选择一行')
-    return
-  }
-  const record = recordStore.getRecordById(selectedId)
+/**
+ * 内置行级编辑（select-then-edit 操作列「编辑」）：定位该行并以卡片视图编辑态打开。
+ * autoEditCard 消费一次即复位；SchemaCard 挂载时 immediate watch 直接 startEdit。
+ * 工具栏跨行「编辑」按钮已移除——多选后只打开第一行的语义含糊，行级入口逐行直达。
+ */
+function handleRowEditRequest(payload: { rowId: string }): void {
+  const record = recordStore.getRecordById(payload.rowId)
   if (!record) {
     ElMessage.warning('所选行不在当前列表数据中')
     return
@@ -547,26 +550,19 @@ defineExpose({
             <div class="engine-toolbar">
               <div class="toolbar-left">
                 <h2 class="engine-title">{{ schemaMeta.schema?.name }}</h2>
-                <ElButton
-                  v-if="uiState.viewMode !== 'create'"
-                  size="small"
-                  :loading="schemaMeta.isLoading"
-                  @click="handleRefresh"
-                >
-                  刷新
-                </ElButton>
+                <ElTooltip v-if="uiState.viewMode !== 'create'" content="重新加载列表数据" placement="bottom">
+                  <ElButton
+                    size="small"
+                    :icon="Refresh"
+                    :loading="schemaMeta.isLoading"
+                    @click="handleRefresh"
+                  >
+                    刷新
+                  </ElButton>
+                </ElTooltip>
               </div>
               <div class="toolbar-actions">
                 <template v-if="uiState.viewMode === 'list'">
-                  <ElButton
-                    v-if="isSelectThenEditMode && !isMobile && permission.canEdit.value && !readonly"
-                    size="small"
-                    type="primary"
-                    :disabled="uiState.selectedRowIds.length === 0"
-                    @click="handleEditSelectedRow"
-                  >
-                    编辑
-                  </ElButton>
                   <ColumnSettingsPopover
                     v-if="schemaMeta.schema && !isMobile"
                     :fields="schemaMeta.schema.fields"
@@ -574,21 +570,21 @@ defineExpose({
                     @save="handleColumnSettingsSave"
                     @reset="handleColumnSettingsReset"
                   >
-                    <ElButton size="small">
-                      列设置
+                    <ElButton size="small" :icon="Setting">
+                      列表设置
                     </ElButton>
                   </ColumnSettingsPopover>
                 </template>
                 <template v-else-if="uiState.viewMode === 'card' && !isMobile">
                   <CardLayoutSettingsPopover
-                    v-if="schemaMeta.schema"
+                    v-if="schemaMeta.schema && !isMobile"
                     :fields="schemaMeta.schema.fields"
                     :card-layout="schemaMeta.viewConfig?.cardLayout ?? null"
                     @save="handleCardLayoutSave"
                     @reset="handleCardLayoutReset"
                   >
-                    <ElButton size="small">
-                      卡片布局
+                    <ElButton size="small" :icon="Grid">
+                      卡片设置
                     </ElButton>
                   </CardLayoutSettingsPopover>
                 </template>
@@ -605,6 +601,7 @@ defineExpose({
                   <ElButton
                     v-if="!isMobile && currentCreateMode !== 'list'"
                     size="small"
+                    :icon="DocumentAdd"
                     @click="currentCreateMode = 'list'"
                   >
                     列表新增
@@ -612,6 +609,7 @@ defineExpose({
                   <ElButton
                     v-if="!isMobile && currentCreateMode !== 'card'"
                     size="small"
+                    :icon="Postcard"
                     @click="currentCreateMode = 'card'"
                   >
                     卡片新增
@@ -619,30 +617,44 @@ defineExpose({
                   <ElButton
                     size="small"
                     type="primary"
+                    :icon="Back"
                     @click="handleViewModeChange('list')"
                   >
                     返回列表
                   </ElButton>
                 </template>
                 <template v-else>
-                  <ElButton
+                  <ElTooltip
                     v-if="!isMobile && uiState.viewMode !== 'list' && permission.canView.value"
-                    size="small"
-                    @click="handleViewModeChange('list')"
+                    :content="isCardDefaultModule ? '切换到列表界面' : '返回列表界面'"
+                    placement="bottom"
                   >
-                    列表视图
-                  </ElButton>
-                  <ElButton
+                    <ElButton
+                      size="small"
+                      :icon="isCardDefaultModule ? Menu : Back"
+                      @click="handleViewModeChange('list')"
+                    >
+                      {{ isCardDefaultModule ? '列表界面' : '返回列表' }}
+                    </ElButton>
+                  </ElTooltip>
+                  <ElTooltip
                     v-if="!isMobile && uiState.viewMode !== 'card' && permission.canView.value && schemaMeta.schema?.moduleType !== 'list'"
-                    size="small"
-                    @click="handleViewModeChange('card')"
+                    content="切换到卡片界面"
+                    placement="bottom"
                   >
-                    卡片视图
-                  </ElButton>
+                    <ElButton
+                      size="small"
+                      :icon="Postcard"
+                      @click="handleViewModeChange('card')"
+                    >
+                      卡片界面
+                    </ElButton>
+                  </ElTooltip>
                   <ElButton
                     v-if="permission.canCreate.value"
                     size="small"
                     type="primary"
+                    :icon="Plus"
                     @click="handleViewModeChange('create')"
                   >
                     新增
@@ -660,10 +672,13 @@ defineExpose({
                 :view-config="schemaMeta.viewConfig?.columns ?? []"
                 :table-height="tableHeight"
                 :density="density"
+                :readonly="readonly"
+                :toolbar-mode="toolbarMode"
                 @cell-edit="handleCellEdit"
                 @query-change="handleQueryChange"
                 @formula-detail-open="handleFormulaDetailOpen"
                 @row-action="handleRowAction"
+                @row-edit="handleRowEditRequest"
                 @open-relation-editor="handleOpenRelationEditor"
                 @presets-change="handlePresetsChange"
                 @column-order-change="handleColumnOrderChange"
@@ -694,6 +709,7 @@ defineExpose({
               <CreateView
                 v-if="schemaMeta.schema && currentCreateMode === 'list'"
                 :submitting="recordStore.isSaving"
+                :toolbar-mode="toolbarMode"
                 @save="handleCreateSave"
                 @save-and-continue="handleCreateSaveAndContinue"
                 @cancel="handleCreateCancel"

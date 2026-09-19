@@ -6,6 +6,7 @@
 import { ref } from 'vue'
 import { candidateService } from '@/services/api/candidateService'
 import { recordService } from '@/services/api/recordService'
+import { cacheFkLabel, cacheFkOptions } from '@/composables/useFkLabelCache'
 import type { CandidateOption } from '@/types'
 import type { WrapperColumn } from './wrapperTypes'
 
@@ -33,6 +34,7 @@ export function useFkOptions(props: { columns: WrapperColumn[] }) {
         const cache = new Map(fkOptionsCache.value)
         cache.set(module, res.data.options)
         fkOptionsCache.value = cache
+        cacheFkOptions(module, res.data.options)
       }
     } catch {
       // keep existing cache on error
@@ -69,6 +71,7 @@ export function useFkOptions(props: { columns: WrapperColumn[] }) {
         cache.set(targetModule, [newOpt, ...existing])
       }
       fkOptionsCache.value = cache
+      cacheFkLabel(targetModule, id, label)
       const next = new Set(resolvingFkIds.value)
       next.delete(dedupeKey)
       resolvingFkIds.value = next
@@ -87,6 +90,7 @@ export function useFkOptions(props: { columns: WrapperColumn[] }) {
         const cache = new Map(fkOptionsCache.value)
         cache.set(module, res.data.options)
         fkOptionsCache.value = cache
+        cacheFkOptions(module, res.data.options)
         return res.data.options
       }
     } catch {
@@ -100,6 +104,7 @@ export function useFkOptions(props: { columns: WrapperColumn[] }) {
     const cache = new Map(fkOptionsCache.value)
     cache.set(module, options)
     fkOptionsCache.value = cache
+    cacheFkOptions(module, options)
   }
 
   return {

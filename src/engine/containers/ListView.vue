@@ -18,6 +18,7 @@ import type { FilterTab } from '@/components/filter/BottomTabs.vue'
 import ListActionBar from '@/engine/actions/ListActionBar.vue'
 import type { FieldSchema } from '@/types'
 import { useAggregation } from '@/composables/useAggregation'
+import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { usePermission } from '@/composables/usePermission'
 import { useViewportMode } from '@/composables/useViewportMode'
 import { recordService } from '@/services/api/recordService'
@@ -58,9 +59,10 @@ const emit = defineEmits<{
   'batch-patch': [payload: { moduleId: string; ids: string[]; patch: Record<string, unknown> }]
 }>()
 
-// 摘要与 SchemaFilterBar 同一格式化口径(docs/19 批次 E;含组合过滤组拍平)
+// 摘要与 SchemaFilterBar 同一格式化口径(docs/19 批次 E;含组合过滤组拍平)。
+// FK 值走全局共享标签缓存(useFkLabelCache):命中出人读标签,未命中后台解析后响应式回填。
 const filterSummaryItems = computed<FilterSummaryItem[]>(() => {
-  return buildFilterSummaryItems(flattenFilterConditions(filters.value), props.schema.fields)
+  return buildFilterSummaryItems(flattenFilterConditions(filters.value), props.schema.fields, resolveFkLabelForSummary)
 })
 
 const hasActiveFilters = computed(() => filterSummaryItems.value.length > 0)

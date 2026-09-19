@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { ElButton, ElButtonGroup, ElPopover, ElTag } from 'element-plus'
 import type { FieldSchema, FilterCondition } from '@/types'
+import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { flattenFilterConditions, type FilterMatchType } from '@/utils/filterConditions'
 import FilterConditionControls from './FilterConditionControls.vue'
 
@@ -43,7 +44,7 @@ export type { FilterSummaryItem }
 
 function buildFilterSummary(clauses?: FilterCondition[]): FilterSummaryItem[] {
   const items = flattenFilterConditions(clauses ?? [])
-  return buildFilterSummaryItems(items, props.fields)
+  return buildFilterSummaryItems(items, props.fields, resolveFkLabelForSummary)
 }
 
 function getFilterSummary(): FilterSummaryItem[] {

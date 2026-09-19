@@ -9,6 +9,7 @@ import type { FilterTab } from '@/components/filter/BottomTabs.vue'
 import ListActionBar from '@/engine/actions/ListActionBar.vue'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
 import { useCellEdit } from '@/composables/useCellEdit'
+import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { usePermission } from '@/composables/usePermission'
 import { recordService } from '@/services/api/recordService'
 import { validateFieldValue } from '@/utils/fieldValidation'
@@ -97,7 +98,7 @@ onUnmounted(() => {
 
 const projection = computed(() => deriveCardProjection(props.schema))
 const searchFieldKeys = computed(() => resolveSearchFields(props.schema))
-const chips = computed(() => buildFilterSummaryItems(flattenFilterConditions(props.filters), props.schema.fields))
+const chips = computed(() => buildFilterSummaryItems(flattenFilterConditions(props.filters), props.schema.fields, resolveFkLabelForSummary))
 
 // ── 顶部搜索：防抖 400ms 上抛（§3.6）──
 const keywordDraft = ref(props.keyword)

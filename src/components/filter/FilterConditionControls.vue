@@ -3,6 +3,7 @@ import { ref, computed, reactive, watch } from 'vue'
 import { ElInput, ElSelect, ElOption, ElButton, ElDatePicker, ElButtonGroup, ElTooltip } from 'element-plus'
 import type { FieldSchema, FilterClause, FilterCondition, FilterOperator, CandidateOption } from '@/types'
 import { candidateService } from '@/services/api/candidateService'
+import { cacheFkOptions, resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { composeBarConditions, splitBarConditions, flattenFilterConditions, type FilterMatchType } from '@/utils/filterConditions'
 import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterSummary'
 
@@ -60,6 +61,7 @@ async function loadFkOptions(field: FieldSchema): Promise<void> {
     const res = await candidateService.query({ targetModule, page: 1, pageSize: 200 })
     if (res.success) {
       fkOptions[field.key] = res.data.options
+      cacheFkOptions(targetModule, res.data.options)
     }
   } finally {
     fkLoading[field.key] = false
@@ -298,14 +300,10 @@ function syncCommittedToDraft(): void {
 
 const activeCount = computed(() => localClauses.value.length)
 
-/** 摘要（FK 候选值已加载时出人读标签），供父级标签行/expose 同口径 */
+/** 摘要（FK 标签走全局共享缓存，表格预取/弹层候选/兜底解析同源），供父级标签行/expose 同口径 */
 function buildSummary(clauses?: FilterCondition[]): FilterSummaryItem[] {
   const items = flattenFilterConditions(clauses ?? props.modelValue)
-  return buildFilterSummaryItems(items, props.fields, (field, value) => {
-    const options = fkOptions[field.key] || []
-    const opt = options.find(o => o.value === value)
-    return opt ? opt.label : String(value ?? '')
-  })
+  return buildFilterSummaryItems(items, props.fields, resolveFkLabelForSummary)
 }
 
 defineExpose({

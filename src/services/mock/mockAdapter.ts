@@ -576,31 +576,34 @@ export class MockRelationService implements IRelationService {
     return []
   }
 
-  getRelations(sourceModuleId: string, sourceRecordId: string, fieldKey: string): RelationEntry[] {
+  async getRelations(sourceModuleId: string, sourceRecordId: string, fieldKey: string): Promise<ApiResponse<RelationEntry[]>> {
+    await delay()
     const all = this.getRelationsInternal(fieldKey)
-    return all.filter(r => r.sourceModuleId === sourceModuleId && r.sourceRecordId === sourceRecordId)
+    return createSuccessResponse(all.filter(r => r.sourceModuleId === sourceModuleId && r.sourceRecordId === sourceRecordId))
   }
 
-  getTargetRelations(targetModuleId: string, targetRecordId: string, fieldKey: string): RelationEntry[] {
+  async getTargetRelations(targetModuleId: string, targetRecordId: string, fieldKey: string): Promise<ApiResponse<RelationEntry[]>> {
+    await delay()
     const all = this.getRelationsInternal(fieldKey)
-    return all.filter(r => r.targetModuleId === targetModuleId && r.targetRecordId === targetRecordId)
+    return createSuccessResponse(all.filter(r => r.targetModuleId === targetModuleId && r.targetRecordId === targetRecordId))
   }
 
-  getSourceRecords(targetModuleId: string, targetRecordId: string, fieldKey: string): RecordEntity[] {
+  async getSourceRecords(targetModuleId: string, targetRecordId: string, fieldKey: string): Promise<ApiResponse<RecordEntity[]>> {
+    await delay()
     const all = this.getRelationsInternal(fieldKey)
     const sourceIds = all
       .filter(r => r.targetModuleId === targetModuleId && r.targetRecordId === targetRecordId)
       .map(r => r.sourceRecordId)
 
     const uniqueIds = [...new Set(sourceIds)]
-    return uniqueIds.map(id => ({
+    return createSuccessResponse(uniqueIds.map(id => ({
       id,
       moduleId: '',
       fields: {},
       version: 1,
       createdAt: '',
       updatedAt: '',
-    }))
+    })))
   }
 
   async addRelation(entry: Omit<RelationEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<RelationEntry>> {

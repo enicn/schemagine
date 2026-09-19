@@ -1,10 +1,15 @@
 import type { ApiResponse, RelationEntry, RecordEntity } from '@/types'
 import { createErrorResponse, createServiceFallback } from './base'
 
+/**
+ * 关联服务契约(《06》T0.5 异步化):
+ * 三个读方法同步签名 → Promise<ApiResponse<...>>,为 HTTP 化铺路
+ * (HTTP 服务层全部异步;mock 实现包一层 Promise 保持语义)。
+ */
 export interface IRelationService {
-  getRelations(sourceModuleId: string, sourceRecordId: string, fieldKey: string): RelationEntry[]
-  getTargetRelations(targetModuleId: string, targetRecordId: string, fieldKey: string): RelationEntry[]
-  getSourceRecords(targetModuleId: string, targetRecordId: string, fieldKey: string): RecordEntity[]
+  getRelations(sourceModuleId: string, sourceRecordId: string, fieldKey: string): Promise<ApiResponse<RelationEntry[]>>
+  getTargetRelations(targetModuleId: string, targetRecordId: string, fieldKey: string): Promise<ApiResponse<RelationEntry[]>>
+  getSourceRecords(targetModuleId: string, targetRecordId: string, fieldKey: string): Promise<ApiResponse<RecordEntity[]>>
   addRelation(entry: Omit<RelationEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<RelationEntry>>
   updateRelation(id: string, extraFields: Record<string, unknown>): Promise<ApiResponse<RelationEntry>>
   removeRelation(id: string): Promise<ApiResponse<void>>
@@ -24,14 +29,14 @@ export function getRelationService(): IRelationService {
 }
 
 const relationServiceFallback: IRelationService = {
-  getRelations() {
-    return []
+  async getRelations() {
+    return createErrorResponse('SERVICE_NOT_INITIALIZED', 'RelationService 未初始化')
   },
-  getTargetRelations() {
-    return []
+  async getTargetRelations() {
+    return createErrorResponse('SERVICE_NOT_INITIALIZED', 'RelationService 未初始化')
   },
-  getSourceRecords() {
-    return []
+  async getSourceRecords() {
+    return createErrorResponse('SERVICE_NOT_INITIALIZED', 'RelationService 未初始化')
   },
   async addRelation() {
     return createErrorResponse('SERVICE_NOT_INITIALIZED', 'RelationService 未初始化')
@@ -49,13 +54,13 @@ function getRelationServiceFallback(): IRelationService {
 }
 
 export const relationService: IRelationService = {
-  getRelations(sourceModuleId, sourceRecordId, fieldKey) {
+  async getRelations(sourceModuleId, sourceRecordId, fieldKey) {
     return getRelationService().getRelations(sourceModuleId, sourceRecordId, fieldKey)
   },
-  getTargetRelations(targetModuleId, targetRecordId, fieldKey) {
+  async getTargetRelations(targetModuleId, targetRecordId, fieldKey) {
     return getRelationService().getTargetRelations(targetModuleId, targetRecordId, fieldKey)
   },
-  getSourceRecords(targetModuleId, targetRecordId, fieldKey) {
+  async getSourceRecords(targetModuleId, targetRecordId, fieldKey) {
     return getRelationService().getSourceRecords(targetModuleId, targetRecordId, fieldKey)
   },
   async addRelation(entry) {

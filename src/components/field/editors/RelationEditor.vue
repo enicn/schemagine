@@ -61,25 +61,16 @@ function deepClone(obj: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(obj))
 }
 
-function loadDraft(): void {
+async function loadDraft(): Promise<void> {
   if (!props.moduleId || !props.recordId || !props.fieldSchema.key) return
 
-  let rawRelations: RelationEntry[]
-
-  if (isReverseRef.value) {
-    const fieldKey = reverseRefConfig.value?.relationFieldKey ?? props.fieldSchema.key
-    rawRelations = relationService.getTargetRelations(
-      props.moduleId,
-      props.recordId,
-      fieldKey,
-    )
-  } else {
-    rawRelations = relationService.getRelations(
-      props.moduleId,
-      props.recordId,
-      props.fieldSchema.key,
-    )
-  }
+  const fieldKey = isReverseRef.value
+    ? (reverseRefConfig.value?.relationFieldKey ?? props.fieldSchema.key)
+    : props.fieldSchema.key
+  const res = isReverseRef.value
+    ? await relationService.getTargetRelations(props.moduleId, props.recordId, fieldKey)
+    : await relationService.getRelations(props.moduleId, props.recordId, fieldKey)
+  const rawRelations: RelationEntry[] = res.success ? res.data : []
 
   draftRelations.value = rawRelations.map(r => {
     const clonedExtra = deepClone(r.extraFields)
@@ -167,7 +158,7 @@ async function handleSaveAll(): Promise<void> {
     }
 
     ElMessage.success('关联已保存')
-    loadDraft()
+    await loadDraft()
     emit('update:modelValue', visibleRelations.value.length)
   } catch {
     ElMessage.error('保存失败')

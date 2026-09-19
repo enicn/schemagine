@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import VxeTableWrapper from './VxeTableWrapper.vue'
 import type { WrapperColumn } from './VxeTableWrapper.vue'
@@ -34,6 +34,8 @@ const props = defineProps<{
   density?: TableDensity
   /** 行展开插槽名（docs/19 F4）：声明后渲染行首展开列，展开区由宿主同名插槽渲染 */
   expandSlot?: string
+  /** 引擎只读形态（SchemaEngine readonly 透传）：内置行级编辑入口随隐藏 */
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -123,24 +125,44 @@ const columns = computed<WrapperColumn[]>(() => {
     const ob = orderMap.get(b.field) ?? 999
     return oa - ob
   })
+
+  // select-then-edit 模式内置行级编辑入口：以保留字段 __rowEdit__ 声明一个操作按钮，
+  // 与 schema 声明的 type:'action' 按钮同列渲染（标准操作列）。工具栏「编辑」按钮
+  // 已被此行级入口取代——勾选多行再点工具栏编辑语义含糊（只打开第一行），
+  // 行级「编辑」逐行直达卡片编辑态。ListView 以 actionId 识别后本地处理，不上抛宿主。
+  if (props.schema.listEditMode === 'select-then-edit' && permission.canEdit.value && !props.readonly) {
+    result.push({
+      field: '__rowEdit__',
+      title: t('table.editAction'),
+      width: 48,
+      sortable: false,
+      visible: true,
+      align: 'center',
+      isAction: true,
+    } as WrapperColumn)
+  }
   return result
 })
 
-const flatRows = computed<Record<string, unknown>[]>(() => {
+// 关联列渲染(IRelationService 读方法异步化后,同步 computed 无法 await):
+// 改为 watch 行/-schema 变化异步重建;重建期间沿用上一份 flatRows,完成后原位替换。
+const flatRows = ref<Record<string, unknown>[]>([])
+
+async function rebuildFlatRows(): Promise<void> {
+  const rows = props.rows
   const relationFields = props.schema.fields.filter(
     f => f.type === 'one-to-many' || f.type === 'many-to-many' || f.type === 'reverse-ref',
   )
 
-  return props.rows.map(r => {
+  const built = await Promise.all(rows.map(async r => {
     const row: Record<string, unknown> = flattenRecordRow(r)
 
     for (const rf of relationFields) {
       const fieldKey = rf.key
-      let relations = relationService.getRelations(props.schema.id, r.id, fieldKey)
-      if (rf.type === 'reverse-ref') {
-        const rfk = rf.reverseRefConfig?.relationFieldKey ?? fieldKey
-        relations = relationService.getTargetRelations(props.schema.id, r.id, rfk)
-      }
+      const res = rf.type === 'reverse-ref'
+        ? await relationService.getTargetRelations(props.schema.id, r.id, rf.reverseRefConfig?.relationFieldKey ?? fieldKey)
+        : await relationService.getRelations(props.schema.id, r.id, fieldKey)
+      const relations = res.success ? res.data : []
 
       if (relations.length === 0) {
         row[`__rel_${fieldKey}`] = rf.type === 'reverse-ref' ? '📋 无源单据' : '🔗 无关联'
@@ -165,8 +187,16 @@ const flatRows = computed<Record<string, unknown>[]>(() => {
     }
 
     return row
-  })
-})
+  }))
+
+  flatRows.value = built
+}
+
+watch(
+  () => [props.rows, props.schema],
+  () => { void rebuildFlatRows() },
+  { immediate: true, deep: false },
+)
 
 const tableData = computed<Record<string, unknown>[]>(() => {
   // 树形数据（docs/19 F2）：schema 声明 parentField 时由平铺行组树（children 挂 childrenField）

@@ -47,8 +47,8 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
     ])
   })
 
-  it('能够获取一条发票关联的所有应收账单', () => {
-    const relations = relationService.getRelations(
+  it('能够获取一条发票关联的所有应收账单', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-invoice',
       'rec-inv-001',
       'receivables',
@@ -59,8 +59,8 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
     expect(relations[1]!.targetRecordId).toBe('rec-rec-002')
   })
 
-  it('关系表包含连带信息 — 每笔应收的分配金额', () => {
-    const relations = relationService.getRelations(
+  it('关系表包含连带信息 — 每笔应收的分配金额', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-invoice',
       'rec-inv-001',
       'receivables',
@@ -85,7 +85,7 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
     expect(res.data.id).toBeDefined()
     expect(res.data.extraFields.allocatedAmount).toBe(3000)
 
-    const allRelations = relationService.getRelations(
+    const { data: allRelations } = await relationService.getRelations(
       'module-invoice',
       'rec-inv-001',
       'receivables',
@@ -101,7 +101,7 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
     expect(res.success).toBe(true)
     expect(res.data.extraFields.allocatedAmount).toBe(6000)
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-invoice',
       'rec-inv-001',
       'receivables',
@@ -113,7 +113,7 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
   it('删除一条关联', async () => {
     await relationService.removeRelation('rel-001')
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-invoice',
       'rec-inv-001',
       'receivables',
@@ -122,8 +122,8 @@ describe('RelationService — 一对多关联 (one-to-many)', () => {
     expect(relations[0]!.id).toBe('rel-002')
   })
 
-  it('反向查询可用 — 根据应收账单反查关联的发票 (M2M场景)', () => {
-    const sourceRecords = relationService.getSourceRecords(
+  it('反向查询可用 — 根据应收账单反查关联的发票 (M2M场景)', async () => {
+    const { data: sourceRecords } = await relationService.getSourceRecords(
       'module-receivable',
       'rec-rec-001',
       'receivables',
@@ -182,8 +182,8 @@ describe('RelationService — 多对多关联 (many-to-many)', () => {
     ])
   })
 
-  it('用户A关联了2个车间，且角色不同', () => {
-    const relations = relationService.getRelations(
+  it('用户A关联了2个车间，且角色不同', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-user',
       'rec-user-001',
       'workshops',
@@ -195,8 +195,8 @@ describe('RelationService — 多对多关联 (many-to-many)', () => {
     expect(roles).toContain('统计员')
   })
 
-  it('车间1关联了2个用户 (反向查询)', () => {
-    const sourceRecords = relationService.getSourceRecords(
+  it('车间1关联了2个用户 (反向查询)', async () => {
+    const { data: sourceRecords } = await relationService.getSourceRecords(
       'module-workshop',
       'rec-ws-001',
       'workshops',
@@ -208,8 +208,8 @@ describe('RelationService — 多对多关联 (many-to-many)', () => {
     expect(ids).toContain('rec-user-002')
   })
 
-  it('获取车间1的所有关联，连带信息正确', () => {
-    const relations = relationService.getTargetRelations(
+  it('获取车间1的所有关联，连带信息正确', async () => {
+    const { data: relations } = await relationService.getTargetRelations(
       'module-workshop',
       'rec-ws-001',
       'workshops',
@@ -270,8 +270,8 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     ])
   })
 
-  it('销售单 SO-001 关联了 3 笔应收账单', () => {
-    const relations = relationService.getRelations(
+  it('销售单 SO-001 关联了 3 笔应收账单', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -284,8 +284,8 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     expect(targetIds).toContain('rec-rec-003')
   })
 
-  it('每笔关联包含分配金额和核销状态', () => {
-    const relations = relationService.getRelations(
+  it('每笔关联包含分配金额和核销状态', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -304,8 +304,8 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     expect(rel3.extraFields.writeOffStatus).toBe('未核销')
   })
 
-  it('分配金额总和不超过销售总额 (由应用层校验，此处验证数据完整性)', () => {
-    const relations = relationService.getRelations(
+  it('分配金额总和不超过销售总额 (由应用层校验，此处验证数据完整性)', async () => {
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -327,7 +327,7 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     expect(res.data.extraFields.writeOffStatus).toBe('已核销')
     expect(res.data.extraFields.allocatedAmount).toBe(3000)
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -350,7 +350,7 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     expect(res.data.extraFields.allocatedAmount).toBe(2000)
     expect(res.data.extraFields.writeOffStatus).toBe('未核销')
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -361,7 +361,7 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
   it('删除关联后数量减少', async () => {
     await relationService.removeRelation('rel-so-002')
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -369,8 +369,8 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
     expect(relations).toHaveLength(2)
   })
 
-  it('反向查询 — 根据应收查关联的销售单', () => {
-    const sourceRecords = relationService.getSourceRecords(
+  it('反向查询 — 根据应收查关联的销售单', async () => {
+    const { data: sourceRecords } = await relationService.getSourceRecords(
       'module-receivable',
       'rec-rec-001',
       'receivables',
@@ -382,7 +382,7 @@ describe('RelationService — 销售单-应收 一对多关联', () => {
 })
 
 describe('RelationService — Schema 类型定义验证', () => {
-  it('one-to-many 字段包含 relationConfig 配置', () => {
+  it('one-to-many 字段包含 relationConfig 配置', async () => {
     const schema: ModuleSchema = invoiceSchema
     const field = schema.fields.find(f => f.key === 'receivables')
     expect(field).toBeDefined()
@@ -394,7 +394,7 @@ describe('RelationService — Schema 类型定义验证', () => {
     expect(field!.relationConfig!.extraFields![0]!.key).toBe('allocatedAmount')
   })
 
-  it('many-to-many 字段包含 relationConfig 配置', () => {
+  it('many-to-many 字段包含 relationConfig 配置', async () => {
     const schema: ModuleSchema = userSchema
     const field = schema.fields.find(f => f.key === 'workshops')
     expect(field).toBeDefined()
@@ -404,7 +404,7 @@ describe('RelationService — Schema 类型定义验证', () => {
     expect(field!.relationConfig!.extraFields![0]!.key).toBe('role')
   })
 
-  it('销售单 one-to-many 字段包含多个连带字段', () => {
+  it('销售单 one-to-many 字段包含多个连带字段', async () => {
     const schema: ModuleSchema = salesOrderSchema
     const field = schema.fields.find(f => f.key === 'receivables')
     expect(field).toBeDefined()
@@ -454,8 +454,8 @@ describe('应收账单 — 反向引用 (reverse-ref) 双向展示', () => {
     ])
   })
 
-  it('收回应收账单被 2 条源记录引用（发票 + 销售单）', () => {
-    const sourceRecords = relationService.getSourceRecords(
+  it('收回应收账单被 2 条源记录引用（发票 + 销售单）', async () => {
+    const { data: sourceRecords } = await relationService.getSourceRecords(
       'module-receivable',
       'rec-rec-001',
       'receivables',
@@ -467,7 +467,7 @@ describe('应收账单 — 反向引用 (reverse-ref) 双向展示', () => {
     expect(ids).toContain('rec-so-001')
   })
 
-  it('应收账单 reverse-ref 字段存在于 Schema 中', () => {
+  it('应收账单 reverse-ref 字段存在于 Schema 中', async () => {
     const schema: ModuleSchema = receivableSchema
     const field = schema.fields.find(f => f.key === 'sourceDocs')
     expect(field).toBeDefined()
@@ -479,8 +479,8 @@ describe('应收账单 — 反向引用 (reverse-ref) 双向展示', () => {
     expect(modules).toContain('module-sales-order')
   })
 
-  it('通过 getTargetRelations 获取应收关联的所有源关系详情', () => {
-    const relations = relationService.getTargetRelations(
+  it('通过 getTargetRelations 获取应收关联的所有源关系详情', async () => {
+    const { data: relations } = await relationService.getTargetRelations(
       'module-receivable',
       'rec-rec-001',
       'receivables',
@@ -532,7 +532,7 @@ describe('RelationService — 关联编辑器的核心操作（模拟 UI 层交�
     expect(res.data.extraFields.allocatedAmount).toBe(7500)
     expect(res.data.extraFields.writeOffStatus).toBe('部分核销')
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',
@@ -554,7 +554,7 @@ describe('RelationService — 关联编辑器的核心操作（模拟 UI 层交�
   it('删除后 getRelations 不再返回该条', async () => {
     await relationService.removeRelation('rel-edit-001')
 
-    const relations = relationService.getRelations(
+    const { data: relations } = await relationService.getRelations(
       'module-sales-order',
       'rec-so-001',
       'receivables',

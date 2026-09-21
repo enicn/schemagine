@@ -183,13 +183,13 @@ const wrapperColumns = computed<WrapperColumn[]>(() => {
   schema.value.fields.forEach(field => {
     const config = configMap.get(field.key)
     const isAction = field.type === 'action' && !!field.rowAction
-    let formatter: ((params: any) => string) | undefined
+    let formatter: ((params: { cellValue: unknown }) => string) | undefined
     if (isAction) {
       formatter = () => field.rowAction?.label || field.label
     } else if (field.type === 'percent') {
       const decimal = field.decimal ?? 0
       const mode = field.decimalMode ?? 'fixed'
-      formatter = (params: any) => {
+      formatter = (params: { cellValue: unknown }) => {
         const v = params.cellValue
         if (v == null || v === '') return ''
         const num = Number(v)
@@ -198,13 +198,13 @@ const wrapperColumns = computed<WrapperColumn[]>(() => {
         return `${(num * 100).toFixed(decimal)}%`
       }
     } else if (field.type === 'money') {
-      formatter = (params: any) => {
+      formatter = (params: { cellValue: unknown }) => {
         const v = params.cellValue
         if (v == null || v === '') return ''
         return formatMoney(v)
       }
     } else if (field.type === 'boolean') {
-      formatter = (params: any) => {
+      formatter = (params: { cellValue: unknown }) => {
         const v = params.cellValue
         if (v == null || v === '') return ''
         const trueLabel = field.trueLabel || '是'

@@ -24,7 +24,7 @@ import CardCreateView from '@/engine/containers/CardCreateView.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
-import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType, EngineAppearance } from '@/types'
+import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType, EngineAppearance, CellEditPayload } from '@/types'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 
 const props = defineProps<{
@@ -339,7 +339,7 @@ function handleColumnWidthChange(payload: { field: string; width: number }): voi
 }
 
 function handleCellEdit(payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }): void {
-  cellEdit.onCellEdit(payload as any)
+  cellEdit.onCellEdit(payload as CellEditPayload)
   emit('data-changed', { moduleId: props.moduleId })
 }
 

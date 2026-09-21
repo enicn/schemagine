@@ -14,23 +14,24 @@ describe('buildRecordTree（docs/19 F2）', () => {
   it('按 parentField 组树：根在前、子按输入顺序挂载', () => {
     const tree = buildRecordTree(makeRows(), { parentField: 'parentId' })
     expect(tree).toHaveLength(1)
-    const root = tree[0] as any
+    const root = tree[0] as Record<string, unknown>
     expect(root.name).toBe('总公司')
-    expect(root.children).toHaveLength(2)
-    expect(root.children.map((c: any) => c.name)).toEqual(['技术部', '市场部'])
-    expect(root.children[0].children.map((c: any) => c.name)).toEqual(['前端组', '后端组'])
+    const rootChildren = root.children as Array<Record<string, unknown>>
+    expect(rootChildren).toHaveLength(2)
+    expect(rootChildren.map((c) => c.name)).toEqual(['技术部', '市场部'])
+    expect((rootChildren[0]!.children as Array<Record<string, unknown>>).map((c) => c.name)).toEqual(['前端组', '后端组'])
   })
 
   it('子行先于父行输入同样能组树（两遍式）', () => {
     const reversed = makeRows().reverse()
     const tree = buildRecordTree(reversed, { parentField: 'parentId' })
     expect(tree).toHaveLength(1)
-    expect((tree[0] as any).children).toHaveLength(2)
+    expect((tree[0] as Record<string, unknown>).children).toHaveLength(2)
   })
 
   it('孤儿行（父 id 不存在）挂根不丢数据', () => {
     const withOrphan = [...makeRows(), { _recordId: '6', name: '幽灵组', parentId: '999' }]
-    const tree = buildRecordTree(withOrphan, { parentField: 'parentId' }) as any[]
+    const tree = buildRecordTree(withOrphan, { parentField: 'parentId' }) as Array<Record<string, unknown>>
     expect(tree).toHaveLength(2)
     expect(tree.some(n => n.name === '幽灵组')).toBe(true)
   })
@@ -50,17 +51,17 @@ describe('buildRecordTree（docs/19 F2）', () => {
       [
         { id: 'p', parentId: null },
         { id: 'c', parentId: 'p' },
-      ] as any,
+      ] as Array<Record<string, unknown>>,
       { idKey: 'id', parentField: 'parentId', childrenField: 'kids' },
-    ) as any[]
-    expect(tree[0]!.kids.map((k: any) => k.id)).toEqual(['c'])
+    ) as Array<Record<string, unknown>>
+    expect((tree[0]!.kids as Array<Record<string, unknown>>).map((k) => k.id)).toEqual(['c'])
   })
 
   it('自引用环视为根，不死循环不丢行', () => {
     const tree = buildRecordTree(
       [{ _recordId: 'x', name: '自引用', parentId: 'x' }],
       { parentField: 'parentId' },
-    ) as any[]
+    ) as Array<Record<string, unknown>>
     expect(tree).toHaveLength(1)
     expect(tree[0]!.name).toBe('自引用')
   })
@@ -72,6 +73,6 @@ describe('buildRecordTree（docs/19 F2）', () => {
     expect(source[0]!.name).toBe('总公司')
     expect(source[0]!.parentId).toBeNull()
     // 树节点即输入行本身（引用相同），children 已挂载
-    expect((tree[0] as any).children).toHaveLength(2)
+    expect((tree[0] as Record<string, unknown>).children).toHaveLength(2)
   })
 })

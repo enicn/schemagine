@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, nextTick, onUnmounted } from 'vue'
+import { ref, computed, reactive, watchEffect, nextTick, onUnmounted } from 'vue'
 import { Check, Close, Delete, Promotion, Setting, Upload } from '@element-plus/icons-vue'
 import { ElButton, ElCheckbox, ElMessage } from 'element-plus'
 import { useRecords, useSchemaMeta, useRuntimeContext } from '@/composables/instanceState'
@@ -93,13 +93,15 @@ const columnConfigMap = computed(() => {
   return map
 })
 
+// 列配置缺省推导:副作用移出 computed(docs/16 批次 H-c);watchEffect pre 先于渲染执行
+watchEffect(() => {
+  if (columnConfigs.value.length === 0 && fieldSchemas.value.length > 0) {
+    columnConfigs.value = buildDefaultColumnConfigs(fieldSchemas.value)
+  }
+})
+
 const displayFields = computed<FieldSchema[]>(() => {
   const base = fieldSchemas.value
-
-  if (columnConfigs.value.length === 0) {
-    columnConfigs.value = buildDefaultColumnConfigs(base)
-  }
-
   const configMap = new Map<string, ColumnConfig>()
   for (const c of columnConfigs.value) {
     configMap.set(c.field, c)

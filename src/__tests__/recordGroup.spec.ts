@@ -40,9 +40,9 @@ describe('buildGroupedRows（docs/19 F6）', () => {
   it('组内保持输入顺序，数据行不被改动', () => {
     const out = buildGroupedRows(rows, { field: 'status' })
     const paidIdx = out.findIndex(r => isGroupRow(r) && r[GROUP_ROW_FLAG]!.value === 'paid')
-    expect((out[paidIdx + 1] as any)?.id).toBe('1')
-    expect((out[paidIdx + 2] as any)?.id).toBe('3')
-    expect((out[paidIdx + 3] as any)?.id).toBe('5')
+    expect((out[paidIdx + 1] as { id?: unknown })?.id).toBe('1')
+    expect((out[paidIdx + 2] as { id?: unknown })?.id).toBe('3')
+    expect((out[paidIdx + 3] as { id?: unknown })?.id).toBe('5')
     expect((rows[0] as unknown as Record<string, unknown>)[GROUP_ROW_FLAG]).toBeUndefined()
   })
 

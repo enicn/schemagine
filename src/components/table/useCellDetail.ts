@@ -9,6 +9,7 @@
  * 外点关闭会在新弹层打开后再次触发，把刚打开的弹层秒关（事件周期冲突）。
  */
 import { nextTick, onUnmounted, ref, watch } from 'vue'
+import type { VxeTableDefines } from 'vxe-table'
 import type { Ref } from 'vue'
 import type { VxeTableInstance } from 'vxe-table'
 import { t } from '@/locales'
@@ -69,7 +70,7 @@ export function useCellDetail(deps: CellDetailDeps) {
   }
 
   /** 单击单元格时尝试打开内容浮层：仅当内容真的被省略（横向溢出）时弹出 */
-  function maybeOpenCellDetail(params: any, col: WrapperColumn): void {
+  function maybeOpenCellDetail(params: VxeTableDefines.CellClickEventParams, col: WrapperColumn): void {
     // 媒体/图片单元格无可省略文本；编辑态单元格交给行内编辑器
     if (col.isAction || col.fieldType === 'mediaImage' || col.fieldType === 'image' || col.fieldType === 'attachment') return
     if (deps.isEditing(params.row[deps.rowKey()], col.field)) return

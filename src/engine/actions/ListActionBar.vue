@@ -45,7 +45,7 @@ const popupTitle = ref('')
 
 const formDialogVisible = ref(false)
 const formAction = ref<ListAction | null>(null)
-const formData = ref<Record<string, any>>({})
+const formData = ref<Record<string, unknown>>({})
 const formSubmitting = ref(false)
 
 function handleActionClick(action: ListAction): void {
@@ -138,23 +138,27 @@ async function handleFormSubmit(): Promise<void> {
       >
         <ElInput
           v-if="field.type === 'text' || field.type === 'textarea'"
-          v-model="formData[field.key]"
+          :model-value="(formData[field.key] as string | undefined)"
+          @update:model-value="formData[field.key] = $event"
           :type="field.type"
           :placeholder="`请输入${field.label}`"
         />
         <ElInputNumber
           v-else-if="field.type === 'number'"
-          v-model="formData[field.key]"
+          :model-value="(formData[field.key] as number | null | undefined)"
+          @update:model-value="formData[field.key] = $event"
           :placeholder="`请输入${field.label}`"
         />
         <ElDatePicker
           v-else-if="field.type === 'date'"
-          v-model="formData[field.key]"
+          :model-value="(formData[field.key] as string | number | Date | undefined)"
+          @update:model-value="formData[field.key] = $event"
           :placeholder="`请选择${field.label}`"
         />
         <ElSelect
           v-else-if="field.type === 'select' && field.options"
-          v-model="formData[field.key]"
+          :model-value="(formData[field.key] as string | number | boolean | undefined)"
+          @update:model-value="formData[field.key] = $event"
           :placeholder="`请选择${field.label}`"
         >
           <ElOption

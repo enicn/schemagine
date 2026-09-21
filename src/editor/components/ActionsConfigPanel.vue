@@ -70,8 +70,8 @@ function updateSchema(): void {
 const currentListActions = computed({
   get: () => props.schema.listActions ?? [],
   set: (val: ListAction[]) => {
-    props.schema.listActions = val
-    updateSchema()
+    // 不改写 props:以新对象经 update 上抛,由父级替换草稿(与 updateSchema 同口径)
+    emit('update', { ...props.schema, listActions: val })
   },
 })
 
@@ -122,8 +122,7 @@ function setFieldRowAction(field: FieldSchema, config: RowActionConfig | null): 
   const idx = fields.findIndex(f => f.key === field.key)
   if (idx < 0 || !fields[idx]) return
   fields[idx] = { ...fields[idx]!, rowAction: config ?? undefined }
-  props.schema.fields = fields
-  updateSchema()
+  emit('update', { ...props.schema, fields })
 }
 
 function addRowAction(field: FieldSchema): void {

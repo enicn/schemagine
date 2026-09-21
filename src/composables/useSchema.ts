@@ -135,7 +135,7 @@ function runFieldKeyMigration(schema: ModuleSchema, moduleId: string): void {
     }
   }
 
-  const config = readStorage<{ columns?: Array<{ field: string }> }>(CONFIGS_KEY, {} as any)
+  const config = readStorage<{ columns?: Array<{ field: string }> }>(CONFIGS_KEY, {})
   if (config && config.columns && config.columns.length > 0) {
     let configChanged = false
     for (const col of config.columns) {

@@ -6,6 +6,8 @@ export type { WrapperColumn } from './wrapperTypes'
 <script setup lang="ts">
 import { formatDateTimeCell } from '@/utils/recordRow'
 import { reorderColumnsByDrag } from '@/utils/columnDrag'
+import type { SpanCellParams } from '@/utils/mergeCells'
+import type { VxeTableDefines } from 'vxe-table'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { VxeTable, VxeColumn, VxeColgroup } from 'vxe-table'
 import { VxeLoading, getI18n } from 'vxe-pc-ui'
@@ -73,7 +75,7 @@ const props = withDefaults(defineProps<{
   /** 行展开插槽（docs/19 F4）：声明后渲染行首 expand 列，展开区由宿主同名插槽渲染 */
   expandSlot?: string
   /** 合并单元格（docs/19 F5）：vxe span-method 透传 */
-  spanMethod?: (params: any) => { rowspan: number; colspan: number } | undefined
+  spanMethod?: (params: SpanCellParams) => { rowspan: number; colspan: number } | undefined
   /** 按列 footer 合计（docs/19 F6）：vxe footer-method 透传，声明即显示表尾行 */
   footerMethod?: (params: { columns: Array<{ field?: string }> }) => string[][]
   /** 分组声明（docs/19 F6）：组行展示与小计列标识 */
@@ -266,20 +268,20 @@ const {
 
 // ---- vxe 事件转发：薄封装，组合上述各域并向宿主上抛 ----
 
-function handleSortChange(params: any): void {
+function handleSortChange(params: VxeTableDefines.SortChangeEventParams): void {
   const { field, order } = params
-  emit('sort-change', { field, order: order || null })
+  emit('sort-change', { field: field ?? '', order: order || null })
 }
 
 function onGridKeydown(e: KeyboardEvent): void {
   if (props.keyboardNav) handleGridKeydown(e)
 }
 
-function handleCellClick(params: any): void {
+function handleCellClick(params: VxeTableDefines.CellClickEventParams): void {
   if (props.keyboardNav && params?.column?.field && !params.column.type) {
     setFocusedCell(params.row, params.column.field)
   }
-  emit('row-click', { row: params.row, rowIndex: params.rowIndex })
+  emit('row-click', { row: params.row, rowIndex: params.rowIndex! })
   const col = visibleColumns.value.find(c => c.field === params.column.field)
   if (!col) return
   if (col.isRelation) {
@@ -288,7 +290,7 @@ function handleCellClick(params: any): void {
   }
   // 截断内容查看与 cell-click 上抛互不影响（宿主监听仍照常触发）
   maybeOpenCellDetail(params, col)
-  emit('cell-click', { row: params.row, column: col, rowIndex: params.rowIndex, colIndex: params.column.index })
+  emit('cell-click', { row: params.row, column: col, rowIndex: params.rowIndex!, colIndex: visibleColumns.value.indexOf(col) })
 }
 
 /** 拖拽调宽结束(docs/20):上抛新列宽,供上层持久化与导出列宽对齐 */
@@ -313,7 +315,7 @@ function opIcon(col: WrapperColumn): Component | null {
   return null
 }
 
-function handleCellDblclick(params: any): void {
+function handleCellDblclick(params: VxeTableDefines.CellDblclickEventParams): void {
   const col = visibleColumns.value.find(c => c.field === params.column.field)
   if (!col) return
   // 双击即切换交互语义（进编辑/关联打开），内容浮层随之收起
@@ -336,7 +338,7 @@ function handleCellDblclick(params: any): void {
   emit('cell-dblclick', { row: params.row, column: col, rowIndex: params.rowIndex })
 }
 
-function handleColumnDragEnd(params: any): void {
+function handleColumnDragEnd(params: VxeTableDefines.ColumnDragendEventParams): void {
   // vxe column-dragend 事件参数不含完整列序(仅 old/new/dragColumn + dragPos),
   // 且事件触发时实例列序尚未完成 nextTick 重排——由旧列序+拖拽信息确定性重建(docs/19 批次 E4)
   const dragField = params?.dragColumn?.field as string | undefined
@@ -571,7 +573,7 @@ function getTableRef(): VxeTableInstance | null {
   return tableRef.value
 }
 
-function getCellClassName({ row, column }: any): string {
+function getCellClassName({ row, column }: { row: Record<string, unknown>; column: { field?: string } }): string {
   const col = visibleColumns.value.find((c: WrapperColumn) => c.field === column.field)
   const classes: string[] = []
   if (col?.isAction) classes.push('action-cell')
@@ -582,9 +584,8 @@ function getCellClassName({ row, column }: any): string {
     && col.field === focusedCell.value.field) {
     classes.push('is-focused-cell')
   }
-  if (col?.cellClass) {
-    const value = row[column.field]
-    classes.push(col.cellClass({ value }))
+  if (col?.cellClass && column.field != null) {
+    classes.push(col.cellClass({ value: row[column.field] }))
   }
   return classes.filter(Boolean).join(' ')
 }
@@ -602,7 +603,7 @@ function groupCellDisplay(row: Record<string, unknown>, col: WrapperColumn): str
   return ''
 }
 
-function getRowClassName({ row }: any): string {
+function getRowClassName({ row }: { row: Record<string, unknown> }): string {
   const classes: string[] = []
   if (isGroupRow(row)) classes.push('is-group-row')
   if (editingRowId.value && editingRowId.value === row[props.rowKey]) classes.push('is-editing-row')
@@ -788,7 +789,7 @@ defineExpose({
     </VxeTable>
 
     <!-- mediaImage 行内编辑共用媒体选择弹窗（append-to-body，不参与表格布局） -->
-    <MediaPickerDialog v-model="mediaPickerVisible" :selected-id="editValue" @select="onMediaPicked" />
+    <MediaPickerDialog v-model="mediaPickerVisible" :selected-id="(editValue as string | undefined)" @select="onMediaPicked" />
 
     <!-- fk 行内编辑快速新建弹窗（col.quickCreate 开启时下拉底部出现入口；创建成功自动选中，确认后落库） -->
     <QuickCreateDialog

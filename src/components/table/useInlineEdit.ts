@@ -35,7 +35,7 @@ export function useInlineEdit(
 ) {
   const editingRowId = ref<string | null>(null)
   const editingField = ref<string | null>(null)
-  const editValue = ref<any>('')
+  const editValue = ref<unknown>('')
   /** 当前编辑会话上下文（B5：edit-closed 事件需要 row/column，Esc 取消路径无入参，从这里取） */
   const activeEditRow = ref<Record<string, unknown> | null>(null)
   const activeEditCol = ref<WrapperColumn | null>(null)
@@ -80,7 +80,7 @@ export function useInlineEdit(
     if (!root) return
 
     const debugEnabled = typeof window !== 'undefined' && (
-      (window as any).__SCHEMAGINE_VXE_DEBUG__ === true
+      (window as unknown as { __SCHEMAGINE_VXE_DEBUG__?: boolean }).__SCHEMAGINE_VXE_DEBUG__ === true
       || window.localStorage?.getItem('SCHEMAGINE_VXE_DEBUG') === '1'
     )
 
@@ -242,7 +242,7 @@ export function useInlineEdit(
     emit('edit-activated', { row, column: col, rowIndex: rowIndex ?? -1 })
 
     const debugEnabled = typeof window !== 'undefined' && (
-      (window as any).__SCHEMAGINE_VXE_DEBUG__ === true
+      (window as unknown as { __SCHEMAGINE_VXE_DEBUG__?: boolean }).__SCHEMAGINE_VXE_DEBUG__ === true
       || window.localStorage?.getItem('SCHEMAGINE_VXE_DEBUG') === '1'
     )
     if (debugEnabled) {

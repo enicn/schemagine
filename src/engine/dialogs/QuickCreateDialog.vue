@@ -24,7 +24,7 @@ const schemaLoading = ref(false)
 const formRef = ref<InstanceType<typeof ElForm> | null>(null)
 const targetSchema = ref<ModuleSchema | null>(null)
 
-const formModel = reactive<Record<string, any>>({})
+const formModel = reactive<Record<string, unknown>>({})
 
 const moduleName = computed(() => targetSchema.value?.name || '记录')
 
@@ -209,12 +209,14 @@ function handleClose(): void {
       >
         <ElInput
           v-if="field.type === 'text' || field.type === 'email' || field.type === 'url' || field.type === 'phone'"
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as string | undefined)"
+          @update:model-value="formModel[field.key] = $event"
           :placeholder="field.placeholder || `请输入${field.label}`"
         />
         <ElInputNumber
           v-else-if="field.type === 'number' || field.type === 'currency' || field.type === 'percent'"
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as number | null | undefined)"
+          @update:model-value="formModel[field.key] = $event"
           :placeholder="field.placeholder || `请输入${field.label}`"
           :precision="field.decimal ?? (field.type === 'currency' ? 2 : field.type === 'percent' ? 0 : undefined)"
           :min="0"
@@ -222,14 +224,16 @@ function handleClose(): void {
         />
         <ElDatePicker
           v-else-if="field.type === 'date' || field.type === 'datetime'"
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as string | number | Date | undefined)"
+          @update:model-value="formModel[field.key] = $event"
           :type="field.type === 'datetime' ? 'datetime' : 'date'"
           :placeholder="field.placeholder || `请选择${field.label}`"
           style="width: 100%"
         />
         <ElSelect
           v-else-if="field.type === 'select' || field.type === 'multi-select'"
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as string | number | boolean | undefined)"
+          @update:model-value="formModel[field.key] = $event"
           :multiple="field.type === 'multi-select'"
           :placeholder="field.placeholder || `请选择${field.label}`"
         >
@@ -243,11 +247,13 @@ function handleClose(): void {
         </ElSelect>
         <ElSwitch
           v-else-if="field.type === 'boolean'"
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as boolean | undefined)"
+          @update:model-value="formModel[field.key] = $event"
         />
         <ElInput
           v-else
-          v-model="formModel[field.key]"
+          :model-value="(formModel[field.key] as string | undefined)"
+          @update:model-value="formModel[field.key] = $event"
           :placeholder="field.placeholder || `请输入${field.label}`"
         />
       </ElFormItem>

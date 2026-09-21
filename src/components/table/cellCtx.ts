@@ -45,7 +45,7 @@ export function createCellCtx(entries: {
   isEditing: (rowId: unknown, field: string) => boolean
   customEditorDef: (col: WrapperColumn) => Component | undefined
   // 编辑值随字段类型变化（原实现即 ref<any>），模板 v-model 需要可写任意值
-  editValue: Ref<any>
+  editValue: Ref<unknown>
   confirmEdit: (row: Record<string, unknown>, col: WrapperColumn) => void
   cancelEdit: () => void
   toggleEditValue: () => void

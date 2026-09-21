@@ -46,7 +46,7 @@ const emit = defineEmits<{
   'cell-edit': [payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }]
   'open-quick-create': [payload: { field: string; targetModuleId: string }]
   'formula-detail-open': [payload: { field: string; rowId: string }]
-  'column-drag-end': [payload: { columns: any[]; newOrder: string[] }]
+  'column-drag-end': [payload: { columns: unknown[]; newOrder: string[] }]
   'row-action': [payload: { rowId: string; field: string; actionId: string }]
   'row-click': [payload: { rowId: string }]
   'cell-click': [payload: { field: string; rowId: string | null }]
@@ -69,12 +69,12 @@ const columns = computed<WrapperColumn[]>(() => {
     const isAction = field.type === 'action' && !!field.rowAction
     const isRelation = field.type === 'one-to-many' || field.type === 'many-to-many' || field.type === 'reverse-ref'
 
-    let formatter: ((params: any) => string) | undefined
+    let formatter: ((params: { row?: Record<string, unknown>; cellValue: unknown }) => string) | undefined
     if (isAction) {
       formatter = () => field.rowAction?.label || field.label
     } else if (isRelation) {
-      formatter = (params: any) => {
-        const summary = (params.row as Record<string, unknown>)?.[`__rel_${field.key}`] as string
+      formatter = (params: { row?: Record<string, unknown>; cellValue: unknown }) => {
+        const summary = params.row?.[`__rel_${field.key}`] as string
         return summary || (field.type === 'reverse-ref' ? '📋 无源单据' : '🔗 无关联')
       }
     }
@@ -283,8 +283,9 @@ function handleInlineEdit(payload: { row: Record<string, unknown>; field: string
   }
 }
 
-function handleCellDblclick({ column }: { row: Record<string, unknown>; column: any }): void {
+function handleCellDblclick({ column }: { row: Record<string, unknown>; column: { field?: string } }): void {
   const field = column.field
+  if (!field) return
   const fieldSchema = props.schema.fields.find(f => f.key === field)
   if (!fieldSchema) return
 
@@ -321,8 +322,9 @@ function handleEditClosed(payload: { row: Record<string, unknown>; column: { fie
   })
 }
 
-function handleRelationClick({ row, column }: { row: Record<string, unknown>; column: any }): void {
+function handleRelationClick({ row, column }: { row: Record<string, unknown>; column: { field?: string } }): void {
   const field = column.field
+  if (!field) return
   const fieldSchema = props.schema.fields.find(f => f.key === field)
   if (!fieldSchema) return
 

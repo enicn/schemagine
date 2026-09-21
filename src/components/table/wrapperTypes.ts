@@ -16,7 +16,7 @@ export interface WrapperColumn {
   sortable?: boolean
   visible: boolean
   align?: 'left' | 'center' | 'right'
-  formatter?: (params: any) => string
+  formatter?: (params: { row?: Record<string, unknown>; column?: WrapperColumn; cellValue: unknown }) => string
   isAction?: boolean
   /** 危险操作样式（如标准删除操作） */
   actionDanger?: boolean

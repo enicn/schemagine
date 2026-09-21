@@ -25,6 +25,11 @@ export default defineConfigWithVueTs(
   {
     ...pluginPlaywright.configs['flat/recommended'],
     files: ['e2e/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+    // docs/16 批次 H-a/H-c:固定延时与测试内条件分支已清零,升 error 防回潮
+    rules: {
+      'playwright/no-wait-for-timeout': 'error',
+      'playwright/no-conditional-in-test': 'error',
+    },
   },
 
   {
@@ -37,13 +42,12 @@ export default defineConfigWithVueTs(
   {
     name: 'app/pragmatic-overrides',
     rules: {
-      // vxe-table / Element Plus 边界处的类型断言暂以 any 过渡，待逐步收敛（见 docs/16）
-      '@typescript-eslint/no-explicit-any': 'warn',
-      // 模板文案中的 "A | B" 竖线分隔被误判为 Vue2 过滤器语法
-      'vue/no-deprecated-filter': 'warn',
-      // 引擎现有实现依赖 props 就地修改 / computed 副作用，重构风险高，先以告警跟踪
-      'vue/no-mutating-props': 'warn',
-      'vue/no-side-effects-in-computed-properties': 'warn',
+      // docs/16 批次 H（2026-09-22）收敛完成：vxe/EP 边界回调换官方类型或结构类型，0 any 基线
+      '@typescript-eslint/no-explicit-any': 'error',
+      // Vue3-only 代码库：规则把模板内 TS 联合类型断言的「|」误判为 Vue1 过滤器（docs/16 批次 H-c 逐条核实为误报），关停
+      'vue/no-deprecated-filter': 'off',
+      'vue/no-mutating-props': 'error',
+      'vue/no-side-effects-in-computed-properties': 'error',
     },
   },
 

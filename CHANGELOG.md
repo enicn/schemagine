@@ -14,8 +14,13 @@
 - docs/17 宿主指南全面补全：props/emits 全量、六个 Service 方法签名、实时订阅契约（§3.10）、本地数据源（§3.12）、错误码表、FieldType 24 种、新增「扩展与进阶」章（自定义字段类型/自定义弹窗/外观契约速览/i18n）。
 - README 双语补扩展注册表、i18n 与移动端、外观契约特性行。
 
+### Fixed
+
+- 首屏加载中切换卡片视图卡片永久空白：ListView.fetchData 的 `isMounted` 竞态守卫误用于引擎实例级共享状态，卸载时丢弃在途响应导致 recordStore 永不写入；现仅保留模块切换的过期响应拦截（e2e 去固定延时后暴露的真实 bug）。
+
 ### Changed
 
+- **lint 门禁升级为 0 warnings（docs/16 批次 H 完成）**：170 条 warning 清零——e2e 108 处固定延时改条件等待（`VxeTable` 可见信号 / `toHaveText` / `expect.poll`），40 处 `any` 收窄（vxe 事件换官方 `VxeTableDefines` 类型、表单模型 `Record<string, unknown>` + EP 绑定拆 model-value、测试断言链结构化），15 处测试内条件分支消除（`allTextContents()`）；`no-explicit-any` / `playwright/no-wait-for-timeout` / `playwright/no-conditional-in-test` / `vue/no-mutating-props` / `vue/no-side-effects-in-computed-properties` 升 error；`vue/no-deprecated-filter` 经逐条核实为模板 TS 联合断言误报后关停。行为等价重构两处：SchemaEditor 动作面板 props 直改改 emit 新对象；CreateView 列配置缺省推导副作用移出 computed。
 - 文档对齐实际实现：docs/04 重写为「instanceState 主链路 + Store 存档」结构（`runtimeCacheStore` 仍在主链路、`schemaMeta`/`record`/`uiState` 三 store 标注遗留），docs/01 与双 README 的状态管理与多实例表述同步纠正。
 - docs/17 硬伤修复：样式引入路径改为真实存在的 `schemagine/dist/schemagine.css`（原指向不存在的 `dist/style.css`）；快速开始 Service 示例补齐必选方法 `listFieldValueCandidates`（按原文档实现无法通过编译）；移除已删除的 `ListQueryParams.cursor`；对等依赖表去掉随包安装的 mathjs、补可选的 xlsx；修复 README 文档表中已迁移的 `引用指南.md`/`说明文档.md` 死链；版本号表述与 package.json 对齐。
 - docs/19 §六 补记 I1 实时推送语义定稿（非编辑行静默合并、编辑中行跳过并提示冲突）。

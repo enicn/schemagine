@@ -50,6 +50,7 @@
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:p0": "playwright test e2e/p0-engine.spec.ts",
+    "test:e2e:ext": "playwright test e2e/p1-engine.spec.ts e2e/p2-engine.spec.ts e2e/batch-e.spec.ts e2e/batch-f.spec.ts e2e/batch-g.spec.ts e2e/batch-h.spec.ts",
     "bench": "playwright test e2e/perf-benchmark.spec.ts",
     "test:e2e:p1": "playwright test e2e/p1-engine.spec.ts",
     "test:e2e:p2": "playwright test e2e/p2-engine.spec.ts",

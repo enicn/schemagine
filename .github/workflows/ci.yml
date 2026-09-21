@@ -70,6 +70,27 @@ jobs:
           path: playwright-report
           retention-days: 7
 
+  # 全量回归(docs/19 之外补强):P0 快反馈之外,P1/P2/批次 E–H 扩展集在并行 job 完整把关
+  e2e-extended:
+    name: E2E (Extended P1/P2/Batch, chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:ext
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-extended
+          path: playwright-report
+          retention-days: 7
+
   perf-benchmark:
     # 性能基准(docs/19 §七):可选 job,仅手动触发(workflow_dispatch),不阻塞常规门禁
     name: Perf Benchmark (optional)

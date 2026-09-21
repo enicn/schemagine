@@ -7,14 +7,40 @@
 
 ### Added
 
-- GitHub Actions CI：lint / type-check / 单元测试 / E2E P0 / 库构建。
-- 社区文件：CONTRIBUTING、行为准则、Issue 与 PR 模板。
-- `docs/16-完善方案-2026-09.md`：仓库完善方案。
+- CI 新增 `e2e-extended` 并行 job：P0 快反馈之外，P1/P2/批次 E–H 扩展集在 CI 完整把关（`pnpm test:e2e:ext`）。
+- `SECURITY.md` 安全策略（私密漏洞报告通道、安全设计边界说明）。
 
 ### Changed
 
-- E2E 分级脚本改为直接调用 Playwright（跨平台可用，不再依赖 PowerShell）。
-- E2E 运行模式从 dev server 切换为 `vite preview`（构建产物验证）。
+- 文档对齐实际实现：docs/04 重写为「instanceState 主链路 + Store 存档」结构（`runtimeCacheStore` 仍在主链路、`schemaMeta`/`record`/`uiState` 三 store 标注遗留），docs/01 与双 README 的状态管理与多实例表述同步纠正。
+- docs/19 §六 补记 I1 实时推送语义定稿（非编辑行静默合并、编辑中行跳过并提示冲突）。
+- docs/16 新增批次 H「lint warning 收敛计划」（基线 170 条，按规则分三批清零后逐规则升 error）。
+
+## [0.2.3] - 2026-09-21
+
+首个 npm 发布版本（0.2.0–0.2.2 为内部迭代号，未对外发布）。对应 `docs/19` 通用表格引擎改进计划批次 A–I 收官及其后续交付。
+
+### Added
+
+- 扩展机制：`registerFieldType` 字段类型注册（渲染/表单/行内编辑三接入 + 值适配）、`registerDialog`、vxe 插槽透传（`cellSlots`/`headerSlots`/`empty`）与 `getTableInstance()` 实例暴露（批次 B）。
+- Schema Playground（`/playground`）：属性元数据注册表 `src/schemaMeta/`、`pnpm gen:schema-docs` 文档再生成通道（批次 A）。
+- 数据层契约：「宿主执行」数据操作契约（`RowActionEvent`/`ActionTriggerEvent`）、批量事务契约 `batch-patch`（批次 H4）、本地数据源 `createLocalRecordService`（批次 C）。
+- 过滤与视图体系：FilterBar 挂载、FilterGroup 组合条件、筛选预设与默认视图、列拖拽列序持久化、跨页勾选保留（批次 E）。
+- 表格展示形态：密度三档、树形数据、多级表头、行展开插槽、相同值合并单元格、分组小计与按列合计（批次 F）。
+- 编辑与校验：行级跨字段校验三入口、异步校验与竞态闸（批次 H1/H2）；引擎级 undo/redo 与实例级 history API（批次 H3）。
+- 导入导出：xlsx 导出与共用导出通道（批次 G4）、CSV/xlsx 文件导入与行级预检向导（批次 H5）。
+- 平台化：引擎 i18n locale 包与注入点（批次 G1）、键盘网格导航与 a11y 基线（批次 G2）、`roleBased` 权限消费（批次 G3）。
+- 实时与诊断：实时订阅契约与运行时 Schema 诊断（批次 I1/I2）。
+- 性能基准套件：万行渲染/滚动/编辑提交与公式链量化（`pnpm bench`）。
+- 移动端：卡片列表形态、三段式编辑手柄、触底加载、动作降级框架、移动吸顶基准补偿。
+- 外观与格式契约：`EngineAppearance`（表格边框/值展示/卡片密度/保守导出）、`FieldSchema.displayStyle`（docs/20）。
+- 工程化：GitHub Actions CI（lint / type-check / 单元测试 / E2E / 库构建）、宿主解耦契约 CI 守卫、社区文件（CONTRIBUTING、行为准则、Issue 与 PR 模板）、`docs/16-完善方案-2026-09.md`。
+
+### Changed
+
+- 虚拟滚动自动开启（>200 行）；cursor 分页声明移除（批次 C）。
+- 校验三入口统一（`utils/fieldValidation.ts`）、批量编辑（单字段填充）（批次 D）。
+- E2E 分级脚本改为直接调用 Playwright（跨平台可用），运行模式从 dev server 切换为 `vite preview`（构建产物验证）。
 - 根目录 `引用指南.md` 迁移为 `docs/17-集成与使用指南.md`，`说明文档.md` 迁移为 `docs/18-维护记录与文档索引.md`。
 - 移除 `.trae/` 内部工作流目录与脚手架残留 `src/stores/counter.ts`。
 

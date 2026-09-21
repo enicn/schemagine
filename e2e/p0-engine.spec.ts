@@ -24,22 +24,15 @@ test.describe('P0 Schema 引擎基础闭环', () => {
   })
 
   test('1.2 默认加载凭证管理模块', async ({ page }) => {
-    await page.waitForTimeout(1000)
     await expect(page.getByText('凭证管理').first()).toBeVisible({ timeout: 10000 })
   })
 
   test('2.1 凭证管理 - 表格列头渲染', async ({ page }) => {
-    await page.waitForTimeout(1000)
     const headerCells = page.locator('.vxe-header--row th')
-    const count = await headerCells.count()
-    expect(count).toBeGreaterThanOrEqual(5)
+    await expect(headerCells.locator('visible=true').first()).toBeVisible({ timeout: 10000 })
+    expect(await headerCells.count()).toBeGreaterThanOrEqual(5)
 
-    const headerTexts: string[] = []
-    for (let i = 0; i < count; i++) {
-      const text = await headerCells.nth(i).locator('.vxe-cell--title').textContent()
-      if (text) headerTexts.push(text.trim())
-    }
-    const joined = headerTexts.join(' ')
+    const joined = (await page.locator('.vxe-header--row th .vxe-cell--title').allTextContents()).map((t) => t.trim()).join(' ')
     expect(joined).toContain('凭证日期')
     expect(joined).toContain('凭证编号')
     expect(joined).toContain('金额')
@@ -48,8 +41,8 @@ test.describe('P0 Schema 引擎基础闭环', () => {
   })
 
   test('2.2 凭证管理 - 表格数据行渲染', async ({ page }) => {
-    await page.waitForTimeout(1000)
     const bodyRows = page.locator('.vxe-body--row')
+    await expect(bodyRows.first()).toBeVisible({ timeout: 10000 })
     const rowCount = await bodyRows.count()
     expect(rowCount).toBeGreaterThanOrEqual(1)
     // pageSize 缺省 20:凭证模块 15 条种子数据全部落在第一页
@@ -57,19 +50,15 @@ test.describe('P0 Schema 引擎基础闭环', () => {
   })
 
   test('3.1 凭证管理 - 排序交互', async ({ page }) => {
-    await page.waitForTimeout(1000)
     const sortableHeader = page.locator('.vxe-header--row th.is--sortable').first()
     await expect(sortableHeader).toBeVisible({ timeout: 5000 })
 
     await sortableHeader.click()
-    await page.waitForTimeout(500)
 
     await sortableHeader.click()
-    await page.waitForTimeout(500)
   })
 
   test('3.2 凭证管理 - 表头筛选交互（关键词）', async ({ page }) => {
-    await page.waitForTimeout(1500)
 
     // 打开「金额」列表头的筛选与排序弹层（每列表头 ▼ 按钮）
     const amountHeader = page.locator('.vxe-header--row th').filter({ hasText: '金额' }).first()
@@ -93,26 +82,18 @@ test.describe('P0 Schema 引擎基础闭环', () => {
     const clearButton = page.locator('.header-popover button').filter({ hasText: '清除筛选' }).filter({ visible: true })
     await expect(clearButton).toBeVisible({ timeout: 5000 })
     await clearButton.click()
-    await page.waitForTimeout(800)
-    const restoredCount = await dataRows.count()
-    expect(restoredCount).toBeGreaterThanOrEqual(2)
+    await expect.poll(async () => dataRows.count(), { timeout: 5000 }).toBeGreaterThanOrEqual(2)
   })
 
   test('4.1 切换到应付账款模块', async ({ page }) => {
     await page.goto('/module/module-ap')
-    await page.waitForTimeout(1500)
     await expect(page.getByText('应付账款').first()).toBeVisible({ timeout: 10000 })
 
     const headerCells = page.locator('.vxe-header--row th')
-    const count = await headerCells.count()
-    expect(count).toBeGreaterThanOrEqual(4)
+    await expect(headerCells.locator('visible=true').first()).toBeVisible({ timeout: 10000 })
+    expect(await headerCells.count()).toBeGreaterThanOrEqual(4)
 
-    const headerTexts: string[] = []
-    for (let i = 0; i < count; i++) {
-      const text = await headerCells.nth(i).locator('.vxe-cell--title').textContent()
-      if (text) headerTexts.push(text.trim())
-    }
-    const joined = headerTexts.join(' ')
+    const joined = (await page.locator('.vxe-header--row th .vxe-cell--title').allTextContents()).map((t) => t.trim()).join(' ')
     expect(joined).toContain('供应商')
     expect(joined).toContain('发票号')
     expect(joined).toContain('应付金额')
@@ -121,7 +102,6 @@ test.describe('P0 Schema 引擎基础闭环', () => {
   test('5.1 空模块 - 显示空数据状态', async ({ page }) => {
     await page.goto('/module/module-empty')
     await expect(page.getByText('空模块（无数据）').first()).toBeVisible({ timeout: 10000 })
-    await page.waitForTimeout(2000)
 
     // 表头渲染 schema 列(首列可能是行首复选框列,按文本定位数据列)
     const headerTitle = page.locator('.vxe-header--row th .vxe-cell--title').filter({ hasText: '名称' }).first()
@@ -133,12 +113,10 @@ test.describe('P0 Schema 引擎基础闭环', () => {
 
   test('6.1 无权限模块 - 显示权限错误', async ({ page }) => {
     await page.goto('/module/module-no-perm')
-    await page.waitForTimeout(1500)
     await expect(page.getByText('无权限访问该模块')).toBeVisible({ timeout: 10000 })
   })
 
   test('7.1 分页控件', async ({ page }) => {
-    await page.waitForTimeout(1000)
 
     const pagination = page.locator('.el-pagination')
     await expect(pagination).toBeVisible({ timeout: 5000 })

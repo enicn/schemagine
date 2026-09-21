@@ -7,7 +7,6 @@ import { test, expect } from '@playwright/test'
 test.describe('docs/19 批次 F：展示形态', () => {
   test('F1.1 默认密度行高 44px、表头 49px', async ({ page }) => {
     await page.goto('/module/module-voucher')
-    await page.waitForTimeout(2000)
     const row = page.locator('.vxe-body--row').first()
     await expect(row).toBeVisible({ timeout: 8000 })
     const rowBox = await row.boundingBox()
@@ -19,7 +18,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F1.2 compact 密度行高 36px（query 注入）', async ({ page }) => {
     await page.goto('/module/module-voucher?density=compact')
-    await page.waitForTimeout(2000)
     const row = page.locator('.vxe-body--row').first()
     await expect(row).toBeVisible({ timeout: 8000 })
     const box = await row.boundingBox()
@@ -28,7 +26,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F1.3 large 密度行高 52px（query 注入）', async ({ page }) => {
     await page.goto('/module/module-voucher?density=large')
-    await page.waitForTimeout(2000)
     const row = page.locator('.vxe-body--row').first()
     await expect(row).toBeVisible({ timeout: 8000 })
     const box = await row.boundingBox()
@@ -39,7 +36,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F2.1 树形默认收起，逐级展开子行出现', async ({ page }) => {
     await page.goto('/module/module-dept')
-    await page.waitForTimeout(2000)
     // 固定列(勾选列 fixed-left)在横向溢出时产生克隆行,定位须收进主表体
     const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
@@ -61,7 +57,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F2.2 展开后折叠，子行收起', async ({ page }) => {
     await page.goto('/module/module-dept')
-    await page.waitForTimeout(2000)
     const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
     await rows.filter({ hasText: '总经办' }).locator('.vxe-cell--tree-btn').first().click()
@@ -74,7 +69,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F2.3 子行可双击行内编辑并保存', async ({ page }) => {
     await page.goto('/module/module-dept')
-    await page.waitForTimeout(2000)
     const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
     await rows.filter({ hasText: '总经办' }).locator('.vxe-cell--tree-btn').first().click()
@@ -99,7 +93,6 @@ test.describe('docs/19 批次 F：展示形态', () => {
 
   test('F3.1 相同 group 字段合并为分组表头，未分组列保持顶层', async ({ page }) => {
     await page.goto('/module/module-dept')
-    await page.waitForTimeout(2000)
     // 分组表头行：出现「部门信息」colgroup 单元格
     const groupHeader = page.locator('.vxe-header--row').first().locator('.vxe-header--column', { hasText: '部门信息' })
     await expect(groupHeader).toBeVisible({ timeout: 8000 })

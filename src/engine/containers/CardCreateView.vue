@@ -9,8 +9,10 @@ import FormulaDisplay from '@/components/field/FormulaDisplay.vue'
 import { isFieldEditableInContext, isFieldVisibleInContext } from '@/utils/condition'
 import type { FieldSchema, DraftRecord, CardFieldLayout } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   submitting?: boolean
+  /** 卡片密度(docs/20 appearance.cardDensity):compact=普通字段每行 4 个、满宽利用 */
+  density?: 'default' | 'compact'
 }>()
 
 const emit = defineEmits<{
@@ -40,12 +42,14 @@ const allFieldSchemas = computed<FieldSchema[]>(() => {
   return schemaMeta.schema?.fields ?? []
 })
 
+const defaultSpan = computed(() => (props.density === 'compact' ? 4 : 8))
+
 function buildDefaultFieldLayout(field: FieldSchema, index: number): CardFieldLayout {
   const longTypes = ['text', 'json', 'url', 'attachment', 'image']
   const isLong = longTypes.includes(field.type)
   return {
     field: field.key,
-    span: isLong ? 16 : 8,
+    span: isLong ? 16 : defaultSpan.value,
     order: index,
     collapsedByDefault: false,
   }
@@ -130,7 +134,7 @@ function isEditable(field: FieldSchema): boolean {
 </script>
 
 <template>
-  <div class="card-create-view">
+  <div class="card-create-view" :class="{ 'is-compact': density === 'compact' }">
     <div class="card-create-scroll">
       <ElCard class="create-form-card" shadow="hover">
         <template #header>
@@ -222,10 +226,23 @@ function isEditable(field: FieldSchema): boolean {
 }
 
 .create-form-card {
-  max-width: 900px;
-  margin: 0 auto;
+  width: 100%;
   border-radius: var(--sg-radius-xl);
   transition: box-shadow var(--sg-duration-normal) ease;
+}
+
+/* 紧凑密度(docs/20):栅格间距收敛、贴边无圆角,普通字段每行 4 个 */
+.card-create-view.is-compact .card-create-scroll {
+  padding: 0;
+}
+.card-create-view.is-compact .create-form-card {
+  border-radius: 0;
+}
+.card-create-view.is-compact .card-create-toolbar {
+  padding: var(--sg-spacing-3) var(--sg-spacing-5);
+}
+.card-create-grid.is-compact {
+  gap: var(--sg-spacing-5) var(--sg-spacing-6);
 }
 
 .create-form-card:hover {
@@ -247,7 +264,7 @@ function isEditable(field: FieldSchema): boolean {
 .card-create-grid {
   display: grid;
   grid-template-columns: repeat(16, 1fr);
-  gap: var(--sg-spacing-10) var(--sg-spacing-10);
+  gap: var(--sg-spacing-8) var(--sg-spacing-8);
   padding: var(--sg-spacing-2) 0;
 }
 
@@ -324,6 +341,11 @@ function isEditable(field: FieldSchema): boolean {
   .card-create-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--sg-spacing-6);
+  }
+
+  /* 窄屏一行两个:字段跨度钳制为半行(覆盖 16 栅格 span,防隐式列溢出) */
+  .card-create-grid > * {
+    grid-column: auto / span 1 !important;
   }
 
   .card-create-scroll {

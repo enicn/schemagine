@@ -70,7 +70,7 @@ export function downloadCsvFile(baseName: string, matrix: ExportMatrix): void {
 export type XlsxExportResult = 'ok' | 'missing-peer'
 
 /** xlsx 下载：peer 依赖 `xlsx` 动态加载，未安装返回 missing-peer（调用方回退/提示） */
-export async function downloadXlsxFile(baseName: string, matrix: ExportMatrix): Promise<XlsxExportResult> {
+export async function downloadXlsxFile(baseName: string, matrix: ExportMatrix, colWidths?: Array<number | undefined>): Promise<XlsxExportResult> {
   let XLSX: typeof import('xlsx')
   try {
     XLSX = await import('xlsx')
@@ -78,8 +78,10 @@ export async function downloadXlsxFile(baseName: string, matrix: ExportMatrix): 
     return 'missing-peer'
   }
   const ws = XLSX.utils.aoa_to_sheet([matrix.headers, ...matrix.rows])
-  // 列宽按表头/内容粗略自适应（上限 40），Excel 打开即可读
+  // 列宽(docs/20)：声明了界面列宽(px)则按比例换算(wch ≈ px/7)，未声明的列按表头/内容粗略自适应
   const widthByCol = matrix.headers.map((h, i) => {
+    const px = colWidths?.[i]
+    if (px && px > 0) return { wch: Math.min(60, Math.max(8, Math.round(px / 7))) }
     let w = String(h).length
     for (const row of matrix.rows) w = Math.max(w, (row[i] ?? '').length)
     return { wch: Math.min(40, Math.max(10, w + 2)) }

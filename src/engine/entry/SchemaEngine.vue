@@ -24,7 +24,7 @@ import CardCreateView from '@/engine/containers/CardCreateView.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import RelationEditor from '@/components/field/editors/RelationEditor.vue'
-import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType } from '@/types'
+import type { DialogType, DraftRecord, ColumnConfig, UserViewConfig, CardLayoutConfig, FieldSchema, FilterCondition, FilterPreset, SortParam, RowActionEvent, ActionTriggerEvent, ExtendedDialogType, EngineAppearance } from '@/types'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 
 const props = defineProps<{
@@ -44,6 +44,8 @@ const props = defineProps<{
   locale?: string
   /** 当前用户角色（docs/19 G3）：FieldPermission.roleBased 判定输入 */
   currentRoles?: string[]
+  /** 外观与格式契约（docs/20）：表格边框/单元格值展示/卡片密度/保守工具栏导出入口，见 EngineAppearance */
+  appearance?: EngineAppearance
 }>()
 
 // 引擎语言注入（docs/19 G1）：宿主经 locale prop 切换（语言包先 registerLocale 注册）
@@ -310,6 +312,30 @@ function handleColumnOrderChange(newOrder: string[]): void {
     return nextOrder === undefined ? c : { ...c, order: nextOrder }
   })
   persistViewConfig({ ...current, columns })
+}
+
+/** 拖拽调宽持久化(docs/20):列宽并入 UserViewConfig.columns,防抖落库;导出 Excel 列宽与界面成正比的数据源 */
+let widthPersistTimer: ReturnType<typeof setTimeout> | undefined
+function handleColumnWidthChange(payload: { field: string; width: number }): void {
+  const buildDefaults = (): ColumnConfig[] => (schemaMeta.schema?.fields ?? [])
+    .filter(f => f.visible !== false && f.type !== 'action')
+    .map((f, i) => ({ field: f.key, width: f.width || 120, visible: true, order: i, sortable: !!f.sortable }))
+  const base: UserViewConfig = schemaMeta.viewConfig ?? {
+    moduleId: props.moduleId,
+    version: 1,
+    columns: buildDefaults(),
+    pageSize: 20,
+  }
+  const hasCol = base.columns.some(c => c.field === payload.field)
+  const columns = hasCol
+    ? base.columns.map(c => c.field === payload.field ? { ...c, width: payload.width } : c)
+    : [...base.columns, { field: payload.field, width: payload.width, visible: true, order: 999, sortable: false }]
+  const config: UserViewConfig = { ...base, columns }
+  schemaMeta.setViewConfig(config)
+  if (widthPersistTimer) clearTimeout(widthPersistTimer)
+  widthPersistTimer = setTimeout(() => {
+    void schema.saveViewConfig(config)
+  }, 400)
 }
 
 function handleCellEdit(payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }): void {
@@ -674,6 +700,7 @@ defineExpose({
                 :density="density"
                 :readonly="readonly"
                 :toolbar-mode="toolbarMode"
+                :appearance="appearance"
                 @cell-edit="handleCellEdit"
                 @query-change="handleQueryChange"
                 @formula-detail-open="handleFormulaDetailOpen"
@@ -682,6 +709,7 @@ defineExpose({
                 @open-relation-editor="handleOpenRelationEditor"
                 @presets-change="handlePresetsChange"
                 @column-order-change="handleColumnOrderChange"
+                @column-width-change="handleColumnWidthChange"
                 @action-trigger="(p) => emit('action-trigger', p)"
                 @batch-patch="(p: { moduleId: string; ids: string[]; patch: Record<string, unknown> }) => emit('batch-patch', p)"
                 @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
@@ -698,9 +726,17 @@ defineExpose({
                 :editable="permission.canEdit.value && !readonly"
                 :card-layout="schemaMeta.viewConfig?.cardLayout ?? null"
                 :auto-edit="autoEditCard"
+                :density="appearance?.cardDensity ?? 'default'"
                 @field-change="handleCardFieldChange"
                 @save="handleCardSave"
-              />
+                @row-action="(p) => emit('row-action', p)"
+              >
+                <!-- 卡片头部动作透传（docs/20）：宿主经 card-actions 插槽注入业务动作（如审核通过/驳回），
+                     作用域提供 { record: 当前记录, editing: 是否编辑态 } -->
+                <template #extra-actions="slotProps">
+                  <slot name="card-actions" v-bind="slotProps" />
+                </template>
+              </CardView>
             </ErrorBoundary>
           </template>
 
@@ -719,6 +755,7 @@ defineExpose({
               <CardCreateView
                 v-if="schemaMeta.schema && currentCreateMode === 'card'"
                 :submitting="recordStore.isSaving"
+                :density="appearance?.cardDensity ?? 'default'"
                 @save="handleCreateSave"
                 @cancel="handleCreateCancel"
                 @draft-change="handleCardCreateDraftChange"

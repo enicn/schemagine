@@ -1,6 +1,7 @@
 export type {
   ModuleSchema,
   ListEditMode,
+  EngineAppearance,
   FieldSchema,
   FieldType,
   SelectOption,

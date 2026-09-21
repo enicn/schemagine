@@ -123,4 +123,25 @@ describe('VxeTableWrapper 组件挂载（docs/19 G6）', () => {
     expect(edits![0]![0].row.name).toBe('甲2')
     wrapper.unmount()
   })
+
+  it('行内编辑布局档位（docs/20）：默认 float 不挂根类，fit-row 挂 is-fit-row-edit', async () => {
+    const floatWrapper = mount(VxeTableWrapper, {
+      props: { moduleId: 'm1', data: rows, columns: baseColumns() },
+    })
+    await flush()
+    expect(floatWrapper.find('.vxe-table-wrapper').classes()).not.toContain('is-fit-row-edit')
+    floatWrapper.unmount()
+
+    const fitWrapper = mount(VxeTableWrapper, {
+      props: {
+        moduleId: 'm1',
+        data: rows,
+        columns: baseColumns(),
+        appearance: { inlineEditLayout: 'fit-row' },
+      },
+    })
+    await flush()
+    expect(fitWrapper.find('.vxe-table-wrapper').classes()).toContain('is-fit-row-edit')
+    fitWrapper.unmount()
+  })
 })

@@ -23,10 +23,11 @@ import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { usePermission } from '@/composables/usePermission'
 import { useViewportMode } from '@/composables/useViewportMode'
 import { recordService } from '@/services/api/recordService'
+import { candidateService } from '@/services/api/candidateService'
 import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
 import { useRecordHistory } from '@/composables/useRecordHistory'
-import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent } from '@/types'
+import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent, EngineAppearance } from '@/types'
 import type { AggregationItem } from '@/composables/useAggregation'
 
 const props = defineProps<{
@@ -43,6 +44,8 @@ const props = defineProps<{
   readonly?: boolean
   /** 工具栏收敛档位（SchemaEngine 透传）：'conservative' 隐藏撤销/重做/命名视图/批量编辑/导出等高级入口 */
   toolbarMode?: 'full' | 'conservative'
+  /** 外观与格式契约（docs/20）：透传 SchemaTable → VxeTableWrapper；exportInConservative 控制保守工具栏导出入口 */
+  appearance?: EngineAppearance
 }>()
 
 const emit = defineEmits<{
@@ -60,6 +63,8 @@ const emit = defineEmits<{
   'action-trigger': [payload: ActionTriggerEvent]
   /** 保存视图变更(FilterPreset 增删/设默认),由 SchemaEngine 持久化到 UserViewConfig(docs/19 批次 E3) */
   'presets-change': [presets: FilterPreset[]]
+  /** 拖拽调宽结束(docs/20):上抛 SchemaEngine 持久化进 UserViewConfig */
+  'column-width-change': [payload: { field: string; width: number }]
   /** 列拖拽后的新列序(字段 key 列表),由 SchemaEngine 合并进 UserViewConfig.columns(docs/19 批次 E4) */
   'column-order-change': [newOrder: string[]]
   /** 批量字段更新上抛(docs/19 H4 宿主执行契约):schema.operations.batchPatch.enabled 时由批量编辑对话框触发,宿主原子执行后 refresh */
@@ -255,8 +260,18 @@ const showToolbarLeft = computed(() =>
 )
 const showToolbarRight = computed(() =>
   conservativeToolbar.value
-    ? deleteOps.value.canBatchDelete || showSelection.value
+    ? showExportCsv.value || showExportExcel.value || deleteOps.value.canBatchDelete || showSelection.value
     : canExport.value || deleteOps.value.canBatchDelete || (canEditRecords.value && batchEditableFields.value.length > 0) || showSelection.value,
+)
+// 导出入口（docs/20）：full 模式保持历史行为；conservative 模式默认隐藏，
+// CSV 与 Excel 为两个独立开关，显式开启且 permissions.export 允许时才显示
+const showExportCsv = computed(() =>
+  !conservativeToolbar.value
+  || (props.appearance?.exportCsvInConservative === true && canExport.value),
+)
+const showExportExcel = computed(() =>
+  !conservativeToolbar.value
+  || (props.appearance?.exportExcelInConservative === true && canExport.value),
 )
 
 function applyPreset(preset: FilterPreset): void {
@@ -542,6 +557,49 @@ const EXPORT_PAGE_SIZE = 200
 const EXPORT_MAX_ROWS = 5000
 const exporting = ref(false)
 
+// ── 导出行预处理(2026-09-21 修复):后端返回 RecordEntity(fields 嵌套),导出矩阵按扁平行取值;
+//    兼容两种数据源——嵌套则展开 fields,扁平(本地 mock)原样保留;fk 字段补人读标签 ──
+function flattenExportRow(row: Record<string, unknown>): Record<string, unknown> {
+  const fields = row.fields as Record<string, unknown> | undefined
+  if (fields && typeof fields === 'object') {
+    return { ...row, ...fields, id: row.id }
+  }
+  return row
+}
+
+async function enrichFkLabels(fields: FieldSchema[], rows: Array<Record<string, unknown>>): Promise<void> {
+  const fkFields = fields.filter(f => f.type === 'fk' && f.targetModule)
+  for (const f of fkFields) {
+    const values = [...new Set(rows
+      .map(r => r[f.key])
+      .filter(v => v !== null && v !== undefined && v !== '')
+      .map(String))]
+    if (values.length === 0) continue
+    try {
+      // 拉全量候选后按值精确匹配(按 keyword 搜索会漏掉 label 不含值文本的候选)
+      const res = await candidateService.query({ targetModule: f.targetModule as string, page: 1, pageSize: 1000 })
+      if (!res.success) continue
+      const byValue = new Map(res.data.options.map(o => [String(o.value), o.label]))
+      for (const v of values) {
+        const label = byValue.get(v)
+        if (label !== undefined) {
+          for (const r of rows) {
+            if (String(r[f.key]) === String(v)) r[`${f.key}_label`] = label
+          }
+        }
+      }
+    } catch {
+      // 标签解析失败保留原值
+    }
+  }
+}
+
+async function prepareExportRows(fields: FieldSchema[], records: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
+  const rows = records.map(flattenExportRow)
+  await enrichFkLabels(fields, rows)
+  return rows
+}
+
 /** 导出列 = schema 可见字段 ∩ 用户视图配置可见列，按视图配置排序优先 */
 const exportColumns = computed<FieldSchema[]>(() => {
   const fields = props.schema.fields.filter(f => f.visible && f.type !== 'action')
@@ -578,7 +636,7 @@ async function handleExportCsv(): Promise<void> {
         return
       }
       total = res.data.total
-      rows.push(...(res.data.records as unknown as Array<Record<string, unknown>>))
+      rows.push(...(await prepareExportRows(exportColumns.value, res.data.records as unknown as Array<Record<string, unknown>>)))
       if (res.data.records.length === 0) break
       page += 1
     }
@@ -596,6 +654,12 @@ async function handleExportCsv(): Promise<void> {
 }
 
 /** 导出 Excel（docs/19 批次 G4）：xlsx 为可选 peer 依赖，未安装回退 CSV 并提示 */
+/** 导出列宽(docs/20):取界面列宽(用户列表设置/拖拽调整值,px),Excel wch ≈ px/7 */
+function exportColumnWidths(fields: FieldSchema[]): Array<number | undefined> {
+  const cfgMap = new Map((props.viewConfig ?? []).map(c => [c.field, c]))
+  return fields.map(f => cfgMap.get(f.key)?.width ?? f.width)
+}
+
 async function handleExportExcel(): Promise<void> {
   if (exporting.value) return
   exporting.value = true
@@ -616,7 +680,7 @@ async function handleExportExcel(): Promise<void> {
         return
       }
       total = res.data.total
-      rows.push(...(res.data.records as unknown as Array<Record<string, unknown>>))
+      rows.push(...(await prepareExportRows(exportColumns.value, res.data.records as unknown as Array<Record<string, unknown>>)))
       if (res.data.records.length === 0) break
       page += 1
     }
@@ -624,7 +688,7 @@ async function handleExportExcel(): Promise<void> {
       uiState.showMessage('当前筛选下没有可导出的数据', 'warning')
       return
     }
-    const result = await downloadXlsxFile(props.schema.name, buildExportMatrix(exportColumns.value, rows))
+    const result = await downloadXlsxFile(props.schema.name, buildExportMatrix(exportColumns.value, rows), exportColumnWidths(exportColumns.value))
     if (result === 'missing-peer') {
       downloadCsvFile(props.schema.name, buildExportMatrix(exportColumns.value, rows))
       uiState.showMessage('未安装 xlsx 依赖，已回退导出 CSV', 'warning')
@@ -775,10 +839,10 @@ function handleBottomTabChange(tabId: string): void {
           :icon="EditPen" :disabled="uiState.selectedRowIds.length === 0" @click="handleBatchEditClick">
           批量编辑{{ uiState.selectedRowIds.length > 0 ? ` (${uiState.selectedRowIds.length})` : '' }}
         </ElButton>
-        <ElButton v-if="!conservativeToolbar" size="small" plain :icon="Download" :loading="exporting" @click="handleExportCsv">
+        <ElButton v-if="showExportCsv" size="small" plain :icon="Download" :loading="exporting" @click="handleExportCsv">
           导出CSV
         </ElButton>
-        <ElButton v-if="!conservativeToolbar" size="small" plain :icon="Download" :loading="exporting" @click="handleExportExcel">
+        <ElButton v-if="showExportExcel" size="small" plain :icon="Download" :loading="exporting" @click="handleExportExcel">
           导出Excel
         </ElButton>
         <ElButton v-if="deleteOps.canBatchDelete" size="small" type="danger" plain
@@ -820,8 +884,9 @@ function handleBottomTabChange(tabId: string): void {
     <SchemaTable ref="schemaTableRef" :schema="schema" :rows="recordStore.records" :view-config="viewConfig || []"
       :sort-state="currentSort" :filter-clauses="flatFilterClauses" :editable="tableEditable"
       :selected-row-id="selectedRowId" :show-selection="showSelection" :loading="recordStore.isLoading"
-      :height="tableHeight" :density="density" :readonly="readonly" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
+      :height="tableHeight" :density="density" :appearance="appearance" :readonly="readonly" @sort-change="handleSortChange" @filter-change="handleHeaderFilterChange"
       @row-click="handleRowClick" @cell-edit="handleCellEdit"
+      @column-width-change="(p: { field: string; width: number }) => emit('column-width-change', p)"
       @column-drag-end="handleColumnDragEnd"
       @cell-click="(p: { field: string; rowId: string | null }) => emit('cell-click', p)"
       @edit-activated="(p: { rowId: string; field: string }) => emit('edit-activated', p)"

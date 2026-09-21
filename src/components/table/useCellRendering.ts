@@ -16,6 +16,8 @@ export interface CellRenderingDeps {
   resolveFkLabel: (targetModule: string, id: string) => Promise<void>
   /** 当前生效的过滤子句（筛选命中单元格高亮用） */
   filterClauses: () => FilterClause[] | undefined
+  /** 复古电子表格模式（docs/20 appearance.valueDisplay='classic'）：禁用一切取值染色与自定义样式 */
+  classicMode?: () => boolean
 }
 
 export function useCellRendering(deps: CellRenderingDeps) {
@@ -44,6 +46,8 @@ export function useCellRendering(deps: CellRenderingDeps) {
 
   function getCellHighlightHtml(value: unknown, col: WrapperColumn): string {
     const clause = getFilterClause(col)
+    // classic 模式：无任何取值染色，命中筛选拼音/关键词也只出纯文本
+    if (deps.classicMode?.()) return escapeHtml(formatDisplay(value, col))
     if (!clause) return escapeHtml(formatDisplay(value, col))
 
     const textValue = formatDisplay(value, col)
@@ -64,8 +68,9 @@ export function useCellRendering(deps: CellRenderingDeps) {
     return `<span class="filter-match-highlight" style="${style}">${escaped}</span>`
   }
 
-  /** boolean 列默认状态配色：是=绿 / 否=红；业务可用 trueLabelClass/falseLabelClass 覆盖（如灰色预设 cell-boolean--neutral） */
+  /** boolean 列默认状态配色：是=绿 / 否=红；业务可用 trueLabelClass/falseLabelClass 覆盖（如灰色预设 cell-boolean--neutral）；classic 模式不染色 */
   function getBooleanStateClass(value: unknown): string {
+    if (deps.classicMode?.()) return ''
     return value ? 'cell-boolean--yes' : 'cell-boolean--no'
   }
 

@@ -67,6 +67,10 @@ export function createCellCtx(entries: {
   hasEnumTagStyle: (value: unknown, col: WrapperColumn) => boolean
   isEnumColumn: (col: WrapperColumn) => boolean
   getEnumCellHtml: (value: unknown, col: WrapperColumn) => string
+  /** 值展示档位（docs/20）：classic 一票否决为 plain，其余字段 displayStyle > appearance.valueDisplay > 'tag' */
+  valueDisplayOf: (col: WrapperColumn) => 'tag' | 'plain'
+  /** 复古电子表格模式（docs/20 valueDisplay='classic'）：true 时自定义标签类（trueLabelClass 等）不渲染 */
+  isClassicMode: () => boolean
   getBooleanStateClass: (value: unknown) => string
   hasFilterMatch: (col: WrapperColumn) => boolean
   getCellHighlightHtml: (value: unknown, col: WrapperColumn) => string

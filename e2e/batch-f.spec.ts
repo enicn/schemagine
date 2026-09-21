@@ -40,7 +40,8 @@ test.describe('docs/19 批次 F：展示形态', () => {
   test('F2.1 树形默认收起，逐级展开子行出现', async ({ page }) => {
     await page.goto('/module/module-dept')
     await page.waitForTimeout(2000)
-    const rows = page.locator('.vxe-body--row')
+    // 固定列(勾选列 fixed-left)在横向溢出时产生克隆行,定位须收进主表体
+    const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
     // 默认收起：子部门不渲染
     await expect(rows.filter({ hasText: '技术部' })).toHaveCount(0)
@@ -61,7 +62,7 @@ test.describe('docs/19 批次 F：展示形态', () => {
   test('F2.2 展开后折叠，子行收起', async ({ page }) => {
     await page.goto('/module/module-dept')
     await page.waitForTimeout(2000)
-    const rows = page.locator('.vxe-body--row')
+    const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
     await rows.filter({ hasText: '总经办' }).locator('.vxe-cell--tree-btn').first().click()
     await expect(rows.filter({ hasText: '市场部' })).toBeVisible()
@@ -74,7 +75,7 @@ test.describe('docs/19 批次 F：展示形态', () => {
   test('F2.3 子行可双击行内编辑并保存', async ({ page }) => {
     await page.goto('/module/module-dept')
     await page.waitForTimeout(2000)
-    const rows = page.locator('.vxe-body--row')
+    const rows = page.locator('.vxe-table--main-wrapper .vxe-body--row')
     await expect(rows.filter({ hasText: '总经办' })).toBeVisible({ timeout: 8000 })
     await rows.filter({ hasText: '总经办' }).locator('.vxe-cell--tree-btn').first().click()
     await expect(rows.filter({ hasText: '技术部' })).toBeVisible()
@@ -161,14 +162,15 @@ test.describe('docs/19 批次 F：展示形态', () => {
     await injectKnownApRecords(page)
 
     // 组行按组值 asc：已付清（2条，小计 300）在前，未付款（1条，小计 50）在后
-    const groupRows = page.locator('.vxe-body--row.is-group-row')
+    // （footer/组行定位收进主表体:固定列克隆层会复制 footer 与组行）
+    const groupRows = page.locator('.vxe-table--main-wrapper .vxe-body--row.is-group-row')
     await expect(groupRows.filter({ hasText: '已付清' })).toContainText('（2条）')
     await expect(groupRows.filter({ hasText: '已付清' })).toContainText('小计 300')
     await expect(groupRows.filter({ hasText: '未付款' })).toContainText('（1条）')
     await expect(groupRows.filter({ hasText: '未付款' })).toContainText('小计 50')
 
     // footer 合计行：amount 总和 350
-    const footer = page.locator('.vxe-footer--row')
+    const footer = page.locator('.vxe-table--main-wrapper .vxe-footer--row')
     await expect(footer).toContainText('合计')
     await expect(footer).toContainText('350')
   })
@@ -185,13 +187,13 @@ test.describe('docs/19 批次 F：展示形态', () => {
     await page.getByRole('option', { name: '已付清' }).first().click()
     await page.locator('.filter-popover-actions button').filter({ hasText: '搜索' }).click()
 
-    const groupRows = page.locator('.vxe-body--row.is-group-row')
+    const groupRows = page.locator('.vxe-table--main-wrapper .vxe-body--row.is-group-row')
     await expect(groupRows).toHaveCount(1)
     await expect(groupRows.first()).toContainText('已付清（2条）')
     await expect(groupRows.first()).toContainText('小计 300')
 
     // footer 合计随过滤收口为 300（未付款的 50 已被过滤）
-    const footer = page.locator('.vxe-footer--row')
+    const footer = page.locator('.vxe-table--main-wrapper .vxe-footer--row')
     await expect(footer).toContainText('300')
     await expect(footer).not.toContainText('350')
   })

@@ -63,6 +63,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   dynamicMax: true,
   options: true,
   statusMap: true,
+  displayStyle: true,
   targetModule: true,
   editMode: true,
   quickCreate: true,
@@ -254,6 +255,16 @@ export const FIELD_META: PropertyMeta[] = [
     description: '枚举值 → 颜色的字段级取色表(Record<string,string>);options[].color 优先级更高,未命中时回退 statusMap。',
     related: ['options'],
     example: { pending: 'warning', approved: 'success' },
+  },
+  {
+    key: 'displayStyle', target: 'field', label: '值展示样式', group: 'display', appliesTo: [...ENUM_TYPES, 'fk'], kind: 'enum',
+    enumValues: [
+      { value: 'tag', label: '胶囊/彩色标签', desc: '枚举按 options[].color 取色,select/fk 渲染胶囊' },
+      { value: 'plain', label: '纯文本', desc: '统一为普通字色文本,无底色描边(表格风格统一场景)' },
+    ],
+    surfaces: ['render'],
+    description: '字段级值展示覆盖(docs/20):未声明时跟随引擎 appearance.valueDisplay。用于关键列在全局 plain 下保留彩色标签(如审核状态列)。',
+    related: ['options', 'statusMap'],
   },
   {
     key: 'targetModule', target: 'field', label: '目标模块', group: 'relation', appliesTo: ['fk'], kind: 'string',

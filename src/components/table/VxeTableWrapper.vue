@@ -14,7 +14,7 @@ import 'vxe-pc-ui/lib/style.css'
 import type { VxeTableInstance } from 'vxe-table'
 import MediaPickerDialog from '@/components/media/MediaPickerDialog.vue'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
-import type { FilterClause, RowValidationRule } from '@/types'
+import type { FilterClause, RowValidationRule, EngineAppearance } from '@/types'
 import { resolveScrollY } from './virtualScroll'
 import { resolveDensityHeights } from './tableDensity'
 import type { TableDensity } from './tableDensity'
@@ -63,6 +63,8 @@ const props = withDefaults(defineProps<{
   headerSlots?: Record<string, string>
   /** 密度档位（docs/19 F1）：compact/default/large，驱动行高与表头高（token 见 styles/tokens.css §7.1） */
   density?: TableDensity
+  /** 外观与格式契约（docs/20）：tableBorder 表格边框档位、valueDisplay 单元格值展示（tag/plain） */
+  appearance?: EngineAppearance
   /** 树形数据（docs/19 F2）：声明后列表按树形渲染；children 为嵌套字段名（与数据对齐） */
   treeConfig?: {
     children?: string
@@ -106,6 +108,8 @@ const emit = defineEmits<{
   'relation-click': [payload: { row: Record<string, unknown>; column: WrapperColumn }]
   'inline-edit': [payload: { row: Record<string, unknown>; field: string; value: unknown; oldValue: unknown }]
   'selection-change': [rowIds: string[]]
+  /** 拖拽调宽结束(docs/20):{ field, width(px) } 上抛,由上层持久化进视图配置 */
+  'column-width-change': [payload: { field: string; width: number }]
 }>()
 
 const tableRef = ref<VxeTableInstance | null>(null)
@@ -146,6 +150,7 @@ const {
   fkOptionsCache: () => fk.fkOptionsCache.value,
   resolveFkLabel: fk.resolveFkLabel,
   filterClauses: () => props.filterClauses,
+  classicMode: () => props.appearance?.valueDisplay === 'classic',
 })
 
 // ---- 表头筛选（拆分：useHeaderFilter） ----
@@ -286,9 +291,19 @@ function handleCellClick(params: any): void {
   emit('cell-click', { row: params.row, column: col, rowIndex: params.rowIndex, colIndex: params.column.index })
 }
 
+/** 拖拽调宽结束(docs/20):上抛新列宽,供上层持久化与导出列宽对齐 */
+function handleResizableChange(params: { column?: { field?: string; renderWidth?: number } }): void {
+  const field = params.column?.field
+  const width = Math.round(params.column?.renderWidth ?? 0)
+  if (!field || !width) return
+  emit('column-width-change', { field, width })
+}
+
 function handleOpClick(row: Record<string, unknown>, col: WrapperColumn): void {
-  // 标准删除操作统一以 'delete' 作为 actionId 上抛，与字段 key 解耦
-  emit('row-action', { row, actionId: col.actionDanger ? 'delete' : col.field })
+  // 标准删除操作统一以 'delete' 作为 actionId 上抛，与字段 key 解耦；
+  // danger:true 的 custom 动作（如「撤回」「复核驳回」）保持字段 key 语义，仅样式标红
+  const actionId = col.rowActionType === 'delete' ? 'delete' : col.field
+  emit('row-action', { row, actionId })
 }
 
 /** 行级操作按钮的匹配图标：标准删除/内置行级编辑；schema 自定义动作语义未知不带图标 */
@@ -449,7 +464,24 @@ const columnBlocks = computed<ColumnBlock[]>(() => {
 /**
  * 列头/单元格插槽内容共享上下文（docs/19 F3）：ref 经 reactive 解包后，
  * 子组件模板可直接 v-model / 读值，与原先同作用域模板等价。
+ *
+ * 值展示档位（docs/20）：classic 一票否决（忽略字段 displayStyle），其余按
+ * 字段 displayStyle > appearance.valueDisplay > 'tag'。
  */
+const isClassicMode = computed(() => props.appearance?.valueDisplay === 'classic')
+
+function valueDisplayOf(col: WrapperColumn): 'tag' | 'plain' {
+  if (isClassicMode.value) return 'plain'
+  const base = props.appearance?.valueDisplay === 'plain' ? 'plain' : 'tag'
+  return col.displayStyle ?? base
+}
+
+/** 表格边框档位（docs/20）：默认 inner 保持历史观感 */
+const tableBorder = computed(() => props.appearance?.tableBorder ?? 'inner')
+
+/** 行内编辑布局档位（docs/20）：float=浮层（历史默认）/ fit-row=行内收纳（兼容布局） */
+const inlineEditLayout = computed(() => props.appearance?.inlineEditLayout ?? 'float')
+
 const cellCtx = createCellCtx({
   headerMenuField,
   headerMenuKeyword,
@@ -501,6 +533,8 @@ const cellCtx = createCellCtx({
   hasEnumTagStyle,
   isEnumColumn,
   getEnumCellHtml,
+  valueDisplayOf,
+  isClassicMode: () => isClassicMode.value,
   getBooleanStateClass,
   hasFilterMatch,
   getCellHighlightHtml,
@@ -593,7 +627,7 @@ defineExpose({
   <div
     ref="wrapperRef"
     class="vxe-table-wrapper"
-    :class="[`density--${density}`, { 'is-auto-fill': !fixedRowCount }]"
+    :class="[`density--${density}`, { 'is-auto-fill': !fixedRowCount, 'is-fit-row-edit': inlineEditLayout === 'fit-row' }]"
     :tabindex="keyboardNav ? 0 : undefined"
     role="grid"
     :aria-label="t('table.gridLabel')"
@@ -616,18 +650,19 @@ defineExpose({
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
       :keep-source="true"
-      :column-config="{ drag: columnDraggable }"
+      :column-config="{ drag: columnDraggable, resizable: true }"
       :column-drag-config="{ tooltipMethod: columnDragTooltipMethod }"
       :cell-class-name="getCellClassName"
       :align="'left'"
       :show-overflow="'title'"
-      :border="'inner'"
+      :border="tableBorder"
       :stripe="false"
       :checkbox-config="{ highlight: true, reserve: true }"
       @sort-change="handleSortChange"
       @cell-click="handleCellClick"
       @cell-dblclick="handleCellDblclick"
       @column-drag-end="handleColumnDragEnd"
+      @resizable-change="handleResizableChange"
       @checkbox-change="handleSelectionChange"
       @checkbox-all="handleSelectionChange"
     >
@@ -641,7 +676,8 @@ defineExpose({
       <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
       <!-- 勾选列保持默认左对齐：全选框与行勾选框的同轴由下方样式补齐表头内边距实现
            （居中方案受表头/表体单元格 2px 宽度差影响，中心恒差 1px） -->
-      <VxeColumn v-if="showSelection" type="checkbox" width="48" fixed="left" />
+      <!-- 勾选列(docs/20):36px = 20px 勾选框 + 左右各 8px padding,align=center 上下居中 -->
+      <VxeColumn v-if="showSelection" type="checkbox" width="36" align="center" fixed="left" />
       <!-- 行展开列（docs/19 F4）：展开区内容经宿主插槽渲染（B2 插槽透传机制） -->
       <VxeColumn v-if="expandSlot" type="expand" width="48" fixed="left">
         <template #content="{ row }">
@@ -731,18 +767,21 @@ defineExpose({
       >
         <template #default="{ row }">
           <span class="op-cell">
-            <button
-              v-for="op in visibleOps(row)"
-              :key="op.field"
-              type="button"
-              class="op-link"
-              :class="{ 'op-link--danger': op.actionDanger }"
-              @click.stop="handleOpClick(row, op)"
-            >
-              <ElIcon v-if="opIcon(op)" class="op-link__icon" :size="13">
-                <component :is="opIcon(op)" />
-              </ElIcon>{{ op.title }}
-            </button>
+            <template v-if="visibleOps(row).length > 0">
+              <button
+                v-for="op in visibleOps(row)"
+                :key="op.field"
+                type="button"
+                class="op-link"
+                :class="{ 'op-link--danger': op.actionDanger }"
+                @click.stop="handleOpClick(row, op)"
+              >
+                <ElIcon v-if="opIcon(op)" class="op-link__icon" :size="13">
+                  <component :is="opIcon(op)" />
+                </ElIcon>{{ op.title }}
+              </button>
+            </template>
+            <span v-else class="op-empty">无操作</span>
           </span>
         </template>
       </VxeColumn>
@@ -807,10 +846,9 @@ defineExpose({
   min-width: 100%;
 }
 /* 键盘导航焦点单元格（docs/19 G2）：主色描边，焦点可见 */
-/* 勾选列上下同轴：header-cell-config.padding=false 清零了表头单元格内边距，
-   而表体 .vxe-cell 带 vxe 默认水平内边距，左对齐的表头勾选框因此比行勾选框靠左 8px。
-   表头勾选列补齐同一 token 的内边距，使表头/表体图标左缘由同一条公式决定（居中方案
-   会受表头/表体单元格 2px 宽度差影响，中心恒差 1px，不可用） */
+/* 勾选列上下同轴（docs/20 居中方案）：header-cell-config.padding=false 清零了表头单元格内边距，
+   表体 .vxe-cell 带 vxe 默认 8px 水平内边距。列已改 align=center + width=36（20px 勾选框 + 左右
+   各 8px padding），表头补齐同一 token 的对称内边距，使表头/表体勾选框同心居中 */
 .vxe-table-wrapper :deep(.vxe-table--header .vxe-header--column.col--checkbox .vxe-cell) {
   padding-left: var(--vxe-ui-table-cell-padding-default, 8px);
   padding-right: var(--vxe-ui-table-cell-padding-default, 8px);
@@ -884,6 +922,13 @@ defineExpose({
 :deep(.vxe-body--row .vxe-body--column:not(.relation-cell):not(.action-cell)) {
   cursor: pointer;
 }
+/* 编辑态放开 td 裁剪（docs/20）：cell-config.height（密度档）使 vxe 给所有数据 td 挂
+   col--cs-height，vxe 内置对这类 td 施加 overflow:hidden 以保证固定行高不被高内容撑破——
+   浮层编辑器（.vxe-cell--wrapper 绝对定位、高出行高）连同确认/取消按钮因此被 td 底边裁掉。
+   仅对编辑中的单元格放开 td 裁剪；查看态的行高约束（单行省略号、虚拟滚动行高几何）不受影响 */
+:deep(.vxe-body--column.is-editing-cell) {
+  overflow: visible !important;
+}
 :deep(.vxe-body--column.is-editing-cell > .vxe-cell) {
   overflow: visible !important;
   align-items: flex-start;
@@ -901,6 +946,42 @@ defineExpose({
 :deep(.vxe-body--column.is-editing-cell.vxe-inline-flip-y .vxe-cell--wrapper) {
   top: auto;
   bottom: 2px;
+}
+/* fit-row 档（docs/20 appearance.inlineEditLayout='fit-row'）：行内收纳兼容布局——输入控件
+   与确认/取消同排压缩进固定行高，编辑器不超出行、不遮挡相邻行；宿主容器对溢出裁剪严格时
+   也可用。fk 下拉等弹层仍为浮层（z-index），经上方 td 放开规则正常显示 */
+.vxe-table-wrapper.is-fit-row-edit :deep(.vxe-body--column.is-editing-cell .edit-inline) {
+  flex-wrap: nowrap;
+  gap: var(--sg-spacing-2);
+  padding: var(--sg-spacing-1);
+  box-shadow: none;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.edit-inline__actions) {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.edit-inline__btn) {
+  flex: 0 0 auto;
+  width: 24px;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.edit-inline__input),
+.vxe-table-wrapper.is-fit-row-edit :deep(.edit-inline__select) {
+  height: 26px;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.toggle-switch) {
+  height: 26px;
+}
+/* media 行内编辑在 fit-row 下横排单行：缩略图收进行高内、操作按钮不再竖排 */
+.vxe-table-wrapper.is-fit-row-edit :deep(.edit-inline__editor:has(.media-edit)) {
+  flex-basis: auto;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.media-edit) {
+  flex-direction: row;
+  align-items: center;
+}
+.vxe-table-wrapper.is-fit-row-edit :deep(.media-edit__thumb) {
+  height: 26px;
+  aspect-ratio: 1;
 }
 :deep(.vxe-body--row.is-editing-row) {
   background-color: var(--sg-color-primary-light-9) !important;
@@ -951,6 +1032,11 @@ defineExpose({
 }
 .op-link--danger {
   color: var(--sg-color-danger);
+}
+/* 行内无可用动作时的灰色占位(docs/20):避免操作列空白令人疑惑 */
+.op-empty {
+  color: var(--sg-text-color-disabled);
+  font-size: var(--sg-font-size-sm);
 }
 .op-link--danger:hover {
   color: var(--sg-color-danger-light-3);

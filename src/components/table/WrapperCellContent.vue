@@ -248,12 +248,12 @@ const ctx = props.ctx
     @click="ctx.openImage(row[col.field])"
   />
   <span v-else-if="col.fieldType === 'datetime' || col.fieldType === 'date'" class="cell-value cell-datetime">{{ formatDateTimeCell(row[col.field], col.fieldType) }}</span>
-  <!-- 枚举彩色标签：任一取值声明了颜色（options[].color / statusMap）时逐值渲染带色标签 -->
+  <!-- 枚举彩色标签：值展示为 tag（docs/20）且任一取值声明了颜色（options[].color / statusMap）时逐值渲染带色标签 -->
   <span
-    v-else-if="ctx.isEnumColumn(col) && ctx.hasEnumTagStyle(row[col.field], col)"
+    v-else-if="ctx.isEnumColumn(col) && ctx.valueDisplayOf(col) === 'tag' && ctx.hasEnumTagStyle(row[col.field], col)"
     class="cell-value cell-enum"
     v-html="ctx.getEnumCellHtml(row[col.field], col)"
   ></span>
-    <!-- select/fk 空值不挂 cell-tag：否则空单元格渲染出空胶囊占位 -->
-    <span v-else class="cell-value" :class="[(col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', ctx.getBooleanStateClass(row[col.field]), row[col.field] ? col.trueLabelClass : col.falseLabelClass] : '', ctx.hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="ctx.getCellHighlightHtml(row[col.field], col)"></span>
+    <!-- select/fk 空值不挂 cell-tag：否则空单元格渲染出空胶囊占位；值展示为 plain（docs/20）时同样不挂胶囊 -->
+    <span v-else class="cell-value" :class="[ctx.valueDisplayOf(col) === 'tag' && (col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', ctx.valueDisplayOf(col) === 'tag' && col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', ctx.getBooleanStateClass(row[col.field]), ctx.isClassicMode() ? '' : (row[col.field] ? col.trueLabelClass : col.falseLabelClass)] : '', ctx.hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="ctx.getCellHighlightHtml(row[col.field], col)"></span>
 </template>

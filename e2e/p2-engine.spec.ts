@@ -451,13 +451,14 @@ test.describe('P2 Schema 引擎高级特性', () => {
   test('7.1 列表/卡片/新增视图循环完整', async ({ page }) => {
     await page.waitForTimeout(1000)
 
-    const cardBtn = page.locator('button', { hasText: '卡片视图' })
+    const cardBtn = page.locator('button', { hasText: '卡片界面' })
     await expect(cardBtn).toBeVisible({ timeout: 8000 })
     await cardBtn.click()
     await page.waitForTimeout(1000)
     await expect(page.locator('.schema-card')).toBeVisible({ timeout: 5000 })
 
-    const listBtn = page.locator('button', { hasText: '列表视图' })
+    // list-module 卡片态的回列表按钮（6706bd6 术语化）
+    const listBtn = page.locator('button', { hasText: '返回列表' })
     await expect(listBtn).toBeVisible()
     await listBtn.click()
     await page.waitForTimeout(1000)

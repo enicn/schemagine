@@ -42,7 +42,7 @@ test.describe('P1 Schema 引擎扩展功能', () => {
   })
 
   test('2.1 卡片视图 - 切换与基本渲染', async ({ page }) => {
-    const cardButton = page.locator('button', { hasText: '卡片视图' })
+    const cardButton = page.locator('button', { hasText: '卡片界面' })
     await expect(cardButton).toBeVisible({ timeout: 8000 })
     await cardButton.click()
     await page.waitForTimeout(1500)
@@ -60,7 +60,7 @@ test.describe('P1 Schema 引擎扩展功能', () => {
   })
 
   test('2.2 卡片视图 - 字段展示', async ({ page }) => {
-    const cardButton = page.locator('button', { hasText: '卡片视图' })
+    const cardButton = page.locator('button', { hasText: '卡片界面' })
     await expect(cardButton).toBeVisible({ timeout: 8000 })
     await cardButton.click()
     await page.waitForTimeout(1500)
@@ -83,7 +83,7 @@ test.describe('P1 Schema 引擎扩展功能', () => {
   })
 
   test('2.3 卡片视图 - 导航按钮状态', async ({ page }) => {
-    const cardButton = page.locator('button', { hasText: '卡片视图' })
+    const cardButton = page.locator('button', { hasText: '卡片界面' })
     await expect(cardButton).toBeVisible({ timeout: 8000 })
     await cardButton.click()
     await page.waitForTimeout(1500)
@@ -149,13 +149,14 @@ test.describe('P1 Schema 引擎扩展功能', () => {
   })
 
   test('4.1 视图切换 - 列表/卡片/新增循环', async ({ page }) => {
-    const cardButton = page.locator('button', { hasText: '卡片视图' })
+    const cardButton = page.locator('button', { hasText: '卡片界面' })
     await expect(cardButton).toBeVisible({ timeout: 8000 })
     await cardButton.click()
     await page.waitForTimeout(1000)
     await expect(page.locator('.schema-card')).toBeVisible({ timeout: 5000 })
 
-    const listButton = page.locator('button', { hasText: '列表视图' })
+    // list-module 卡片态的回列表按钮（6706bd6 术语化:列表界面仅 card 型模块显示）
+    const listButton = page.locator('button', { hasText: '返回列表' })
     await expect(listButton).toBeVisible()
     await listButton.click()
     await page.waitForTimeout(1000)
@@ -188,7 +189,7 @@ test.describe('P1 Schema 引擎扩展功能', () => {
     await page.waitForTimeout(2000)
 
     await expect(page.getByText('无权限访问该模块')).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('button', { hasText: '卡片视图' })).toBeHidden()
+    await expect(page.locator('button', { hasText: '卡片界面' })).toBeHidden()
     await expect(page.locator('button', { hasText: '新增' }).first()).toBeHidden()
   })
 

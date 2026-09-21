@@ -4,7 +4,7 @@ import { usePermission } from '@/composables/usePermission'
 import VxeTableWrapper from './VxeTableWrapper.vue'
 import type { WrapperColumn } from './VxeTableWrapper.vue'
 import type { TableDensity } from './tableDensity'
-import type { ModuleSchema, FieldSchema, ColumnConfig, RecordEntity, SortParam, FilterClause } from '@/types'
+import type { ModuleSchema, FieldSchema, ColumnConfig, RecordEntity, SortParam, FilterClause, EngineAppearance } from '@/types'
 import { relationService } from '@/services/api/relationService'
 import { flattenRecordRow } from '@/utils/recordRow'
 import { buildRecordTree } from '@/utils/recordTree'
@@ -32,6 +32,8 @@ const props = defineProps<{
   headerSlots?: Record<string, string>
   /** 密度档位（docs/19 F1）：compact/default/large */
   density?: TableDensity
+  /** 外观与格式契约（docs/20）：透传 VxeTableWrapper（边框/值展示），SchemaTable 自身消费 displayStyle 透传 */
+  appearance?: EngineAppearance
   /** 行展开插槽名（docs/19 F4）：声明后渲染行首展开列，展开区由宿主同名插槽渲染 */
   expandSlot?: string
   /** 引擎只读形态（SchemaEngine readonly 透传）：内置行级编辑入口随隐藏 */
@@ -52,6 +54,7 @@ const emit = defineEmits<{
   'edit-closed': [payload: { rowId: string; field: string; value: unknown }]
   'open-relation-editor': [payload: { field: string; fieldSchema: FieldSchema; recordId: string; moduleId: string }]
   'selection-change': [rowIds: string[]]
+  'column-width-change': [payload: { field: string; width: number }]
 }>()
 
 const permission = usePermission()
@@ -83,6 +86,7 @@ const columns = computed<WrapperColumn[]>(() => {
     result.push({
       field: field.key,
       title: isAction ? (field.rowAction?.label || field.label) : field.label,
+      fieldOrder: field.order,
       // action 的 width 仅作占位：操作列总宽由 VxeTableWrapper 按按钮实测文本自适应计价，不读本值。
       // 数据列未声明 width 时走 min-width 通道：vxe 只把表格剩余宽度分给带 min-width 的列
       //（仅省略 width 得到 120 默认宽 + 右侧空白），宽表至少声明一个无 width 字段吃满容器
@@ -94,7 +98,8 @@ const columns = computed<WrapperColumn[]>(() => {
       align: 'center',
       formatter,
       isAction,
-      actionDanger: isAction && (field.rowAction?.type === 'delete' || field.rowAction?.danger === true),
+      actionDanger: isAction && field.rowAction?.type === 'delete',
+      rowActionType: isAction ? field.rowAction?.type : undefined,
       actionVisibleWhen: field.rowAction?.visibleWhen,
       isRelation,
       cellClass: booleanCellClass,
@@ -106,6 +111,7 @@ const columns = computed<WrapperColumn[]>(() => {
       editMode: field.editMode,
       selectOptions: field.options?.map(o => ({ label: o.label, value: o.value, color: o.color })),
       statusMap: field.statusMap,
+      displayStyle: field.displayStyle,
       trueLabel: field.trueLabel,
       falseLabel: field.falseLabel,
       trueLabelClass: field.trueLabelClass,
@@ -121,8 +127,9 @@ const columns = computed<WrapperColumn[]>(() => {
   })
   const orderMap = new Map(props.viewConfig.map(c => [c.field, c.order]))
   result.sort((a, b) => {
-    const oa = orderMap.get(a.field) ?? 999
-    const ob = orderMap.get(b.field) ?? 999
+    // 列序优先级(docs/20):用户列配置 > 字段声明序 fieldOrder > 999(保持 schema 数组序)
+    const oa = orderMap.get(a.field) ?? a.fieldOrder ?? 999
+    const ob = orderMap.get(b.field) ?? b.fieldOrder ?? 999
     return oa - ob
   })
 
@@ -192,8 +199,13 @@ async function rebuildFlatRows(): Promise<void> {
   flatRows.value = built
 }
 
+// 行版本签名：undo/redo 回放与批量编辑经 updateRecordField 原地改字段+版本，
+// records 数组引用不变（deep:false 的行/-schema watch 不感知）；把版本折进重建
+// 触发条件，表格才能同步回放结果（docs/19 H3）。
+const rowVersionSignature = computed(() => props.rows.map(r => r.version).join('|'))
+
 watch(
-  () => [props.rows, props.schema],
+  () => [props.rows, props.schema, rowVersionSignature.value],
   () => { void rebuildFlatRows() },
   { immediate: true, deep: false },
 )
@@ -353,6 +365,7 @@ defineExpose({
       :cell-slots="cellSlots"
       :header-slots="headerSlots"
       :density="density"
+      :appearance="appearance"
       :expand-slot="expandSlot"
       :span-method="spanMethod"
       :schema-row-rules="schema.rowValidationRules"
@@ -364,6 +377,7 @@ defineExpose({
       :sort-config="sortState ? { field: sortState.field, order: sortState.order } : undefined"
       :column-draggable="true"
       @sort-change="handleSortChange"
+      @column-width-change="(p: { field: string; width: number }) => emit('column-width-change', p)"
       @filter-change="(payload: { field: string; clause: FilterClause | null }) => emit('filter-change', payload)"
       @row-click="handleRowClick"
       @cell-click="handleCellClick"

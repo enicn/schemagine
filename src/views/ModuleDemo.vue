@@ -40,6 +40,9 @@ registerLocale('en-US', {
 const density = ref<'compact' | 'default' | 'large'>(
   route.query.density === 'compact' || route.query.density === 'large' ? route.query.density : 'default',
 )
+// 行内编辑布局演示入口（docs/20）：/module/xxx?editLayout=fit-row 经 appearance 透传给引擎
+const editLayoutParam = route.query.editLayout === 'fit-row' ? 'fit-row' as const : undefined
+const appearance = editLayoutParam ? { inlineEditLayout: editLayoutParam } : undefined
 // 语言演示入口（docs/19 G1）：/module/xxx?locale=en-US 注入引擎
 const localeParam = typeof route.query.locale === 'string' ? route.query.locale : undefined
 const availableModules = [
@@ -127,6 +130,7 @@ function onError(payload: { moduleId: string; code: string; message: string }): 
         :key="currentModuleId"
         :module-id="currentModuleId"
         :density="density"
+        :appearance="appearance"
         :locale="localeParam"
         @module-loaded="onModuleLoaded"
         @error="onError"

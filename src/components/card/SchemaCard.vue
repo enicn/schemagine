@@ -5,7 +5,7 @@ import { ElCard, ElButton, ElTag, ElMessageBox } from 'element-plus'
 import type { FieldSchema, RecordEntity, CardFieldLayout, CardLayoutConfig } from '@/types'
 import CardGridField from './CardGridField.vue'
 import { useRuntimeContext } from '@/composables/instanceState'
-import { isFieldEditableInContext, isFieldVisibleInContext } from '@/utils/condition'
+import { evaluateCondition, isFieldEditableInContext, isFieldVisibleInContext } from '@/utils/condition'
 import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 
@@ -22,16 +22,22 @@ const props = defineProps<{
   titleField?: string
   /** 保存单字段手柄编辑（fieldHandle 模式必传）：返回 true=成功退出编辑态，false=保留编辑器 */
   saveField?: (payload: { field: string; value: unknown; oldValue: unknown }) => Promise<boolean>
+  /** 卡片密度（docs/20 appearance.cardDensity）：compact=普通字段每行 4 个、收紧栅格间距 */
+  density?: 'default' | 'compact'
 }>()
 
 const emit = defineEmits<{
   'field-change': [payload: { field: string; value: unknown; oldValue: unknown }]
   save: [payload: void]
   cancel: [payload: void]
+  /** 卡片头部 schema 动作(docs/20):type:'action' 字段渲染在 ID 侧,点击上抛宿主 */
+  'row-action': [payload: { rowId: string; field: string; actionId: string }]
 }>()
 
 const editing = ref(false)
 const editDraft = ref<Record<string, unknown>>({})
+/** 紧凑密度（docs/20）：普通字段默认跨度 8→4（16 列栅格下每行 2 个→4 个） */
+const defaultSpan = computed(() => (props.density === 'compact' ? 4 : 8))
 // 三段式手柄的全局单字段互斥仲裁（§3.7）；必须先于 startEdit 声明——
 // autoEdit 的 immediate watch 在 setup 阶段同步调用 startEdit → exitHandleEdit，
 // 声明靠后会踩 TDZ（ReferenceError），autoEdit 静默失效（卡片永不进入编辑态）
@@ -90,6 +96,21 @@ const visibleFields = computed(() => {
   return props.fieldSchemas.filter(f => isFieldVisibleInContext(f, conditionCtx.value))
 })
 
+/** 头部动作字段(docs/20):schema 声明的 type:'action' 字段,同此出现在列表操作列与卡片头部；
+ * rowAction.visibleWhen 按当前记录逐条求值（§2.5），不满足的动作不渲染 */
+function headerActionVisible(f: FieldSchema): boolean {
+  const when = f.rowAction?.visibleWhen
+  return !when || evaluateCondition(when, { record: props.record.fields, global: runtimeContext.global })
+}
+
+const headerActions = computed<FieldSchema[]>(() => {
+  return props.fieldSchemas.filter(f => f.type === 'action' && !!f.rowAction && headerActionVisible(f))
+})
+
+function handleHeaderAction(f: FieldSchema): void {
+  emit('row-action', { rowId: String(props.record.id), field: f.key, actionId: f.key })
+}
+
 const titleDisplay = computed(() => {
   if (props.titleField) {
     const v = props.record.fields[props.titleField]
@@ -113,7 +134,7 @@ function buildDefaultFieldLayout(field: FieldSchema, index: number): CardFieldLa
   const isLong = longTypes.includes(field.type)
   return {
     field: field.key,
-    span: isLong ? 16 : 8,
+    span: isLong ? 16 : defaultSpan.value,
     order: index,
     collapsedByDefault: isLong,
   }
@@ -221,14 +242,29 @@ defineExpose({
 </script>
 
 <template>
-  <ElCard class="schema-card" shadow="hover">
+  <ElCard class="schema-card" :class="{ 'schema-card--compact': density === 'compact' }" shadow="hover">
     <template #header>
       <div class="card-header">
         <div class="card-title">
-          <span class="card-record-id">{{ titleDisplay }}</span>
+          <span class="card-record-id">ID: {{ titleDisplay }}</span>
           <ElTag v-if="statusField" size="small" type="info" effect="plain">
             {{ statusField }}
           </ElTag>
+          <button
+            v-for="f in headerActions"
+            :key="f.key"
+            type="button"
+            class="card-schema-action"
+            :class="{ 'card-schema-action--danger': f.rowAction?.danger }"
+            :disabled="editing"
+            :title="f.rowAction?.label"
+            @click="handleHeaderAction(f)"
+          >
+            {{ f.rowAction?.label }}
+          </button>
+        </div>
+        <div class="card-header-center">
+          <slot name="header-center" />
         </div>
         <div class="card-actions">
           <ElButton
@@ -245,6 +281,8 @@ defineExpose({
             <ElButton size="small" type="primary" :icon="Check" @click="saveEdit">保存</ElButton>
             <ElButton size="small" :icon="Close" @click="cancelEdit">取消</ElButton>
           </template>
+          <!-- 宿主业务动作注入点（docs/20）：作用域 { record: 当前记录, editing: 是否编辑态 } -->
+          <slot name="extra-actions" :record="record" :editing="editing" />
         </div>
       </div>
     </template>
@@ -280,22 +318,73 @@ defineExpose({
 .card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
 }
 
+/* 两侧 flex:1 均分剩余空间,中间翻页器 flex:none 恒居中 */
 .card-title {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--sg-spacing-4);
 }
 
 .card-record-id {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--sg-fill-color-light);
+  border: 1px solid var(--sg-border-color-lighter);
   font-weight: 600;
-  font-size: var(--sg-font-size-lg);
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-primary);
+}
+
+.card-schema-action {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  margin-left: var(--sg-spacing-1);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sg-color-primary);
+  font-size: var(--sg-font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-schema-action:hover:not(:disabled) {
+  background: var(--sg-color-primary-light-9);
+}
+
+.card-schema-action:disabled {
+  color: var(--sg-text-color-disabled);
+  cursor: not-allowed;
+}
+
+.card-schema-action--danger {
+  color: var(--sg-color-danger);
+}
+
+.card-schema-action--danger:hover:not(:disabled) {
+  background: var(--sg-color-danger-light-9, rgba(245, 108, 108, 0.1));
+}
+
+.card-header-center {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
 }
 
 .card-actions {
+  flex: 1;
   display: flex;
+  justify-content: flex-end;
   gap: var(--sg-spacing-2);
 }
 
@@ -306,10 +395,22 @@ defineExpose({
   padding: var(--sg-spacing-2) 0;
 }
 
+/* 紧凑密度（docs/20）：栅格间距收敛，配合普通字段 span 4（每行 4 个）实现详情一屏化 */
+.schema-card--compact .card-grid {
+  gap: var(--sg-spacing-2) var(--sg-spacing-5);
+}
+
 @media (max-width: 768px) {
   .card-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--sg-spacing-4);
+  }
+  .schema-card--compact .card-grid {
+    gap: var(--sg-spacing-3);
+  }
+  /* 窄屏一行两个:字段跨度钳制为半行(覆盖 16 栅格 span) */
+  .card-grid > * {
+    grid-column: auto / span 1 !important;
   }
 }
 

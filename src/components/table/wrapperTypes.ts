@@ -9,6 +9,8 @@ import type { FieldSchema } from '@/types'
 export interface WrapperColumn {
   field: string
   title: string
+  /** 字段声明序(FieldSchema.order,docs/20):无用户列配置(UserViewConfig.columns)时的默认列序 */
+  fieldOrder?: number
   width?: number
   fixed?: 'left' | 'right'
   sortable?: boolean
@@ -18,6 +20,8 @@ export interface WrapperColumn {
   isAction?: boolean
   /** 危险操作样式（如标准删除操作） */
   actionDanger?: boolean
+  /** 行级动作语义类型（docs/20）：'delete' 时点击 actionId 固定上抛 'delete'，custom 上抛字段 key */
+  rowActionType?: string
   /** 行级显隐条件：逐行以行数据为 record 上下文求值，false 时该行不渲染此操作按钮 */
   actionVisibleWhen?: Condition
   /** 未声明 width 的数据列携带 min-width：vxe 把表格剩余宽度平均分给带 min-width 的列（仅省略 width 不参与分配） */
@@ -29,6 +33,8 @@ export interface WrapperColumn {
   selectOptions?: Array<{ label: string; value: string | number | boolean; color?: string }>
   /** 枚举值 → 颜色（select/multi-select/status 字段），options[].color 优先（见 utils/enumTag） */
   statusMap?: Record<string, string>
+  /** 值展示覆盖（docs/20）：'tag'=胶囊/彩色标签，'plain'=纯文本；未声明跟随引擎 appearance.valueDisplay（透传 FieldSchema.displayStyle） */
+  displayStyle?: 'tag' | 'plain'
   trueLabel?: string
   falseLabel?: string
   /** boolean true 标签自定义 CSS 类（引擎预设：cell-boolean--neutral 灰色；也可传业务自有类） */

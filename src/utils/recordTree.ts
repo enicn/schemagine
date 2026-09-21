@@ -6,7 +6,8 @@
  *  - 根 = 无父引用（null/''/undefined）或父 id 不在集合内的行（孤儿挂根，避免丢数据）；
  *  - 输出顺序保持输入顺序（父先子后 / 子先父后均可，两遍式组装）；
  *  - 组树会向父行写入 childrenField 数组（vxe tree-config 按该字段渲染）；
- *    SchemaTable 的 tableData 为 computed 每次产出全新平铺行，写入无副作用。
+ *    该写入会触发 tableData 重算并可能对同一批行对象重复构建，因此构建前
+ *    先清掉上一轮挂载的 childrenField，保证幂等（否则子行会成倍重复）。
  */
 export interface RecordTreeOptions {
   /** 行主键字段名（默认 '_recordId'，即 VxeTableWrapper 的 rowKey 口径） */
@@ -23,6 +24,11 @@ export function buildRecordTree<T extends Record<string, unknown>>(
 ): T[] {
   const idKey = options.idKey ?? '_recordId'
   const childrenField = options.childrenField ?? 'children'
+
+  // 幂等：清掉上一轮挂在行对象上的 children 再组装，防止重复构建时子行成倍追加
+  for (const row of rows) {
+    delete (row as Record<string, unknown>)[childrenField]
+  }
 
   const idToNode = new Map<string, T & Record<string, unknown>>()
   for (const row of rows) {

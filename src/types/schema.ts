@@ -115,6 +115,37 @@ export type ListEditMode =
   | 'inline-dblclick'
   | 'select-then-edit'
 
+/**
+ * 引擎外观与格式契约（docs/20）：格式/风格类设置项统一收敛于此，宿主经 SchemaEngine
+ * 的 appearance prop 调整；未声明的键取默认值（与历史渲染完全一致，零声明零变化）。
+ * 字段级覆盖见 FieldSchema.displayStyle（优先级：字段 > appearance > 默认）。
+ */
+export interface EngineAppearance {
+  /** 表格边框：'full'=外框+内框+列分隔线 / 'inner'=仅内框线（默认）/ 'outer'=仅外框 / 'none'=无边框 */
+  tableBorder?: 'full' | 'inner' | 'outer' | 'none'
+  /**
+   * 单元格值展示：'tag'=胶囊/彩色标签（默认）；'plain'=纯文本——select/fk 不再挂 cell-tag
+   * 胶囊、枚举不再渲染彩色标签，统一为普通字色文本。关键列（如审核状态）可在全局 plain 下
+   * 经 FieldSchema.displayStyle='tag' 保留彩色；'classic'=上世纪电子表格风格（严格单色）：
+   * 在 plain 基础上**忽略字段级 displayStyle**，并禁用布尔状态色、trueLabelClass/falseLabelClass
+   * 自定义类与筛选匹配高亮——schema 声明的一切取值染色与自定义样式都不渲染
+   */
+  valueDisplay?: 'tag' | 'plain' | 'classic'
+  /** 卡片（详情/编辑）密度：'compact'=普通字段每行 4 个并收紧栅格间距（默认 'default'=每行 2 个宽松布局） */
+  cardDensity?: 'default' | 'compact'
+  /** 保守工具栏（toolbarMode='conservative'）下仍显示「导出CSV」入口；仍受 permissions.export 管控。默认 false */
+  exportCsvInConservative?: boolean
+  /** 保守工具栏（toolbarMode='conservative'）下仍显示「导出Excel」入口；仍受 permissions.export 管控。默认 false */
+  exportExcelInConservative?: boolean
+  /**
+   * 行内编辑（双击单元格）布局：'float'=浮层（默认）——编辑器浮于相邻行之上，确认/取消
+   * 在编辑框下一排，编辑框宽随列宽换行排布；'fit-row'=行内收纳（兼容布局）——输入控件与
+   * 确认/取消同排压缩进固定行高（编辑器不超出所在行、不遮挡相邻行），适用于宿主容器对
+   * 溢出裁剪严格、或浮层形态干扰相邻行阅读的场景。两种档位下查看态行高约束均不变
+   */
+  inlineEditLayout?: 'float' | 'fit-row'
+}
+
 export interface FieldSchema {
   id: string
   name: string
@@ -144,6 +175,11 @@ export interface FieldSchema {
   options?: SelectOption[]
   /** 枚举值 → 颜色（语义色调或 CSS 颜色）：select/multi-select/status 字段的字段级取色表，options[].color 优先 */
   statusMap?: Record<string, string>
+  /**
+   * 值展示覆盖（docs/20）：'tag'=胶囊/彩色标签，'plain'=纯文本；未声明时跟随引擎
+   * appearance.valueDisplay。用于关键列在全局 plain 下保留彩色（如审核状态列）
+   */
+  displayStyle?: 'tag' | 'plain'
   targetModule?: string
   /** 编辑模式：standard=常规（行内+表单）；limited=有限编辑（禁止行内编辑，仅创建/专用通道可改，
    *  后端不强制拦截——与 readonly 的绝对禁止相区分）。缺省 standard */

@@ -24,7 +24,6 @@ import { usePermission } from '@/composables/usePermission'
 import { useViewportMode } from '@/composables/useViewportMode'
 import { recordService } from '@/services/api/recordService'
 import { candidateService } from '@/services/api/candidateService'
-import { useMounted } from '@/composables/useMounted'
 import { useRecords, useSchemaMeta, useUi } from '@/composables/instanceState'
 import { useRecordHistory } from '@/composables/useRecordHistory'
 import type { ModuleSchema, ColumnConfig, SortParam, QueryState, FilterClause, FilterCondition, FilterPreset, ListAction, ActionTriggerEvent, RowActionEvent, EngineAppearance } from '@/types'
@@ -95,7 +94,6 @@ const uiState = useUi()
 const permission = usePermission(schemaMeta)
 const aggregation = useAggregation()
 const history = useRecordHistory(recordStore, uiState)
-const { isMounted } = useMounted()
 const { isMobile } = useViewportMode()
 const loadingModuleId = inject<Ref<string | null>>('loadingModuleId', ref(null))
 
@@ -380,8 +378,9 @@ async function fetchData(): Promise<void> {
       page: currentPage.value,
       pageSize: pageSize.value,
     })
+    // 仅挡模块切换的过期响应;不做 isMounted 拦截——recordStore/uiState 是引擎实例级共享状态,
+    // 首屏加载中切到卡片视图时 ListView 卸载,此刻的响应恰是卡片所需(docs/16 批次 H-a e2e 暴露的真实 bug)
     if (queryModuleId !== loadingModuleId.value) return
-    if (!isMounted.value) return
 
     if (res.success) {
       recordStore.setRecords(res.data.records, res.data.total, res.data.hasMore)

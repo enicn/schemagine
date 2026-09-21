@@ -64,6 +64,11 @@ export {
 } from './engine/registry/dialogRegistry'
 export type { BuiltinDialogType, ExtendedDialogType } from './engine/registry/dialogRegistry'
 
+// === i18n（docs/19 批次 G1）：内置 zh-CN 基准包；宿主经 registerLocale 注入其他语言，
+//     经 SchemaEngine 的 locale prop（或 setLocale）切换，t() 供自定义弹层复用同源文案 ===
+export { registerLocale, setLocale, getLocale, t } from './locales'
+export type { MessageSchema } from './locales'
+
 // === 媒体图片（mediaImage 字段）：选择器与媒体 id 解析 ===
 export { default as MediaPickerDialog } from './components/media/MediaPickerDialog.vue'
 export { default as MediaImageCell } from './components/field/MediaImageCell.vue'

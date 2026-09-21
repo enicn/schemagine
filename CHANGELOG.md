@@ -9,10 +9,15 @@
 
 - CI 新增 `e2e-extended` 并行 job：P0 快反馈之外，P1/P2/批次 E–H 扩展集在 CI 完整把关（`pnpm test:e2e:ext`）。
 - `SECURITY.md` 安全策略（私密漏洞报告通道、安全设计边界说明）。
+- i18n 公开导出补齐：`registerLocale` / `setLocale` / `getLocale` / `t` 与 `MessageSchema` 类型进入包出口——此前 `locale` prop 要求先注册语言包，但注册函数未导出，npm 消费方无法使用非 zh-CN 语言。
+- 新增 `scripts/check-docs-coverage.mjs` 文档覆盖守卫并接入 `lint:check`：从源码提取 SchemaEngine props(11)/emits(11)/FieldType(24)，核对 docs/17 逐项覆盖（另钉六个 Service 方法面与 expose 面），公开 API 变更未同步宿主文档时门禁拦截。
+- docs/17 宿主指南全面补全：props/emits 全量、六个 Service 方法签名、实时订阅契约（§3.10）、本地数据源（§3.12）、错误码表、FieldType 24 种、新增「扩展与进阶」章（自定义字段类型/自定义弹窗/外观契约速览/i18n）。
+- README 双语补扩展注册表、i18n 与移动端、外观契约特性行。
 
 ### Changed
 
 - 文档对齐实际实现：docs/04 重写为「instanceState 主链路 + Store 存档」结构（`runtimeCacheStore` 仍在主链路、`schemaMeta`/`record`/`uiState` 三 store 标注遗留），docs/01 与双 README 的状态管理与多实例表述同步纠正。
+- docs/17 硬伤修复：样式引入路径改为真实存在的 `schemagine/dist/schemagine.css`（原指向不存在的 `dist/style.css`）；快速开始 Service 示例补齐必选方法 `listFieldValueCandidates`（按原文档实现无法通过编译）；移除已删除的 `ListQueryParams.cursor`；对等依赖表去掉随包安装的 mathjs、补可选的 xlsx；修复 README 文档表中已迁移的 `引用指南.md`/`说明文档.md` 死链；版本号表述与 package.json 对齐。
 - docs/19 §六 补记 I1 实时推送语义定稿（非编辑行静默合并、编辑中行跳过并提示冲突）。
 - docs/16 新增批次 H「lint warning 收敛计划」（基线 170 条，按规则分三批清零后逐规则升 error）。
 

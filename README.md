@@ -23,7 +23,9 @@ Built with **Vue 3.5 + TypeScript + Pinia + Element Plus + vxe-table**, packaged
 | **Backend-agnostic** | All data access goes through 6 injectable Service interfaces (records, schema, candidates, user view config, relations, media). Ships with a localStorage-backed Mock for instant demos. |
 | **Visual Schema Editor** | Built-in editor page: field CRUD, formula builder, permission config, dependency graph, JSON import/export, live preview. |
 | **Productivity** | CSV export honoring current filters/sort/visible columns, time-range presets, quick-create for FK fields, bottom tabs, per-user view config (column widths, layout). |
-| **Themeable** | All styles based on `--sg-*` CSS tokens; follows your Element Plus theme (including `html.dark`) out of the box, overridable per token. |
+| **Themeable** | All styles based on `--sg-*` CSS tokens; follows your Element Plus theme (including `html.dark`) out of the box, overridable per token; `appearance` prop controls table borders / cell value display (tags / plain / classic) / card density. |
+| **Extensible** | `registerFieldType` for custom field types (wired into rendering, forms and inline editing), `registerDialog` for custom dialogs, vxe slot passthrough and `getTableInstance()` access. |
+| **i18n & mobile** | Built-in zh-CN locale + `registerLocale` injection + `locale` prop; narrow viewports automatically switch to a mobile card layout (search, infinite scroll, action fallbacks). |
 | **Multi-instance safe** | Isolated state per `<SchemaEngine>` instance via `create*State()` factories injected with Vue `provide/inject` — embed several modules on one page. |
 
 ## 🏗 Architecture
@@ -316,20 +318,20 @@ Publishing (`pnpm publish`, auto-builds via `prepublishOnly`) ships only `dist/`
 
 | Document | Content |
 |----------|---------|
-| [引用指南.md](引用指南.md) | **Integration guide** (Chinese): install, service contracts, full API & type reference, npm publishing, FAQ |
-| [说明文档.md](说明文档.md) | Project overview & development notes (Chinese) |
+| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **Integration guide (start here, Chinese)**: install, service contracts, full API & type reference, extensibility, i18n, npm publishing, FAQ |
+| Project overview & notes ([docs/18](docs/18-维护记录与文档索引.md)) | Overview and maintenance-record index (Chinese) |
 | [docs/01-项目概述.md](docs/01-项目概述.md) | Overview, directory layout, architecture layers |
 | [docs/02-组件文档.md](docs/02-组件文档.md) | All components (table / card / field / filter) |
 | [docs/03-引擎核心.md](docs/03-引擎核心.md) | Engine entry, view containers, dialog host |
-| [docs/04-状态管理.md](docs/04-状态管理.md) | State design (instance state & stores) |
+| [docs/04-状态管理.md](docs/04-状态管理.md) | State design (instanceState main chain & stores) |
 | [docs/05-组合式函数.md](docs/05-组合式函数.md) | Composables reference |
 | [docs/06-服务层.md](docs/06-服务层.md) | Service interfaces + Mock adapter |
-| [docs/07-类型系统.md](docs/07-类型系统.md) | TypeScript type system |
+| [docs/07-类型系统.md](docs/07-类型系统.md) | TypeScript type system (incl. authoritative FieldSchema appendix) |
 | [docs/08-生命周期与钩子.md](docs/08-生命周期与钩子.md) | Lifecycle, hooks, data-flow diagrams |
 | [docs/09-Schema编辑器.md](docs/09-Schema编辑器.md) | Visual Schema Editor |
 | [docs/10-路由与模块.md](docs/10-路由与模块.md) | Routes & demo modules |
 | [docs/15-样式Token基线.md](docs/15-样式Token基线.md) | Style-token baseline (all component styles use `var(--sg-*)`) |
-| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | Integration & usage guide |
+| [docs/20-外观与格式契约.md](docs/20-外观与格式契约.md) | EngineAppearance contract, displayStyle, conservative export |
 | [docs/archive/](docs/archive/) | Historical assessment / roadmap docs (archived) |
 
 > Most in-repo documentation is written in Chinese; the API samples are language-neutral TypeScript.
@@ -337,7 +339,7 @@ Publishing (`pnpm publish`, auto-builds via `prepublishOnly`) ships only `dist/`
 ## ❓ FAQ
 
 **Does the engine conflict with my app's Pinia state?**
-No. Each `<SchemaEngine>` creates isolated instance state via `create*State()` factories and dynamically registered stores. Multiple instances coexist safely (plus the required Vite `dedupe` above).
+No. The main chain keeps isolated instance state via `create*State()` factories injected with Vue `provide/inject` (Pinia only carries the candidate/formula cache on your app's Pinia instance). Multiple instances coexist safely (plus the required Vite `dedupe` above).
 
 **How does it scale with large datasets?**
 Tables are vxe-table-based with virtual scrolling; lists are server-paginated; CSV export pulls in pages and is capped (5,000 rows) for safety.

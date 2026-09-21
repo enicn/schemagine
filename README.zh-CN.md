@@ -23,7 +23,9 @@
 | **后端无关** | 所有数据访问通过 6 个可注入的 Service 接口（记录 / Schema / 候选值 / 用户视图配置 / 关联关系 / 媒体），内置 localStorage Mock，开箱即可演示。 |
 | **可视化 Schema 编辑器** | 内置编辑器页面：字段增删改、公式构建器、权限配置、依赖关系图、JSON 导入导出、实时预览。 |
 | **效率功能** | CSV 导出（遵循当前筛选 / 排序 / 可见列）、时间范围预设、FK 字段快速新建、底部标签页、按用户持久化的视图配置（列宽、卡片布局）。 |
-| **主题定制** | 全部样式基于 `--sg-*` CSS Token；零配置跟随 Element Plus 主题（含 `html.dark` 暗色模式），支持按 Token 覆盖。 |
+| **主题定制** | 全部样式基于 `--sg-*` CSS Token；零配置跟随 Element Plus 主题（含 `html.dark` 暗色模式），支持按 Token 覆盖；`appearance` prop 控制表格边框 / 值展示（标签 / 纯文本 / 经典单色）/ 卡片密度。 |
+| **扩展注册表** | `registerFieldType` 自定义字段类型（渲染 / 表单 / 行内编辑三处接入）、`registerDialog` 自定义弹窗、vxe 插槽透传与 `getTableInstance()` 实例暴露。 |
+| **i18n 与移动端** | 内置 zh-CN 语言包 + `registerLocale` 注入 + `locale` prop 切换；窄屏自动切移动卡片形态（搜索 / 触底加载 / 动作降级）。 |
 | **多实例安全** | 每个 `<SchemaEngine>` 实例通过 `create*State()` 工厂创建隔离状态并经 Vue `provide/inject` 注入，可在同一页面嵌入多个模块。 |
 
 ## 🏗 架构
@@ -305,20 +307,20 @@ pnpm build:lib        # 库构建 → dist/schemagine.{mjs,cjs} + schemagine.css
 
 | 文档 | 内容 |
 |------|------|
-| [引用指南.md](引用指南.md) | **外部项目集成指南**：安装、Service 契约、完整 API 与类型参考、npm 发布、FAQ |
-| [说明文档.md](说明文档.md) | 项目概述与开发说明 |
+| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **外部项目集成指南（首选）**：安装、Service 契约、完整 API 与类型参考、扩展注册、i18n、npm 发布、FAQ |
+| [说明文档（docs/18）](docs/18-维护记录与文档索引.md) | 项目概述与维护记录索引 |
 | [docs/01-项目概述.md](docs/01-项目概述.md) | 概述、目录结构、架构分层 |
 | [docs/02-组件文档.md](docs/02-组件文档.md) | 全部组件（表格 / 卡片 / 字段 / 筛选） |
 | [docs/03-引擎核心.md](docs/03-引擎核心.md) | 引擎入口、视图容器、弹窗宿主 |
-| [docs/04-状态管理.md](docs/04-状态管理.md) | 状态设计（实例状态与 Store） |
+| [docs/04-状态管理.md](docs/04-状态管理.md) | 状态设计（instanceState 主链路与 Store） |
 | [docs/05-组合式函数.md](docs/05-组合式函数.md) | Composables 参考 |
 | [docs/06-服务层.md](docs/06-服务层.md) | Service 接口 + Mock 适配器 |
-| [docs/07-类型系统.md](docs/07-类型系统.md) | TypeScript 类型系统 |
+| [docs/07-类型系统.md](docs/07-类型系统.md) | TypeScript 类型系统（含 FieldSchema 权威附录） |
 | [docs/08-生命周期与钩子.md](docs/08-生命周期与钩子.md) | 生命周期、钩子、数据流图 |
 | [docs/09-Schema编辑器.md](docs/09-Schema编辑器.md) | Schema 可视化编辑器 |
 | [docs/10-路由与模块.md](docs/10-路由与模块.md) | 路由与演示模块 |
 | [docs/15-样式Token基线.md](docs/15-样式Token基线.md) | 样式 Token 基线（组件样式一律 `var(--sg-*)`） |
-| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | 集成与使用指南 |
+| [docs/20-外观与格式契约.md](docs/20-外观与格式契约.md) | EngineAppearance 外观契约、displayStyle、保守导出 |
 | [docs/archive/](docs/archive/) | 历史评估 / 路线图文档（已归档） |
 
 ## ❓ 常见问题

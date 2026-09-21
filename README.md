@@ -26,6 +26,7 @@ Built with **Vue 3.5 + TypeScript + Pinia + Element Plus + vxe-table**, packaged
 | **Themeable** | All styles based on `--sg-*` CSS tokens; follows your Element Plus theme (including `html.dark`) out of the box, overridable per token; `appearance` prop controls table borders / cell value display (tags / plain / classic) / card density. |
 | **Extensible** | `registerFieldType` for custom field types (wired into rendering, forms and inline editing), `registerDialog` for custom dialogs, vxe slot passthrough and `getTableInstance()` access. |
 | **i18n & mobile** | Built-in zh-CN locale + `registerLocale` injection + `locale` prop; narrow viewports automatically switch to a mobile card layout (search, infinite scroll, action fallbacks). |
+| **Media management (optional export)** | Image fields support four integration modes: plain URL rendering by default with zero config; the optional `schemagine/media` subpath adds OSS direct upload (S3-compatible / Qiniu, pure-JS signing, no SDK), a host upload API mode, and a media library component set (`MediaLibrary` manager, `MediaPickerDialog` selector, generic `createHttpMediaService`) — editors degrade automatically per mode. |
 | **Multi-instance safe** | Isolated state per `<SchemaEngine>` instance via `create*State()` factories injected with Vue `provide/inject` — embed several modules on one page. |
 
 ## 🏗 Architecture

@@ -104,10 +104,13 @@ async function resolveDisplay(): Promise<void> {
 
   if (isMediaImage.value) {
     mediaSrc.value = ''
-    if (value != null && value !== '') {
-      mediaSrc.value = await resolveMediaUrl(value)
-    }
     displayText.value = ''
+    if (value != null && value !== '') {
+      const url = await resolveMediaUrl(value)
+      // 非可访问地址（如直传模式下的遗留媒体 id 恒等映射）不进 img，按原值文本展示
+      if (/^(https?:)?\/\/|^\/|^data:|^blob:/i.test(url)) mediaSrc.value = url
+      else displayText.value = String(value)
+    }
     return
   }
 

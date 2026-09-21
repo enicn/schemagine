@@ -7,6 +7,7 @@
 
 ### Added
 
+- **媒体管理四种接入模式（`schemagine/media` 可选子路径导出）**：同一套 `image`/`mediaImage` 字段与编辑面按模式自动降级——① url（默认，纯 URL 渲染零配置）② oss 直传（S3 兼容含 MinIO path-style + 七牛，SigV4/HMAC-SHA1 纯 JS 签名零 SDK）③ api 宿主上传接口（约定 multipart `file`、响应 `url`/`data.url`）④ media library（`IMediaService` 契约 + 组件集）。新增 `setupMedia()` 统一入口、`createHttpMediaService()` 通用 HTTP 实现（对接 `/media/list` `/media/upload` `/media/lookup` 约定，宿主零胶水）、`MediaLibrary` 管理页（上传/筛选/分页/复制/删除/手动登记，能力探测自动隐藏入口）、`MediaPickerDialog` 多选（`selectMany`）；`IMediaService` 增可选 `remove`/`createManual`；lib 构建双入口（`dist/media.mjs/cjs` + `media/index.d.ts`），主入口不受影响。docs/17 新增 §3.9 全契约与 §3.13 四模式章（守卫钉住方法面与关键 API）。
 - CI 新增 `e2e-extended` 并行 job：P0 快反馈之外，P1/P2/批次 E–H 扩展集在 CI 完整把关（`pnpm test:e2e:ext`）。
 - `SECURITY.md` 安全策略（私密漏洞报告通道、安全设计边界说明）。
 - i18n 公开导出补齐：`registerLocale` / `setLocale` / `getLocale` / `t` 与 `MessageSchema` 类型进入包出口——此前 `locale` prop 要求先注册语言包，但注册函数未导出，npm 消费方无法使用非 zh-CN 语言。
@@ -16,6 +17,8 @@
 
 ### Fixed
 
+- `MediaImageCell` 单击预览（`@click.stop` + 新窗口打开）会吞掉表格单元格的双击进编辑事件，且解析结果非可访问地址（如直传模式下的遗留媒体 id）时以损坏 `<img>` 渲染；现单击预览移除（看大图走媒体库管理页），非 http(s)/根路径/data:/blob: 的解析结果回落为文本占位（ValueRenderer 同口径）。
+- `MediaPickerDialog` 以 `modelValue: true` 初始挂载时不加载媒体清单（watch 非 immediate）。
 - 首屏加载中切换卡片视图卡片永久空白：ListView.fetchData 的 `isMounted` 竞态守卫误用于引擎实例级共享状态，卸载时丢弃在途响应导致 recordStore 永不写入；现仅保留模块切换的过期响应拦截（e2e 去固定延时后暴露的真实 bug）。
 
 ### Changed

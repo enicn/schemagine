@@ -5,6 +5,10 @@ import { ElRadioGroup, ElRadioButton, ElMessage } from 'element-plus'
 import SchemaEngine from '@/engine/entry/SchemaEngine.vue'
 import { registerLocale } from '@/locales'
 import { moduleRoutes } from '@/router'
+import { setMediaService } from '@/services/api/mediaService'
+import { setMediaMode } from '@/services/api/mediaConfig'
+import { mockMediaService } from '@/services/mock/mockMediaService'
+import { setupMedia } from '@/media'
 
 const props = defineProps<{
   moduleId?: string
@@ -45,6 +49,29 @@ const editLayoutParam = route.query.editLayout === 'fit-row' ? 'fit-row' as cons
 const appearance = editLayoutParam ? { inlineEditLayout: editLayoutParam } : undefined
 // 语言演示入口（docs/19 G1）：/module/xxx?locale=en-US 注入引擎
 const localeParam = typeof route.query.locale === 'string' ? route.query.locale : undefined
+
+// 媒体四模式演示入口（docs/17）：/xxx?mediaMode=oss|api|library 切换媒体接入模式。
+// oss/api 的上传端点由 e2e 用 playwright route 拦截（/mock/qiniu-upload、/mock/api-upload）
+const mediaModeParam = typeof route.query.mediaMode === 'string' ? route.query.mediaMode : ''
+if (mediaModeParam === 'oss') {
+  setupMedia({
+    mode: 'oss',
+    oss: {
+      provider: 'qiniu',
+      accessKey: 'demo-ak',
+      secretKey: 'demo-sk',
+      bucket: 'demo-bucket',
+      domain: 'https://cdn.demo.mock',
+      uploadUrl: '/mock/qiniu-upload',
+    },
+  })
+} else if (mediaModeParam === 'api') {
+  setupMedia({ mode: 'api', api: { endpoint: '/mock/api-upload' } })
+} else if (mediaModeParam === 'library') {
+  setMediaService(mockMediaService)
+} else {
+  setMediaMode('url')
+}
 const availableModules = [
   { id: 'module-voucher', label: '凭证管理' },
   { id: 'module-ap', label: '应付账款' },

@@ -4,15 +4,14 @@ import { resolveMediaUrl } from '@/services/api/mediaService'
 
 /**
  * 媒体图片单元格：字段值为媒体 id 时经 MediaService 解析为可访问 URL 后渲染，
- * 既有记录中的静态/外部 URL 原样渲染（向后兼容）。点击新窗口预览大图。
+ * 既有记录中的静态/外部 URL 原样渲染（向后兼容）。
+ * 注意：不做单击预览——单击/双击要留给表格行内编辑入口，看大图走媒体库管理页。
  */
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   value: unknown
-  /** 是否允许点击预览 */
+  /** 兼容保留：曾经控制单击预览，现恒不弹出（见上） */
   preview?: boolean
-}>(), {
-  preview: true,
-})
+}>()
 
 const src = ref('')
 
@@ -22,15 +21,12 @@ watch(
     src.value = ''
     if (v == null || v === '') return
     resolveMediaUrl(v).then((url) => {
-      src.value = url
+      // 解析结果不是可访问地址（如 oss/api 模式下的遗留媒体 id 恒等映射）按未解析处理，出文本占位
+      src.value = /^(https?:)?\/\/|^\/|^data:|^blob:/i.test(url) ? url : ''
     })
   },
   { immediate: true },
 )
-
-function open(): void {
-  if (props.preview && src.value) window.open(src.value, '_blank', 'noopener')
-}
 </script>
 
 <template>
@@ -40,7 +36,6 @@ function open(): void {
     class="media-image-cell"
     alt=""
     loading="lazy"
-    @click.stop="open"
   />
   <span v-else-if="value != null && value !== ''" class="media-image-cell--pending">{{ String(value) }}</span>
 </template>
@@ -52,7 +47,6 @@ function open(): void {
   max-height: 72px;
   border-radius: var(--sg-radius-lg);
   object-fit: cover;
-  cursor: zoom-in;
   border: 1px solid var(--sg-border-color-lighter);
   vertical-align: middle;
 }

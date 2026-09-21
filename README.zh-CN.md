@@ -26,6 +26,7 @@
 | **主题定制** | 全部样式基于 `--sg-*` CSS Token；零配置跟随 Element Plus 主题（含 `html.dark` 暗色模式），支持按 Token 覆盖；`appearance` prop 控制表格边框 / 值展示（标签 / 纯文本 / 经典单色）/ 卡片密度。 |
 | **扩展注册表** | `registerFieldType` 自定义字段类型（渲染 / 表单 / 行内编辑三处接入）、`registerDialog` 自定义弹窗、vxe 插槽透传与 `getTableInstance()` 实例暴露。 |
 | **i18n 与移动端** | 内置 zh-CN 语言包 + `registerLocale` 注入 + `locale` prop 切换；窄屏自动切移动卡片形态（搜索 / 触底加载 / 动作降级）。 |
+| **媒体管理（可选导出）** | 图片字段的四种接入模式一应俱全：默认 URL 渲染零配置；`schemagine/media` 子路径按需引入 OSS 直传（S3 兼容 / 七牛，纯 JS 签名零 SDK）、宿主上传 API、媒体库组件集（管理页 `MediaLibrary` / 选择弹窗 `MediaPickerDialog` / 通用 HTTP 实现 `createHttpMediaService`），模式切换编辑面自动降级。 |
 | **多实例安全** | 每个 `<SchemaEngine>` 实例通过 `create*State()` 工厂创建隔离状态并经 Vue `provide/inject` 注入，可在同一页面嵌入多个模块。 |
 
 ## 🏗 架构

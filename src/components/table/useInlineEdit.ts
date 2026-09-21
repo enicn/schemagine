@@ -7,6 +7,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import type { Ref } from 'vue'
 import type { Component } from 'vue'
 import { mediaService } from '@/services/api/mediaService'
+import { useMediaMode } from '@/services/api/mediaConfig'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 import { t } from '@/locales'
@@ -389,6 +390,10 @@ export function useInlineEdit(
   }
 
   // ---- mediaImage 行内编辑：媒体库选择 / 上传新资源 / 清除 ----
+  // 编辑面随媒体模式降级（docs/17 四模式）：library 出媒体库选择；oss/api 出上传；
+  // url 及直传/接口模式另有 URL 手填（值即 URL，不经媒体 id 解析）
+  const mediaMode = useMediaMode()
+  const isLibraryMedia = computed(() => mediaMode.value === 'library')
   const mediaPickerVisible = ref(false)
   const mediaUploading = ref(false)
   const mediaFileInput = ref<HTMLInputElement | null>(null)
@@ -493,6 +498,8 @@ export function useInlineEdit(
     closeFkDropdown,
     selectFkOption,
     clearFkSelection,
+    mediaMode,
+    isLibraryMedia,
     mediaPickerVisible,
     mediaUploading,
     openMediaPicker,

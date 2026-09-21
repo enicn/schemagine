@@ -70,10 +70,14 @@ export { registerLocale, setLocale, getLocale, t } from './locales'
 export type { MessageSchema } from './locales'
 
 // === 媒体图片（mediaImage 字段）：选择器与媒体 id 解析 ===
+// 完整媒体面（setupMedia 四模式 / OSS 直传 / MediaLibrary 管理页）在可选子路径 'schemagine/media'
 export { default as MediaPickerDialog } from './components/media/MediaPickerDialog.vue'
 export { default as MediaImageCell } from './components/field/MediaImageCell.vue'
 export { default as MediaImageEditor } from './components/field/editors/MediaImageEditor.vue'
 export { isMediaId, resolveMediaUrl, clearMediaUrlCache } from './services/api/mediaService'
+export { mediaService, peekMediaService } from './services/api/mediaService'
+export { getMediaMode, useMediaMode } from './services/api/mediaConfig'
+export type { MediaMode } from './services/api/mediaConfig'
 
 // === 工具函数 ===
 export { createSuccessResponse, createErrorResponse, setMockEnabled, isMockEnabled } from './services/api/base'

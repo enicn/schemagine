@@ -42,10 +42,10 @@ const serviceMethods = {
   ICandidateService: ['query'],
   IUserViewConfigService: ['load', 'save'],
   IRelationService: ['getRelations', 'getTargetRelations', 'getSourceRecords', 'addRelation', 'updateRelation', 'removeRelation'],
-  IMediaService: ['list', 'upload', 'resolveUrls'],
+  IMediaService: ['list', 'upload', 'resolveUrls', 'remove', 'createManual'],
 }
 const exposedMethods = ['refresh', 'setViewMode', 'getCurrentRecord', 'undo', 'redo', 'canUndo', 'canRedo']
-const keyApis = ['registerLocale', 'registerFieldType', 'registerDialog', 'createLocalRecordService', 'setMediaService', 'EngineAppearance', 'RecordsChangePayload', 'UserViewConfig']
+const keyApis = ['registerLocale', 'registerFieldType', 'registerDialog', 'createLocalRecordService', 'setMediaService', 'setupMedia', 'MediaLibrary', 'MediaPickerDialog', 'createHttpMediaService', 'EngineAppearance', 'RecordsChangePayload', 'UserViewConfig']
 
 const missing = []
 const check = (label, names) => {

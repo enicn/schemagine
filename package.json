@@ -18,7 +18,7 @@
     "low-code"
   ],
   "sideEffects": [
-    "dist/schemagine.css"
+    "dist/*.css"
   ],
   "main": "./dist/schemagine.cjs",
   "module": "./dist/schemagine.mjs",
@@ -35,6 +35,18 @@
         "default": "./dist/schemagine.cjs"
       },
       "default": "./dist/schemagine.mjs"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.ts",
+      "import": {
+        "types": "./dist/media/index.d.ts",
+        "default": "./dist/media.mjs"
+      },
+      "require": {
+        "types": "./dist/media/index.d.ts",
+        "default": "./dist/media.cjs"
+      },
+      "default": "./dist/media.mjs"
     },
     "./dist/schemagine.css": "./dist/schemagine.css"
   },

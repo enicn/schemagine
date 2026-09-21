@@ -1,5 +1,6 @@
 import type { ApiResponse } from '@/types'
 import { createErrorResponse, createServiceFallback } from './base'
+import { setMediaMode } from './mediaConfig'
 
 /** 媒体资源（宿主媒体库的一条记录，如后端 media 模块行） */
 export interface MediaAsset {
@@ -33,17 +34,29 @@ export interface MediaListResponse {
  * - list：媒体库分页列表（选择器数据源）
  * - upload：上传新资源，成功返回含 id 的媒体记录（自动填入字段值）
  * - resolveUrls：批量 媒体id → 访问URL（列表/表单渲染用，宿主侧应做缓存）
+ * 可选能力（未提供则媒体库组件自动隐藏对应入口）：
+ * - remove：删除媒体记录（MediaLibrary 管理页删除按钮）
+ * - createManual：手动登记外部 URL 资源（MediaLibrary 管理页「新建资源」）
  */
 export interface IMediaService {
   list(params: MediaListParams): Promise<ApiResponse<MediaListResponse>>
   upload(file: File): Promise<ApiResponse<MediaAsset>>
   resolveUrls(ids: string[]): Promise<ApiResponse<Record<string, string>>>
+  remove?(id: string): Promise<ApiResponse<null>>
+  createManual?(fields: { file_name: string; url: string; kind?: string }): Promise<ApiResponse<MediaAsset>>
 }
 
 let implementation: IMediaService | null = null
 
 export function setMediaService(impl: IMediaService): void {
   implementation = impl
+  // 完整媒体服务注入即媒体库形态（docs/17 模式四）：编辑面按 library 模式渲染
+  setMediaMode('library')
+}
+
+/** 探测媒体服务是否已注入（宿主侧与媒体库组件能力探测用，不触发 fallback 告警） */
+export function peekMediaService(): IMediaService | null {
+  return implementation
 }
 
 export function getMediaService(): IMediaService {
@@ -69,7 +82,16 @@ function getMediaServiceFallback(): IMediaService {
   return createServiceFallback('MediaService', mediaServiceFallback)
 }
 
-export const mediaService: IMediaService = {
+/**
+ * 引擎内置代理面：remove/createManual 在代理内做「未实现」兜底，
+ * 调用方（媒体库组件/宿主）无需对可选方法判空。
+ */
+export interface MediaServiceInvoker extends IMediaService {
+  remove(id: string): Promise<ApiResponse<null>>
+  createManual(fields: { file_name: string; url: string; kind?: string }): Promise<ApiResponse<MediaAsset>>
+}
+
+export const mediaService: MediaServiceInvoker = {
   async list(params) {
     return getMediaService().list(params)
   },
@@ -78,6 +100,16 @@ export const mediaService: IMediaService = {
   },
   async resolveUrls(ids) {
     return getMediaService().resolveUrls(ids)
+  },
+  async remove(id) {
+    const impl = getMediaService()
+    if (!impl.remove) return createErrorResponse('UNSUPPORTED', '当前 MediaService 不支持删除')
+    return impl.remove(id)
+  },
+  async createManual(fields) {
+    const impl = getMediaService()
+    if (!impl.createManual) return createErrorResponse('UNSUPPORTED', '当前 MediaService 不支持手动登记')
+    return impl.createManual(fields)
   },
 }
 

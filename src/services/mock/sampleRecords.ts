@@ -241,7 +241,7 @@ export const invoiceRecords: RecordEntity[] = [
   {
     id: 'rec-inv-001',
     moduleId: 'module-invoice',
-    fields: { invoiceNumber: 'INV-2026-001', amount: 12500, date: '2026-05-01' },
+    fields: { invoiceNumber: 'INV-2026-001', amount: 12500, date: '2026-05-01', scanImage: '/favicon.ico', cover: 'media-deadbeef' },
     version: 1,
     createdAt: '2026-05-01T08:00:00Z',
     updatedAt: '2026-05-01T08:00:00Z',
@@ -249,7 +249,7 @@ export const invoiceRecords: RecordEntity[] = [
   {
     id: 'rec-inv-002',
     moduleId: 'module-invoice',
-    fields: { invoiceNumber: 'INV-2026-002', amount: 8800, date: '2026-05-05' },
+    fields: { invoiceNumber: 'INV-2026-002', amount: 8800, date: '2026-05-05', scanImage: 'https://e2e.mock/inv-002.png' },
     version: 1,
     createdAt: '2026-05-05T09:00:00Z',
     updatedAt: '2026-05-05T09:00:00Z',

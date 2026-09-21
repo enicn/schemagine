@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ModuleDemo from '@/views/ModuleDemo.vue'
+import MediaLibraryDemo from '@/views/MediaLibraryDemo.vue'
 import SchemaEditor from '@/editor/SchemaEditor.vue'
 import SchemaPlayground from '@/editor/playground/SchemaPlayground.vue'
 
@@ -39,6 +40,11 @@ const router = createRouter({
       path: '/editor',
       name: 'schema-editor',
       component: SchemaEditor,
+    },
+    {
+      path: '/media-library',
+      name: 'media-library-demo',
+      component: MediaLibraryDemo,
     },
     {
       path: '/playground',

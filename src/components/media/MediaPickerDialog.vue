@@ -8,16 +8,23 @@ import { mediaService } from '@/services/api/mediaService'
  * 媒体库选择弹窗：从媒体库选取一张图片，或在弹窗内直接上传新资源后自动选中。
  * 数据源由宿主注入的 MediaService 提供；仅展示 kind=image 的资源。
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   /** 当前字段已选中的媒体 id（用于回显高亮） */
   selectedId?: string
-}>()
+  /** 多选模式：确认后经 selectMany 事件吐出数组（单选行为不变，供宿主自建多图场景） */
+  multiple?: boolean
+}>(), {
+  selectedId: '',
+  multiple: false,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [visible: boolean]
   /** 确认选中（单击选中 + 确定，或双击直接确认） */
   select: [asset: MediaAsset]
+  /** 多选模式（multiple）确认时吐出选中数组 */
+  selectMany: [assets: MediaAsset[]]
 }>()
 
 const visible = computed({
@@ -30,13 +37,20 @@ const loading = ref(false)
 const uploading = ref(false)
 const assets = ref<MediaAsset[]>([])
 const pickedId = ref('')
+const pickedIds = ref<Set<string>>(new Set())
 
-watch(visible, (v) => {
-  if (v) {
-    pickedId.value = props.selectedId ?? ''
-    void load()
-  }
-})
+// immediate：挂载即 modelValue=true（宿主以 v-if/初始真值打开）也要加载清单
+watch(
+  visible,
+  (v) => {
+    if (v) {
+      pickedId.value = props.selectedId ?? ''
+      pickedIds.value = new Set(props.selectedId ? [props.selectedId] : [])
+      void load()
+    }
+  },
+  { immediate: true },
+)
 
 async function load(): Promise<void> {
   loading.value = true
@@ -55,10 +69,27 @@ async function load(): Promise<void> {
 const imageAssets = computed(() => assets.value.filter((a) => (a.kind ?? 'image') === 'image'))
 
 function pick(asset: MediaAsset): void {
+  if (props.multiple) {
+    const next = new Set(pickedIds.value)
+    if (next.has(asset.id)) next.delete(asset.id)
+    else next.add(asset.id)
+    pickedIds.value = next
+    return
+  }
   pickedId.value = asset.id
 }
 
 function confirmPick(): void {
+  if (props.multiple) {
+    const picked = assets.value.filter((a) => pickedIds.value.has(a.id))
+    if (!picked.length) {
+      ElMessage.warning('请先选择图片')
+      return
+    }
+    emit('selectMany', picked)
+    visible.value = false
+    return
+  }
   const asset = assets.value.find((a) => a.id === pickedId.value)
   if (!asset) {
     ElMessage.warning('请先选择一张图片')
@@ -69,6 +100,10 @@ function confirmPick(): void {
 }
 
 function onDoubleClick(asset: MediaAsset): void {
+  if (props.multiple) {
+    pick(asset)
+    return
+  }
   pickedId.value = asset.id
   emit('select', asset)
   visible.value = false
@@ -125,14 +160,14 @@ async function onFileChange(e: Event): Promise<void> {
         v-for="asset in imageAssets"
         :key="asset.id"
         class="media-picker__item"
-        :class="{ 'is-picked': asset.id === pickedId }"
+        :class="{ 'is-picked': multiple ? pickedIds.has(asset.id) : asset.id === pickedId }"
         :title="asset.file_name || asset.id"
         @click="pick(asset)"
         @dblclick="onDoubleClick(asset)"
       >
         <img :src="asset.url" :alt="asset.file_name || asset.id" loading="lazy" />
         <span class="media-picker__name">{{ asset.file_name || asset.id }}</span>
-        <span v-if="asset.id === pickedId" class="media-picker__check">&#10003;</span>
+        <span v-if="multiple ? pickedIds.has(asset.id) : asset.id === pickedId" class="media-picker__check">&#10003;</span>
       </div>
       <div v-if="!loading && imageAssets.length === 0" class="media-picker__empty">
         媒体库中暂无图片，可先「上传新图片」
@@ -141,7 +176,9 @@ async function onFileChange(e: Event): Promise<void> {
 
     <template #footer>
       <ElButton @click="visible = false">取消</ElButton>
-      <ElButton type="primary" @click="confirmPick">确定</ElButton>
+      <ElButton type="primary" @click="confirmPick">
+        确定{{ multiple && pickedIds.size ? `（${pickedIds.size}）` : '' }}
+      </ElButton>
     </template>
   </ElDialog>
 </template>

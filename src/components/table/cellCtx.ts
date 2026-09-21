@@ -59,6 +59,9 @@ export function createCellCtx(entries: {
   fkFilteredOptions: Ref<CandidateOption[]>
   selectFkOption: (opt: CandidateOption) => void
   openFkQuickCreate: () => void
+  /** 媒体模式（docs/17 四模式）：mediaImage 行内编辑面按此降级 */
+  mediaMode: Ref<'url' | 'oss' | 'api' | 'library'>
+  isLibraryMedia: ComputedRef<boolean>
   mediaUploading: Ref<boolean>
   openMediaPicker: () => void
   triggerMediaUpload: (e?: Event) => void

@@ -177,22 +177,33 @@ const ctx = props.ctx
             >{{ t('table.edit.quickCreate', { title: col.title }) }}</button>
           </div>
         </div>
-        <!-- mediaImage：媒体库选择 / 上传新资源 / 清除，确认后才保存媒体 id -->
+        <!-- mediaImage：编辑面随媒体模式降级（docs/17 四模式）——library 出媒体库选择，
+             oss/api 出上传，url 及直传/接口模式另有 URL 手填（值即 URL），确认后才保存 -->
         <div v-else-if="col.fieldType === 'mediaImage'" class="media-edit">
           <span class="media-edit__thumb">
             <MediaImageCell :value="ctx.editValue" :preview="false" />
           </span>
           <button
+            v-if="ctx.isLibraryMedia"
             type="button"
             class="edit-inline__btn media-edit__btn"
             @click="ctx.openMediaPicker"
           >{{ t('table.edit.mediaLibrary') }}</button>
           <button
+            v-if="ctx.mediaMode !== 'url'"
             type="button"
             class="edit-inline__btn media-edit__btn"
             :disabled="ctx.mediaUploading"
             @click="ctx.triggerMediaUpload($event)"
           >{{ ctx.mediaUploading ? t('table.edit.uploading') : t('table.edit.upload') }}</button>
+          <input
+            v-if="!ctx.isLibraryMedia"
+            v-model="ctx.editValue"
+            class="edit-inline__input media-edit__url"
+            placeholder="图片地址 https://…"
+            @keydown.enter="ctx.confirmEdit(row, col)"
+            @keydown.escape="ctx.cancelEdit"
+          />
           <button
             type="button"
             class="edit-inline__btn media-edit__btn media-edit__btn--clear"

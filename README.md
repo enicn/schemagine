@@ -24,7 +24,7 @@ Built with **Vue 3.5 + TypeScript + Pinia + Element Plus + vxe-table**, packaged
 | **Visual Schema Editor** | Built-in editor page: field CRUD, formula builder, permission config, dependency graph, JSON import/export, live preview. |
 | **Productivity** | CSV export honoring current filters/sort/visible columns, time-range presets, quick-create for FK fields, bottom tabs, per-user view config (column widths, layout). |
 | **Themeable** | All styles based on `--sg-*` CSS tokens; follows your Element Plus theme (including `html.dark`) out of the box, overridable per token. |
-| **Multi-instance safe** | Isolated state per `<SchemaEngine>` instance via `create*State()` factories and dynamically registered Pinia stores — embed several modules on one page. |
+| **Multi-instance safe** | Isolated state per `<SchemaEngine>` instance via `create*State()` factories injected with Vue `provide/inject` — embed several modules on one page. |
 
 ## 🏗 Architecture
 

@@ -67,6 +67,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   targetModule: true,
   editMode: true,
   quickCreate: true,
+  fkSearchMultiple: true,
   displayField: true,
   group: true,
   mergeCells: true,
@@ -288,6 +289,12 @@ export const FIELD_META: PropertyMeta[] = [
     default: false, surfaces: ['inline-edit', 'form'],
     description: 'fk 下拉底部提供「+ 新建」入口:打开弹层按目标模块必选字段快速创建,创建后自动选中;目标无独立模块定义时降级为仅填 name。',
     related: ['targetModule'],
+  },
+  {
+    key: 'fkSearchMultiple', target: 'field', label: '弹窗搜索多选', group: 'edit', appliesTo: ['fk'], kind: 'boolean',
+    default: false, surfaces: ['form'],
+    description: 'fk 弹窗搜索选择器的多选开关:默认 false 单选(行点击/双击选中,确认回填单个 id);true 时弹窗渲染复选框列、支持跨页勾选,确认回填 id 数组。需显式开启。',
+    related: ['targetModule', 'quickCreate'],
   },
   {
     key: 'displayField', target: 'field', label: '显示字段(预留)', group: 'relation', appliesTo: ['fk'], kind: 'string',

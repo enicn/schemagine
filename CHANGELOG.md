@@ -3,6 +3,53 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.7] - 2026-09-23
+
+### Changed
+
+- **勾选列固定最左**（常规顺序：勾选 → 行号），行号列随其后；两列均用固定 `width`（36px/48px），**不随视口宽度/fit 均摊拉扯**。
+- 数据列由固定 `width` 改为 `min-width` 声明（取原 width 值参与 vxe fit 均摊）：视口更宽时多余空间由数据列吸收，勾选/行号/操作列等固定宽列不再被等比放大；拖拽调宽过的列仍走 vxe resizeWidth 保持固定。
+
+## [0.3.6] - 2026-09-23
+
+### Fixed
+
+- 行号列序号改经默认插槽自渲染（`(rowNumberStart ?? 0) + rowIndex + 1`），不再依赖 vxe seq 内建计算——vxe 的序号填充在其内部渲染调度下，弹窗等二次渲染场景可能空文本。
+
+## [0.3.5] - 2026-09-23
+
+### Added
+
+- **表格行号开关（默认关闭）**：`EngineAppearance.rowNumbers: true` 后，数据行首（勾选/展开列之前）渲染序号列（fixed left、居中、48px）。分页续号经 `VxeTableWrapper.rowNumberStart`（`(page-1)*pageSize`，第 2 页从 pageSize+1 起）。链路：SchemaEngine →（prop）ListView/SchemaTable → VxeTableWrapper；`SchemaEngineDialog` 不在显式 prop 链上，经新增 `APPEARANCE_KEY` provide/inject 取实例级 appearance（引擎树外独立使用时缺省关闭）。seq 列无 field，不参与列拖拽（drag-disabled）与合并单元格；`footerMethod` 若按数据列计值需自行注意索引错位。
+
+## [0.3.4] - 2026-09-23
+
+### Changed
+
+- `SchemaEngineDialog` 工具栏布局对齐常规列表页：**筛选栏与列表动作靠左，列/卡片设置与视图切换靠右**（原为列表设置在左、筛选在右）。
+
+## [0.3.3] - 2026-09-23
+
+### Fixed
+
+- `SchemaFilterBar` 的筛选条件弹层补 `z-index: 4000`：在 `SchemaEngineDialog`（z-index 2000+）内打开时弹层被弹窗遮住不可见。与表头「筛选与排序」弹层（既有 4000 约定）对齐。
+
+## [0.3.2] - 2026-09-23
+
+### Added
+
+- 弹窗查看/选择模式补齐**全量筛选栏**（`SchemaFilterBar`）：`SchemaEngineDialog` 工具栏右侧与主列表同源的条件构建器（类型支持 + `filterable` 字段口径一致），表头单列筛选与全量条件共用同一份条件集（组合过滤组在表头高亮处拍平），关闭「查看数据」行为不受影响。
+
+### Changed
+
+- 弹窗表格**表头文字居中**（`.popup-dialog` 范围内，不影响主列表表头对齐）。
+
+## [0.3.1] - 2026-09-23
+
+### Added
+
+- **FK 弹窗搜索选择器**：fk 字段编辑器（表单）新增弹窗搜索入口——按目标模块打开完整列表界面（完整列、表头筛选、排序、分页、列表设置）选择记录，确认后回填字段值。默认单选（行点击选中、双击直接确认），`FieldSchema.fkSearchMultiple: true` 显式开启多选（行首复选框、跨页勾选保留，确认回填 id 数组）。实现为 `SchemaEngineDialog` 选择模式（`selectable`/`selectableMultiple`/`selectedIds` props + `confirm` 事件），纯查看语义（`popup-schema` 动作）行为不变；fk 渲染管线（ValueRenderer / 行内编辑标签）对数组值按「、」拼接兼容。
+
 ## [0.3.0] - 2026-09-22
 
 首个 npm 发布版本（0.2.3 及之前的内容随本版首发；0.2.0–0.2.2 为内部迭代号，未对外发布）。

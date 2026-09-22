@@ -38,6 +38,8 @@ const props = defineProps<{
   expandSlot?: string
   /** 引擎只读形态（SchemaEngine readonly 透传）：内置行级编辑入口随隐藏 */
   readonly?: boolean
+  /** 行号续号起点（docs/20 appearance.rowNumbers）：分页场景 (page-1)*pageSize，经 VxeTableWrapper seq-config 续号 */
+  rowNumberStart?: number
 }>()
 
 const emit = defineEmits<{
@@ -364,6 +366,8 @@ defineExpose({
       :fixed-row-count="fixedRowCount"
       :filter-clauses="filterClauses"
       :show-selection="showSelection"
+      :row-numbers="appearance?.rowNumbers"
+      :row-number-start="rowNumberStart"
       :cell-slots="cellSlots"
       :header-slots="headerSlots"
       :density="density"

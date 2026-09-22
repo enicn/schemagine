@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted } from 'vue'
 import { ElSelect, ElOption, ElButton, ElEmpty } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useRuntimeCacheStore } from '@/stores/runtimeCacheStore'
 import { candidateService } from '@/services/api/candidateService'
 import { recordService } from '@/services/api/recordService'
 import QuickCreateDialog from '@/engine/dialogs/QuickCreateDialog.vue'
+import SchemaEngineDialog from '@/engine/dialogs/SchemaEngineDialog.vue'
 import type { FieldSchema, CandidateOption } from '@/types'
 
 const props = defineProps<{
@@ -16,7 +18,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
+  'update:modelValue': [value: string | string[]]
   search: [payload: string]
   blur: [payload: void]
 }>()
@@ -32,8 +34,30 @@ const cursorPage = ref(1)
 const hasMore = ref(false)
 
 const quickCreateVisible = ref(false)
+const searchDialogVisible = ref(false)
 
 const targetModule = computed(() => props.fieldSchema.targetModule || '')
+
+/** 弹窗搜索多选开关（FieldSchema.fkSearchMultiple）：默认单选，显式开启才可多选 */
+const searchMultiple = computed(() => !!props.fieldSchema.fkSearchMultiple)
+
+/** 弹窗打开时的回显选中集（单选取首个，多选全量） */
+const dialogSelectedIds = computed<string[]>(() => {
+  const v = props.modelValue
+  if (v == null || v === '') return []
+  return Array.isArray(v) ? v.map(String) : [String(v)]
+})
+
+/** ElSelect 绑定值归一：multiple 模式要数组，单选要字符串 */
+const selectValue = computed<string | string[]>(() => {
+  const v = props.modelValue
+  if (searchMultiple.value) {
+    if (v == null || v === '') return []
+    return Array.isArray(v) ? v.map(String) : [String(v)]
+  }
+  if (Array.isArray(v)) return String(v[0] ?? '')
+  return v == null ? '' : String(v)
+})
 
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -72,8 +96,11 @@ async function loadOptions(keyword = '', append = false): Promise<void> {
       noMatch.value = options.value.length === 0
       hasMore.value = res.data.hasMore
 
-      if (props.modelValue != null && props.modelValue !== '' && !options.value.some(o => o.value === props.modelValue)) {
-        resolveMissingFkLabel(String(props.modelValue))
+      if (props.modelValue != null && props.modelValue !== '') {
+        const ids = Array.isArray(props.modelValue) ? props.modelValue.map(String) : [String(props.modelValue)]
+        if (ids.some(id => !options.value.some(o => o.value === id))) {
+          resolveMissingFkLabel(ids.find(id => !options.value.some(o => o.value === id))!)
+        }
       }
     } else {
       if (!append) {
@@ -95,8 +122,11 @@ watch(targetModule, () => {
 watch(() => props.modelValue, (val) => {
   if (val == null || val === '') return
   if (!targetModule.value) return
-  if (options.value.some(o => o.value === val)) return
-  resolveMissingFkLabel(String(val))
+  const ids = Array.isArray(val) ? val.map(String) : [String(val)]
+  if (ids.every(id => options.value.some(o => o.value === id))) return
+  for (const id of ids) {
+    if (!options.value.some(o => o.value === id)) resolveMissingFkLabel(id)
+  }
 })
 
 async function resolveMissingFkLabel(id: string): Promise<void> {
@@ -144,9 +174,31 @@ function resetSearch(): void {
   options.value = []
 }
 
-function handleChange(value: string): void {
+function handleChange(value: string | string[]): void {
   noMatch.value = false
   emit('update:modelValue', value)
+}
+
+/** 弹窗搜索确认：把选中行并入候选缓存并回填字段值（单选=id 字符串，多选=id 数组） */
+function handleSearchConfirm(rows: Array<{ id: string; label: string }>): void {
+  searchDialogVisible.value = false
+  if (rows.length === 0) return
+  const picked = rows.map(r => ({ value: r.id, label: r.label }))
+  options.value = [...picked, ...options.value.filter(o => !picked.some(p => p.value === o.value))]
+  noMatch.value = false
+  const first = picked[0]
+  if (!first) return
+  cacheStore.setCandidates(targetModule.value, '', options.value)
+  emit('update:modelValue', searchMultiple.value ? picked.map(p => p.value) : first.value)
+  emit('blur')
+}
+
+function openSearchDialog(): void {
+  searchDialogVisible.value = true
+}
+
+function handleSearchDialogClose(): void {
+  searchDialogVisible.value = false
 }
 
 function handleQuickCreate(): void {
@@ -195,11 +247,12 @@ onUnmounted(() => {
 <template>
   <div class="fk-selector">
     <ElSelect
-      :model-value="modelValue as string"
+      :model-value="selectValue"
       :placeholder="fieldSchema.placeholder || `选择${fieldSchema.label}`"
       :disabled="disabled || readonly"
       :loading="loading"
       :clearable="!readonly"
+      :multiple="searchMultiple"
       :no-data-text="hasSearched && noMatch ? '未找到匹配项' : undefined"
       filterable
       remote
@@ -235,6 +288,27 @@ onUnmounted(() => {
       </template>
     </ElSelect>
 
+    <!-- 弹窗搜索：按目标模块打开完整列表界面选择（完整列/筛选/排序/分页），
+         确认后回填字段值；默认单选，fkSearchMultiple 开启才可多选 -->
+    <ElButton
+      class="fk-search-btn"
+      :icon="Search"
+      :title="`搜索选择${fieldSchema.label}`"
+      :disabled="disabled || readonly || !targetModule"
+      @click="openSearchDialog"
+    />
+
+    <SchemaEngineDialog
+      :visible="searchDialogVisible"
+      :module-id="targetModule"
+      :title="`选择${fieldSchema.label}`"
+      selectable
+      :selectable-multiple="searchMultiple"
+      :selected-ids="dialogSelectedIds"
+      @confirm="handleSearchConfirm"
+      @close="handleSearchDialogClose"
+    />
+
     <QuickCreateDialog
       :visible="quickCreateVisible"
       :target-module-id="targetModule"
@@ -254,6 +328,9 @@ onUnmounted(() => {
 }
 .full-width {
   flex: 1;
+}
+.fk-search-btn {
+  flex-shrink: 0;
 }
 </style>
 

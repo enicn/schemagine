@@ -98,6 +98,7 @@ defineExpose({
         trigger="click"
         placement="bottom-start"
         :width="560"
+        :z-index="4000"
         @update:visible="handlePopoverVisibleChange"
       >
         <template #reference>

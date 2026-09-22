@@ -357,9 +357,15 @@ export function useInlineEdit(
 
   function getFkLabel(value: unknown): string {
     if (value == null || value === '') return ''
-    const idStr = String(value)
-    const opt = fkOptions.value.find(o => String(o.value) === idStr)
-    return opt?.label || String(value)
+    // fk 值单 id 或 id 数组（fkSearchMultiple 多选）：逐个解析后拼接
+    const ids = Array.isArray(value) ? value : [value]
+    return ids
+      .filter(id => id != null && id !== '')
+      .map(id => {
+        const opt = fkOptions.value.find(o => String(o.value) === String(id))
+        return opt?.label || String(id)
+      })
+      .join('、')
   }
 
   function toggleFkDropdown(): void {

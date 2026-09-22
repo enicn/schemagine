@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, watch, computed, ref, provide, nextTick } from 
 import { Back, DocumentAdd, Grid, Menu, Plus, Postcard, Refresh, Setting } from '@element-plus/icons-vue'
 import { ElButton, ElTag, ElTooltip, ElMessage } from 'element-plus'
 import type { ViewMode } from '@/constants'
+import { APPEARANCE_KEY } from '@/constants/appearance'
 import { setLocale } from '@/locales'
 import { useSchema } from '@/composables/useSchema'
 import { usePermission } from '@/composables/usePermission'
@@ -52,6 +53,9 @@ const props = defineProps<{
 watch(() => props.locale, (loc) => {
   if (loc) setLocale(loc)
 }, { immediate: true })
+
+// 外观契约实例级下发：不在显式 prop 链上的引擎内部弹层（SchemaEngineDialog 等）经 inject 消费
+provide(APPEARANCE_KEY, computed<EngineAppearance>(() => props.appearance ?? {}))
 
 const emit = defineEmits<{
   'module-loaded': [payload: { moduleId: string }]

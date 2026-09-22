@@ -144,6 +144,12 @@ export interface EngineAppearance {
    * 溢出裁剪严格、或浮层形态干扰相邻行阅读的场景。两种档位下查看态行高约束均不变
    */
   inlineEditLayout?: 'float' | 'fit-row'
+  /**
+   * 表格行号列：true 时数据行首（勾选/展开列之前）渲染序号列（fixed left，居中），
+   * 分页场景经 VxeTableWrapper 的 rowNumberStart 续号（第 2 页从 pageSize+1 起）。
+   * 默认 false 关闭
+   */
+  rowNumbers?: boolean
 }
 
 export interface FieldSchema {
@@ -187,6 +193,9 @@ export interface FieldSchema {
   /** fk 字段：是否在下拉底部提供「新建」快速创建入口（打开弹层按目标模块必选字段+默认值创建，创建后自动选中）。
    *  目标无独立模块定义时降级为仅填 name。默认关闭，需显式开启 */
   quickCreate?: boolean
+  /** fk 字段：弹窗搜索选择器的多选开关。默认 false 单选（行点击选中，确认回填单个 id）；
+   *  true 时弹窗渲染复选框列、支持跨页勾选，确认回填 id 数组。需显式开启 */
+  fkSearchMultiple?: boolean
   displayField?: string
   group?: string
   /** 相同值合并单元格（docs/19 F5）：声明后该列相邻同值行纵向合并 */

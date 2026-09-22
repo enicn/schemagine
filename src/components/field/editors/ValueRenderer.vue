@@ -99,6 +99,46 @@ function formatValue(value: unknown, field: FieldSchema): string {
   return String(value)
 }
 
+/** fk 单 id → 展示 label：缓存 → 候选查询 → getDetail 兜底，全失败回落原始 id */
+async function resolveFkDisplayLabel(targetModule: string, id: string): Promise<string> {
+  const cached = cacheStore.getCandidates(targetModule, '')
+  const cachedMatch = cached?.find(o => o.value === id)
+  if (cachedMatch) return cachedMatch.label
+
+  try {
+    const res = await candidateService.query({
+      targetModule,
+      keyword: '',
+      page: 1,
+      pageSize: 200,
+    })
+    if (res.success) {
+      const match = res.data.options.find(o => o.value === id)
+      if (match) {
+        cacheStore.setCandidates(targetModule, '', res.data.options)
+        return match.label
+      }
+    }
+  } catch {
+    // candidate query failed, try recordService
+  }
+
+  try {
+    const res = await recordService.getDetail(targetModule, id)
+    if (res.success) {
+      const record = res.data
+      const labelField = record.fields.name ?? record.fields.label ?? record.fields.title
+      const label = typeof labelField === 'string' ? labelField : id
+      const existing = cacheStore.getCandidates(targetModule, '') || []
+      cacheStore.setCandidates(targetModule, '', [{ value: id, label }, ...existing.filter(o => o.value !== id)])
+      return label
+    }
+  } catch {
+    // Keep showing raw value on error
+  }
+  return id
+}
+
 async function resolveDisplay(): Promise<void> {
   const { value, fieldSchema } = props
 
@@ -123,53 +163,11 @@ async function resolveDisplay(): Promise<void> {
   displayClass.value = ''
 
   if (fieldSchema.type === 'fk' && fieldSchema.targetModule && value != null && value !== '') {
+    // fk 值单 id（字符串）或 id 数组（fkSearchMultiple 多选），逐个解析 label 后拼接
     const targetModule = fieldSchema.targetModule
-    const cached = cacheStore.getCandidates(targetModule, '')
-    if (cached) {
-      const match = cached.find(o => o.value === value)
-      if (match) {
-        displayText.value = match.label
-        return
-      }
-    }
-
-    displayText.value = String(value)
-
-    try {
-      const res = await candidateService.query({
-        targetModule,
-        keyword: '',
-        page: 1,
-        pageSize: 200,
-      })
-      if (res.success) {
-        const match = res.data.options.find(o => o.value === value)
-        if (match) {
-          displayText.value = match.label
-          cacheStore.setCandidates(targetModule, '', res.data.options)
-          return
-        }
-      }
-    } catch {
-      // candidate query failed, try recordService
-    }
-
-    try {
-      const res = await recordService.getDetail(targetModule, String(value))
-      if (res.success) {
-        const record = res.data
-        const labelField = record.fields.name ?? record.fields.label ?? record.fields.title
-        const label = typeof labelField === 'string' ? labelField : String(value)
-        displayText.value = label
-
-        const existing = cacheStore.getCandidates(targetModule, '') || []
-        const newOpt: { value: string; label: string } = { value: String(value), label }
-        const merged = [newOpt, ...existing.filter(o => o.value !== String(value))]
-        cacheStore.setCandidates(targetModule, '', merged)
-      }
-    } catch {
-      // Keep showing raw value on error
-    }
+    const ids = Array.isArray(value) ? value.map(String) : [String(value)]
+    const labels = await Promise.all(ids.map(id => resolveFkDisplayLabel(targetModule, id)))
+    displayText.value = labels.join('、')
   } else if (fieldSchema.type === 'one-to-many' || fieldSchema.type === 'many-to-many') {
     displayText.value = '\u{1F517} \u67E5\u770B\u5173\u8054'
   } else if (fieldSchema.type === 'reverse-ref') {

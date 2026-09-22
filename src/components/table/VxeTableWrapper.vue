@@ -84,6 +84,10 @@ const props = withDefaults(defineProps<{
   keyboardNav?: boolean
   /** 行级校验规则（docs/19 H1）：行内编辑确认前整行求值 */
   schemaRowRules?: RowValidationRule[]
+  /** 行号列（引擎 appearance.rowNumbers）：行首最左渲染 vxe 序号列（fixed left、居中）；默认关闭 */
+  rowNumbers?: boolean
+  /** 行号续号起点（vxe seq-config.startIndex）：分页场景传 (page-1)*pageSize，第 2 页从 pageSize+1 起；默认 0（从 1 起） */
+  rowNumberStart?: number
 }>(), {
   loading: false,
   virtualScroll: false,
@@ -654,6 +658,7 @@ defineExpose({
       :scroll-y="tableScrollY"
       :row-class-name="getRowClassName"
       :sort-config="{ trigger: 'default', remote: true, defaultSort: sortConfig as any, showIcon: false, multiple: false }"
+      :seq-config="rowNumbers ? { startIndex: rowNumberStart ?? 0 } : undefined"
       :keep-source="true"
       :column-config="{ drag: columnDraggable, resizable: true }"
       :column-drag-config="{ tooltipMethod: columnDragTooltipMethod }"
@@ -678,11 +683,15 @@ defineExpose({
       <template v-if="$slots.empty" #empty>
         <slot name="empty" />
       </template>
-      <!-- 行首复选框列：仅在需要批量操作（如批量删除）时显示 -->
-      <!-- 勾选列保持默认左对齐：全选框与行勾选框的同轴由下方样式补齐表头内边距实现
-           （居中方案受表头/表体单元格 2px 宽度差影响，中心恒差 1px） -->
+      <!-- 勾选列保持最左（常规列表页顺序：勾选 → 行号）；宽度用固定 width，不随视口/fit 均摊拉扯 -->
       <!-- 勾选列(docs/20):36px = 20px 勾选框 + 左右各 8px padding,align=center 上下居中 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="36" align="center" fixed="left" />
+      <!-- 行号列（appearance.rowNumbers）：勾选列之后；seq 列无 field，不参与列拖拽与合并，
+           footerMethod 若只按数据列计值需自行注意与 seq 列的索引错位。
+           序号经默认插槽自渲染（不依赖 vxe seq 内建计算，避免二次渲染场景下的调度缺失） -->
+      <VxeColumn v-if="rowNumbers" type="seq" width="48" align="center" fixed="left" drag-disabled title="#">
+        <template #default="{ rowIndex }">{{ (rowNumberStart ?? 0) + rowIndex + 1 }}</template>
+      </VxeColumn>
       <!-- 行展开列（docs/19 F4）：展开区内容经宿主插槽渲染（B2 插槽透传机制） -->
       <VxeColumn v-if="expandSlot" type="expand" width="48" fixed="left">
         <template #content="{ row }">
@@ -698,8 +707,7 @@ defineExpose({
             :key="col.field"
             :field="col.field"
             :title="col.title"
-            :width="col.width"
-            :min-width="col.minWidth"
+            :min-width="col.width ?? col.minWidth ?? 120"
             :fixed="col.fixed"
             :sortable="col.sortable"
             :align="col.align || 'left'"
@@ -720,8 +728,7 @@ defineExpose({
             :key="col.field"
             :field="col.field"
             :title="col.title"
-            :width="col.width"
-            :min-width="col.minWidth"
+            :min-width="col.width ?? col.minWidth ?? 120"
             :fixed="col.fixed"
             :sortable="col.sortable"
             :align="col.align || 'left'"
@@ -846,6 +853,8 @@ defineExpose({
 /* 列宽分配兜底：vxe 的 fit 剩余宽度分配在部分挂载时序下不会被重算（首次 calc 时
    容器尚窄则 meanWidth=0 永久定格），主层表格声明 min-width:100% 交给浏览器
    fixed 布局把差额均摊到各列，表头/表体同 colgroup 天然对齐。
+   数据列经 min-width 声明（参与 vxe fit 均摊），vxe 重算后 col 总和贴合容器宽，
+   本兜底不再产生差额；勾选/行号列（固定 width）不受视口宽度拉扯。
    列总宽超出容器（横向滚动）时 vxe 内联 width 生效、min-width 不参与，固定列层不在选择域内不受影响 */
 .vxe-table-wrapper :deep(.vxe-table--render-default .vxe-table--main-wrapper table) {
   min-width: 100%;

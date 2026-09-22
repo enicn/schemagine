@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import {
   ElDialog,
   ElButton,
@@ -13,16 +13,22 @@ import SchemaPagination from '@/components/table/SchemaPagination.vue'
 import SchemaCard from '@/components/card/SchemaCard.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
+import SchemaFilterBar from '@/components/filter/SchemaFilterBar.vue'
 import { recordService } from '@/services/api/recordService'
 import { schemaService } from '@/services/api/schemaService'
+import { collectSelectedRows, type SelectedRow } from '@/utils/selectedRows'
+import { useRuntimeCacheStore } from '@/stores/runtimeCacheStore'
+import { APPEARANCE_KEY } from '@/constants/appearance'
 import type {
   ModuleSchema,
   SortParam,
   FilterClause,
+  FilterCondition,
   RecordEntity,
   ColumnConfig,
   CardLayoutConfig,
   ListAction,
+  EngineAppearance,
 } from '@/types'
 
 const props = defineProps<{
@@ -30,11 +36,26 @@ const props = defineProps<{
   moduleId: string
   title?: string
   initialFilters?: FilterClause[]
+  /** 选择模式（FK 弹窗搜索等）：true 时行可选、footer 提供确认按钮，确认回传选中行；
+   *  默认 false 保持纯查看语义（ListActionBar「查看数据」不受影响） */
+  selectable?: boolean
+  /** 选择模式多选开关：true=行首复选框列（跨页勾选保留），false（默认）=单选行高亮 */
+  selectableMultiple?: boolean
+  /** 选择模式初始选中 id：打开弹窗时回显（单选取首个，多选勾选命中行） */
+  selectedIds?: string[]
 }>()
 
 const emit = defineEmits<{
   close: []
+  confirm: [rows: SelectedRow[]]
 }>()
+
+const cacheStore = useRuntimeCacheStore()
+
+// 外观契约（行号等）：不在 SchemaEngine 显式 prop 链上，经 inject 取实例级 appearance；
+// 引擎树外独立使用本弹窗时缺省空对象（开关全关）
+const injectedAppearance = inject(APPEARANCE_KEY, computed<EngineAppearance>(() => ({})))
+const rowNumbers = computed(() => injectedAppearance.value?.rowNumbers === true)
 
 interface PopupLayer {
   moduleId: string
@@ -75,15 +96,70 @@ const records = ref<RecordEntity[]>([])
 const totalRecords = ref(0)
 const isDataLoading = ref(false)
 
-const filters = ref<FilterClause[]>([])
+const filters = ref<FilterCondition[]>([])
 const currentSort = ref<SortParam | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(20)
+
+/** 与主列表同口径：可参与全量筛选栏的字段（类型支持 + filterable 声明） */
+const filterableFields = computed(() => {
+  if (!schema.value) return []
+  const supported = new Set(['text', 'select', 'multi-select', 'date', 'datetime', 'boolean', 'fk'])
+  return schema.value.fields.filter(f => f.filterable && supported.has(f.type))
+})
+
+/** 表头「已筛」高亮只认简单子句；组合过滤组不对应单列，拍平掉 */
+const flatFilterClauses = computed<FilterClause[]>(() => filters.value.filter((c): c is FilterClause => 'field' in c))
 
 const cardIndex = ref(0)
 
 type PopupViewMode = 'list' | 'card'
 const viewMode = ref<PopupViewMode>('list')
+
+// ---- 选择模式（selectable）----
+const selectedRowId = ref<string | null>(null)
+const checkedRowIds = ref<string[]>([])
+
+const selectionConfirmed = computed(() => {
+  if (!props.selectable) return false
+  return props.selectableMultiple ? checkedRowIds.value.length > 0 : !!selectedRowId.value
+})
+
+function initSelection(): void {
+  const initial = props.selectable ? (props.selectedIds ?? []) : []
+  selectedRowId.value = initial[0] ?? null
+  checkedRowIds.value = [...initial]
+}
+
+function handleRowClick(payload: { row: Record<string, unknown>; rowIndex: number }): void {
+  if (!props.selectable || props.selectableMultiple) return
+  const id = payload.row._recordId
+  selectedRowId.value = typeof id === 'string' ? id : String(id ?? '')
+}
+
+function handleSelectionChange(rowIds: string[]): void {
+  if (!props.selectable || !props.selectableMultiple) return
+  checkedRowIds.value = rowIds
+}
+
+function handleRowDblclick(row: Record<string, unknown>): void {
+  // 单选模式下双击行 = 选中并直接确认（多选的复选框列语义下不做）
+  if (!props.selectable || props.selectableMultiple) return
+  const id = row._recordId
+  selectedRowId.value = typeof id === 'string' ? id : String(id ?? '')
+  handleConfirm()
+}
+
+function handleConfirm(): void {
+  if (!selectionConfirmed.value) return
+  const ids = props.selectableMultiple ? checkedRowIds.value : [selectedRowId.value ?? '']
+  // label 兜底链：当前页数据行 → fk 候选缓存 → 原始 id（跨页保留行不在当前数据时）
+  const rows = collectSelectedRows(tableData.value, ids, '_recordId', (id) => {
+    const cached = cacheStore.getCandidates(activeModuleId.value, '')
+    return cached?.find(o => o.value === id)?.label
+  })
+  emit('confirm', rows)
+}
 
 const localColumns = ref<ColumnConfig[]>([])
 const localCardLayout = ref<CardLayoutConfig | null>(null)
@@ -326,9 +402,16 @@ watch([currentPage, pageSize, filters, currentSort], () => {
   if (schema.value) fetchData()
 })
 
-function handleSearch(newFilters: FilterClause[]): void {
+function handleSearch(newFilters: FilterCondition[]): void {
   filters.value = newFilters
   currentPage.value = 1
+}
+
+/** 表头「筛选与排序」单列子句与全量筛选栏共用同一份条件集 */
+function handleHeaderFilterChange(payload: { field: string; clause: FilterClause | null }): void {
+  const next = filters.value.filter((c): c is FilterClause => 'field' in c && c.field !== payload.field)
+  if (payload.clause) next.push(payload.clause)
+  handleSearch(next)
 }
 
 function handleSortChange(payload: { field: string; order: 'asc' | 'desc' | null }): void {
@@ -434,6 +517,7 @@ watch(() => props.visible, (show) => {
     filters.value = props.initialFilters ?? []
     cardIndex.value = 0
     viewMode.value = 'list'
+    initSelection()
     loadModule()
   }
 })
@@ -457,52 +541,61 @@ watch(() => props.visible, (show) => {
 
     <div v-else class="dialog-body">
       <div class="popup-toolbar">
-        <div class="popup-toolbar-left">
-          <template v-if="viewMode === 'list'">
-            <ColumnSettingsPopover
-              v-if="schema"
-              :fields="schema.fields"
-              :columns="localColumns"
-              @save="handleColumnSettingsSave"
-              @reset="handleColumnSettingsReset"
-            >
-              <ElButton size="small">列表设置</ElButton>
-            </ColumnSettingsPopover>
-          </template>
-          <template v-else-if="viewMode === 'card'">
-            <CardLayoutSettingsPopover
-              v-if="schema"
-              :fields="schema.fields"
-              :card-layout="localCardLayout"
-              @save="handleCardLayoutSave"
-              @reset="handleCardLayoutReset"
-            >
-              <ElButton size="small">卡片设置</ElButton>
-            </CardLayoutSettingsPopover>
-          </template>
-          <ElButton
-            v-if="viewMode !== 'list'"
-            size="small"
-            @click="handleViewModeChange('list')"
-          >
-            列表界面
+        <!-- 工具栏布局对齐常规列表页：筛选（+列表动作）靠左，列/卡片设置与视图切换靠右 -->
+      <div class="popup-toolbar-left">
+        <SchemaFilterBar
+          v-if="schema && filterableFields.length > 0"
+          :fields="schema.fields"
+          :model-value="filters"
+          @update:model-value="handleSearch"
+          @search="handleSearch"
+        />
+        <template v-for="action in listActions" :key="action.id">
+          <ElButton v-if="!selectable" size="small" @click="handleNestedPopup(action)">
+            {{ action.label }}
           </ElButton>
-          <ElButton
-            v-if="viewMode !== 'card' && moduleType !== 'list'"
-            size="small"
-            @click="handleViewModeChange('card')"
-          >
-            卡片界面
-          </ElButton>
-        </div>
-        <div class="popup-toolbar-right">
-          <template v-for="action in listActions" :key="action.id">
-            <ElButton size="small" @click="handleNestedPopup(action)">
-              {{ action.label }}
-            </ElButton>
-          </template>
-        </div>
+        </template>
       </div>
+      <div class="popup-toolbar-right">
+        <template v-if="viewMode === 'list'">
+          <ColumnSettingsPopover
+            v-if="schema"
+            :fields="schema.fields"
+            :columns="localColumns"
+            @save="handleColumnSettingsSave"
+            @reset="handleColumnSettingsReset"
+          >
+            <ElButton size="small">列表设置</ElButton>
+          </ColumnSettingsPopover>
+        </template>
+        <template v-else-if="viewMode === 'card'">
+          <CardLayoutSettingsPopover
+            v-if="schema"
+            :fields="schema.fields"
+            :card-layout="localCardLayout"
+            @save="handleCardLayoutSave"
+            @reset="handleCardLayoutReset"
+          >
+            <ElButton size="small">卡片设置</ElButton>
+          </CardLayoutSettingsPopover>
+        </template>
+        <ElButton
+          v-if="viewMode !== 'list'"
+          size="small"
+          @click="handleViewModeChange('list')"
+        >
+          列表界面
+        </ElButton>
+        <!-- 选择模式隐藏卡片切换：卡片视图无选择交互，避免选中态在视图间失联 -->
+        <ElButton
+          v-if="viewMode !== 'card' && moduleType !== 'list' && !selectable"
+          size="small"
+          @click="handleViewModeChange('card')"
+        >
+          卡片界面
+        </ElButton>
+      </div>
+    </div>
 
       <div v-if="viewMode === 'list'" class="popup-list-view">
         <VxeTableWrapper
@@ -512,9 +605,16 @@ watch(() => props.visible, (show) => {
           :columns="wrapperColumns"
           :loading="isDataLoading || isSchemaLoading"
           :sort-config="currentSort ? { field: currentSort.field, order: currentSort.order } : undefined"
-          :filter-clauses="filters"
+          :filter-clauses="flatFilterClauses"
+          :selected-row-id="selectable ? selectedRowId : null"
+          :show-selection="selectable && !!selectableMultiple"
+          :row-numbers="rowNumbers"
+          :row-number-start="(currentPage - 1) * pageSize"
           @sort-change="handleSortChange"
-          @filter-change="(payload: { field: string; clause: FilterClause | null }) => { const next = filters.filter(c => c.field !== payload.field); if (payload.clause) next.push(payload.clause); handleSearch(next) }"
+          @filter-change="handleHeaderFilterChange"
+          @row-click="handleRowClick"
+          @cell-dblclick="(payload: { row: Record<string, unknown>; column: WrapperColumn }) => { if (payload.column.isAction) return; handleRowDblclick(payload.row) }"
+          @selection-change="handleSelectionChange"
         />
         <div v-if="aggregationSummary.length > 0" class="aggregation-bar">
           <div class="aggregation-item">
@@ -583,10 +683,16 @@ watch(() => props.visible, (show) => {
           @page-change="handlePageChange"
         />
         <div class="dialog-footer-actions">
+          <span v-if="selectable && selectableMultiple && checkedRowIds.length > 0" class="selection-count">
+            已选 {{ checkedRowIds.length }} 项
+          </span>
+          <ElButton v-if="selectable" type="primary" :disabled="!selectionConfirmed" @click="handleConfirm">
+            确定
+          </ElButton>
           <ElButton v-if="popupStack.length > 0" size="small" @click="handleCloseAll">
             关闭全部
           </ElButton>
-          <ElButton @click="handleClose">关闭</ElButton>
+          <ElButton @click="handleClose">{{ selectable ? '取消' : '关闭' }}</ElButton>
         </div>
       </div>
     </template>
@@ -629,12 +735,12 @@ watch(() => props.visible, (show) => {
   gap: var(--sg-spacing-4);
   flex-shrink: 0;
 }
-.popup-toolbar-right :deep(.schema-filter-bar) {
+.popup-toolbar-left :deep(.schema-filter-bar) {
   padding: 0;
   border: none;
   background: transparent;
 }
-.popup-toolbar-right :deep(.filter-bar-header) {
+.popup-toolbar-left :deep(.filter-bar-header) {
   padding: 0;
   border: none;
   background: transparent;
@@ -685,6 +791,10 @@ watch(() => props.visible, (show) => {
   align-items: center;
   gap: var(--sg-spacing-4);
 }
+.selection-count {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+}
 .aggregation-bar {
   display: flex;
   align-items: center;
@@ -732,5 +842,10 @@ watch(() => props.visible, (show) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+/* 弹窗表头文字居中（仅选择/查看弹窗范围，不影响主列表）：
+   .schema-header-cell 是 inline-flex，随 vxe 单元格 text-align 居中 */
+.popup-dialog .vxe-table .vxe-header--column .vxe-cell {
+  text-align: center;
 }
 </style>

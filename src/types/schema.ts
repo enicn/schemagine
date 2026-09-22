@@ -1,3 +1,5 @@
+import type { ActionAct, Rule } from '@/rules'
+
 export interface ModuleSchema {
   id: string
   name: string
@@ -23,6 +25,8 @@ export interface ModuleSchema {
   groupBy?: GroupByConfig
   /** 行级校验规则（docs/19 H1）：跨字段规则（如 dateEnd > dateStart），三入口同口径拦截 */
   rowValidationRules?: RowValidationRule[]
+  /** 模块级声明式规则（rules 包八类）：与字段级 rules 同构，经 RulesRuntime 求值，Effect 交宿主执行器 */
+  rules?: Rule[]
   /** @since 2.0 版本迁移列表：按 fromVersion 升序排列 */
   migrations?: SchemaMigration[]
   status: 'active' | 'disabled' | 'error'
@@ -175,6 +179,10 @@ export interface FieldSchema {
    *  声明后覆盖为去重候选值列表（datetime 由后端按天分桶）。文本/枚举/外键列无需声明即默认候选值优先 */
   filterCandidates?: boolean
   validationRules?: ValidationRule[]
+  /** 字段级声明式规则（rules 包八类）：compute 为 watch 触发的有序求值链（写回行数据），
+   *  validate 的 when 为违反条件（force 为强制值），action 产出 Effect 交宿主执行器；
+   *  与 visibleWhen/formula 等既有位并存，规则优先（未覆盖处既有位继续生效） */
+  rules?: Rule[]
   permission?: FieldPermission
   formula?: FormulaFieldConfig
   dynamicMax?: DynamicMaxConfig
@@ -351,6 +359,9 @@ export interface RowActionConfig {
   icon?: string
   /** 按行显隐：逐行以行数据为 record 上下文求值，false 时该行不渲染此按钮（如「停用」仅启用行可见） */
   visibleWhen?: Condition
+  /** 声明式动作槽位（rules 包）：声明后点击经 RulesRuntime.planAction 产出 Effect 交宿主执行器；
+   *  与 target（引擎内置动作）二选一，同时声明时 action 优先 */
+  action?: ActionAct
   /** 危险操作红字样式；不改变 type 语义（custom 也可标红） */
   danger?: boolean
   target?: ActionTargetConfig

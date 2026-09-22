@@ -58,6 +58,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   filterable: true,
   filterCandidates: true,
   validationRules: true,
+  rules: true,
   permission: true,
   formula: true,
   dynamicMax: true,
@@ -94,7 +95,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   highlightStyle: true,
 }
 
-/** FieldSchema 全量属性元数据(51 项,顺序即文档表格默认顺序) */
+/** FieldSchema 全量属性元数据(与 FIELD_SCHEMA_KEYS 一一对应,顺序即文档表格默认顺序) */
 export const FIELD_META: PropertyMeta[] = [
   {
     key: 'id', target: 'field', label: '字段 ID', group: 'basic', appliesTo: ALL, kind: 'string',
@@ -222,6 +223,12 @@ export const FIELD_META: PropertyMeta[] = [
     surfaces: ['form', 'inline-edit'],
     description: '校验规则数组(type: required/min/max/minLength/maxLength/pattern/custom,message + level error|warning)。当前实际生效范围:快速创建弹窗;行内编辑仅数值精度校验,创建视图暂未执行(改进计划批次 D 统一三入口)。',
     example: [{ type: 'min', value: 0, message: '不能为负数', level: 'error' }],
+  },
+  {
+    key: 'rules', target: 'field', label: '声明式规则', group: 'condition', appliesTo: ALL, kind: 'object',
+    surfaces: ['render', 'inline-edit', 'form', 'card'],
+    description: '声明式规则数组(rules 包八类 condition/compute/map/lookup/validate/action/style/aggregate)。compute 为 watch 触发的有序求值链(结果写回行数据,声明序可引用前序 target);validate 的 when 为违反条件、force 为强制值;action 产出 Effect 描述符交宿主执行器。与 visibleWhen/formula 等既有位并存,规则优先、未覆盖处既有位继续生效。',
+    example: [{ type: 'compute', target: 'total', watch: ['price', 'quantity'], expr: 'price * quantity' }],
   },
   {
     key: 'permission', target: 'field', label: '字段权限', group: 'condition', appliesTo: ALL, kind: 'object',

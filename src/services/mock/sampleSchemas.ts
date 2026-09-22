@@ -609,6 +609,10 @@ export const invoiceSchema: ModuleSchema = {
       sortable: true,
       filterable: false,
       prefixStr: '¥',
+      // 字段级声明式规则（rules 包）演示：watch 触发的求值链（A-3 起行内编辑生效）
+      rules: [
+        { type: 'compute', target: 'amountWithTax', watch: ['amount'], expr: 'roundTo(amount * 1.13, 2)' },
+      ],
     },
     {
       id: 'fld-inv-date',
@@ -637,6 +641,7 @@ export const invoiceSchema: ModuleSchema = {
       visible: true,
       sortable: false,
       filterable: false,
+      targetModule: 'module-receivable',
       relationConfig: {
         targetModule: 'module-receivable',
         displayField: 'name',
@@ -684,6 +689,10 @@ export const invoiceSchema: ModuleSchema = {
   ],
   permissions: { view: true, create: true, edit: true, delete: true, export: true, configure: true },
   defaultViewMode: 'list',
+  // 模块级声明式规则（rules 包）演示：when 为违反条件，true 时拦截并提示
+  rules: [
+    { type: 'validate', when: ['amount', 'lte', 0], message: '发票金额必须大于 0' },
+  ],
   status: 'active',
 }
 

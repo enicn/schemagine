@@ -1,5 +1,7 @@
 import { FIELD_SCHEMA_KEYS } from './fieldMeta'
 import { MODULE_SCHEMA_KEYS } from './moduleMeta'
+// 声明式规则（rules 包）：结构校验复用同构校验器，宿主服务端可复用同一套规则
+import { validateRules } from '@/rules'
 
 /**
  * 运行时 Schema 诊断（docs/19 批次 I2）：宿主运行时灌入的 JSON 无编译期类型保护,
@@ -70,6 +72,13 @@ export function validateSchema(schema: unknown): SchemaDiagnostic[] {
     }
   }
 
+  // ── 模块级声明式规则（rules 包） ──
+  if (schema.rules !== undefined) {
+    for (const issue of validateRules(schema.rules, 'rules').issues) {
+      push('error', issue.path, issue.message)
+    }
+  }
+
   // ── 字段级 ──
   const seenKeys = new Set<string>()
   schema.fields.forEach((rawField, index) => {
@@ -121,6 +130,21 @@ export function validateSchema(schema: unknown): SchemaDiagnostic[] {
     for (const key of Object.keys(rawField)) {
       if (!FIELD_KEYS.has(key)) {
         push('warning', `${path}.${key}`, `未知的字段配置项「${key}」,引擎将忽略（允许透传宿主自定义数据）`)
+      }
+    }
+
+    // ── 字段级声明式规则（rules 包） ──
+    if (rawField.rules !== undefined) {
+      for (const issue of validateRules(rawField.rules, `${path}.rules`).issues) {
+        push('error', issue.path, issue.message)
+      }
+    }
+
+    // ── rowAction.action 声明式动作槽位：invoke/open/navigate 至少其一 ──
+    if (isRecord(rawField.rowAction) && rawField.rowAction.action !== undefined) {
+      const act = isRecord(rawField.rowAction.action) ? rawField.rowAction.action : {}
+      if (act.invoke === undefined && act.open === undefined && act.navigate === undefined) {
+        push('error', `${path}.rowAction.action`, 'rowAction.action 需要 invoke/open/navigate 之一（声明式动作槽位）')
       }
     }
 

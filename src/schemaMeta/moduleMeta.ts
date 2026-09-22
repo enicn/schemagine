@@ -23,6 +23,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   treeConfig: true,
   groupBy: true,
   rowValidationRules: true,
+  rules: true,
   migrations: true,
   status: true,
 }
@@ -138,6 +139,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['form'],
     description: '行级校验规则(docs/19 H1):RowValidationRule[] 跨字段规则,when 以整行字段值为上下文({ record: 字段 } 互引可表达 dateEnd > dateStart),level error 拦截/warning 放行;与字段级校验同口径接入行内编辑、创建保存、快速创建三入口。',
     example: [{ key: 'dateRange', message: '结束日期需晚于开始日期', level: 'error', fields: ['dateStart', 'dateEnd'], when: { left: { record: 'dateEnd' }, operator: 'lte', right: { record: 'dateStart' } } }],
+  },
+  {
+    key: 'rules', target: 'module', label: '模块级规则', group: 'condition', appliesTo: 'all', kind: 'object',
+    surfaces: ['render', 'inline-edit'],
+    description: '模块级声明式规则(rules 包八类),与字段级 rules 同构;适合跨字段 compute 链与模块级校验/动作。经 RulesRuntime 求值,Effect 交宿主执行器;声明序即求值序。',
+    example: [{ type: 'validate', when: ['dateEnd', 'lt', 'dateStart'], message: '结束时间不能早于开始时间' }],
   },
   {
     key: 'treeConfig', target: 'module', label: '树形数据', group: 'display', appliesTo: 'all', kind: 'object',

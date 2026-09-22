@@ -34,7 +34,7 @@ describe('schemaMeta 防漏机制', () => {
     expect([...metaKeys].sort()).toEqual(MODULE_KEY_SNAPSHOT)
   })
 
-  it('穷举键表数量与元数据数量一致(FieldSchema 52 项 / ModuleSchema 17 项)', () => {
+  it('穷举键表数量与元数据数量一致', () => {
     expect(Object.keys(FIELD_SCHEMA_KEYS)).toHaveLength(FIELD_META.length)
     expect(Object.keys(MODULE_SCHEMA_KEYS)).toHaveLength(MODULE_META.length)
   })

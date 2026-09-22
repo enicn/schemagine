@@ -7,6 +7,10 @@
 
 ### Added
 
+- **Schema contract: declarative rules positions** — `ModuleSchema.rules` / `FieldSchema.rules` (`Rule[]` from the rules package) and `RowActionConfig.action` (`ActionAct` declarative slot) are now first-class schema keys: registered in the exhaustive key tables and metadata docs (`FIELD_META`/`MODULE_META`), and validated by `validateSchema` via the isomorphic `validateRules` (issues surface as `error` diagnostics at `rules[...].path` / `fields[i].rules[...].path`; `rowAction.action` requires one of invoke/open/navigate). Sample schemas ship neutral rule examples (field-level compute chain + module-level validate). Invoice sample also declares the top-level `targetModule` its one-to-many field was missing.
+
+### Added
+
 - **`schemagine/rules` subpath entry (new declarative rules package)** — framework-free, dependency-free: `createRuntime({ evaluate, parse, functions, flows, actions })` returns `compileModule` / `evalCondition` / `runComputes` (watch-triggered ordered compute chain with cascade into dependent targets, SET/FORCE effects) / `runValidates` (`when` violation condition, `force` value coercion) / `planAction` (confirm → invoke/open/navigate → toast, `{{expr}}`-interpolated params) / `runFlow` (steps of action/params/when/as, sub-flow recursion guarded by depth ≤ 8 + cycle detection + action-kind whitelist, executor-injected IO). Eight rule kinds: condition/compute/map/lookup/validate/action/style/aggregate. Conditions accept object form (engine `visibleWhen` dialect), triplet form `[field, operator, operand?]`, and expression strings. Built-in functions: now/sum/count/min/max/abs/ceilTo/roundTo; business functions stay host-registered via the function dictionary. Isomorphic validators `validateRules` / `validateFlow` / `validateDictionary` for host-side write gates. Built as the third lib entry (`dist/rules.mjs`/`rules.cjs` + `dist/rules/*.d.ts`); the decoupling guard now also bans host namespaces (`xr-`/`xrerp`/`jy_`/company names) engine-wide.
 
 ## [0.3.7] - 2026-09-23

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { validateSchema } from '@/schemaMeta/validateSchema'
-import { voucherSchema, apSchema, emptyModuleSchema, userSchema } from '@/services/mock/sampleSchemas'
+import { voucherSchema, apSchema, emptyModuleSchema, userSchema, invoiceSchema } from '@/services/mock/sampleSchemas'
 
 function makeSchema(overrides: Record<string, unknown>, fields: Array<Record<string, unknown>> = []): unknown {
   return {
@@ -35,8 +35,8 @@ function errorsOf(diagnostics: ReturnType<typeof validateSchema>) {
 }
 
 describe('validateSchema 运行时诊断(docs/19 I2)', () => {
-  it('演示模块 schema 全部合法(零报错零警告)', () => {
-    for (const schema of [voucherSchema, apSchema, emptyModuleSchema, userSchema]) {
+  it('演示模块 schema 全部合法(零报错零警告,含 invoice 规则示例)', () => {
+    for (const schema of [voucherSchema, apSchema, emptyModuleSchema, userSchema, invoiceSchema]) {
       expect(validateSchema(schema)).toEqual([])
     }
   })
@@ -105,5 +105,39 @@ describe('validateSchema 运行时诊断(docs/19 I2)', () => {
     ]))
     expect(errorsOf(diagnostics)).toHaveLength(0)
     expect(diagnostics.some(d => d.path === 'fields[0].options' && d.level === 'warning')).toBe(true)
+  })
+})
+
+describe('validateSchema 声明式规则诊断(rules 包)', () => {
+  it('合法规则(模块级+字段级)零诊断', () => {
+    const diagnostics = validateSchema(makeSchema({
+      rules: [{ type: 'validate', when: ['a', 'lte', 0], message: 'a must be positive' }],
+    }, [
+      makeField({ key: 'a', rules: [{ type: 'compute', target: 'total', watch: ['a'], expr: 'a * 2' }] }),
+    ]))
+    expect(diagnostics).toEqual([])
+  })
+
+  it('坏 compute(缺 watch/expr)报 error 且路径定位到字段', () => {
+    const diagnostics = validateSchema(makeSchema({}, [
+      makeField({ key: 'a', rules: [{ type: 'compute', target: 'total', watch: [], expr: '' }] }),
+    ]))
+    const errors = errorsOf(diagnostics)
+    expect(errors.length).toBeGreaterThanOrEqual(2)
+    expect(errors.every(d => d.path.startsWith('fields[0].rules'))).toBe(true)
+  })
+
+  it('未知规则类型报 error', () => {
+    const diagnostics = validateSchema(makeSchema({
+      rules: [{ type: 'nope' }],
+    }, [makeField({ key: 'a' })]))
+    expect(errorsOf(diagnostics)[0]?.path).toBe('rules[0].type')
+  })
+
+  it('rowAction.action 缺 invoke/open/navigate 报 error', () => {
+    const diagnostics = validateSchema(makeSchema({}, [
+      makeField({ key: 'act', type: 'action', rowAction: { type: 'custom', label: 'Go', action: {} } }),
+    ]))
+    expect(errorsOf(diagnostics)[0]?.path).toBe('fields[0].rowAction.action')
   })
 })

@@ -10,6 +10,7 @@ import type { ModuleSchema, FieldSchema, ModulePermissions, ListEditMode } from 
 import ActionsConfigPanel from './components/ActionsConfigPanel.vue'
 import FieldSchemaFormPanel from './components/FieldSchemaFormPanel.vue'
 import FormulaBuilder from './components/FormulaBuilder.vue'
+import RulesEditorPanel from './components/RulesEditorPanel.vue'
 import SchemaPreview from './components/SchemaPreview.vue'
 import JsonImportExport from './components/JsonImportExport.vue'
 import DependencyGraph from './components/DependencyGraph.vue'
@@ -431,6 +432,13 @@ const statusOptions = [
 
           <ElTabPane label="公式构建" name="formula">
             <FormulaBuilder
+              :schema="currentSchema"
+              @update="(s: ModuleSchema) => { currentSchema = s; isDirty = true; }"
+            />
+          </ElTabPane>
+
+          <ElTabPane label="规则编辑" name="rules">
+            <RulesEditorPanel
               :schema="currentSchema"
               @update="(s: ModuleSchema) => { currentSchema = s; isDirty = true; }"
             />

@@ -15,17 +15,18 @@ export default defineConfig({
   },
   build: {
     lib: {
-      // 双入口：主入口 schemagine + 媒体可选子路径 media（schemagine/media）
+      // 三入口：主入口 schemagine + 可选子路径 media（schemagine/media）+ rules（schemagine/rules）
       entry: {
         schemagine: resolve(__dirname, 'src/index.ts'),
         media: resolve(__dirname, 'src/media/index.ts'),
+        rules: resolve(__dirname, 'src/rules/index.ts'),
       },
       name: 'Schemagine',
       formats: ['es', 'cjs'],
-      fileName: (format, entryName) =>
-        entryName === 'schemagine'
-          ? `schemagine.${format === 'es' ? 'mjs' : 'cjs'}`
-          : `media.${format === 'es' ? 'mjs' : 'cjs'}`,
+      fileName: (format, entryName) => {
+        if (entryName === 'schemagine') return `schemagine.${format === 'es' ? 'mjs' : 'cjs'}`
+        return `${entryName}.${format === 'es' ? 'mjs' : 'cjs'}`
+      },
     },
     rollupOptions: {
       // 外置所有 peers（含子路径，如 vxe-table/lib/style.css 等 CSS）。

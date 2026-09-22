@@ -3,6 +3,12 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+
+- **`schemagine/rules` subpath entry (new declarative rules package)** — framework-free, dependency-free: `createRuntime({ evaluate, parse, functions, flows, actions })` returns `compileModule` / `evalCondition` / `runComputes` (watch-triggered ordered compute chain with cascade into dependent targets, SET/FORCE effects) / `runValidates` (`when` violation condition, `force` value coercion) / `planAction` (confirm → invoke/open/navigate → toast, `{{expr}}`-interpolated params) / `runFlow` (steps of action/params/when/as, sub-flow recursion guarded by depth ≤ 8 + cycle detection + action-kind whitelist, executor-injected IO). Eight rule kinds: condition/compute/map/lookup/validate/action/style/aggregate. Conditions accept object form (engine `visibleWhen` dialect), triplet form `[field, operator, operand?]`, and expression strings. Built-in functions: now/sum/count/min/max/abs/ceilTo/roundTo; business functions stay host-registered via the function dictionary. Isomorphic validators `validateRules` / `validateFlow` / `validateDictionary` for host-side write gates. Built as the third lib entry (`dist/rules.mjs`/`rules.cjs` + `dist/rules/*.d.ts`); the decoupling guard now also bans host namespaces (`xr-`/`xrerp`/`jy_`/company names) engine-wide.
+
 ## [0.3.7] - 2026-09-23
 
 ### Changed

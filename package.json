@@ -48,6 +48,18 @@
       },
       "default": "./dist/media.mjs"
     },
+    "./rules": {
+      "types": "./dist/rules/index.d.ts",
+      "import": {
+        "types": "./dist/rules/index.d.ts",
+        "default": "./dist/rules.mjs"
+      },
+      "require": {
+        "types": "./dist/rules/index.d.ts",
+        "default": "./dist/rules.cjs"
+      },
+      "default": "./dist/rules.mjs"
+    },
     "./dist/schemagine.css": "./dist/schemagine.css"
   },
   "files": [

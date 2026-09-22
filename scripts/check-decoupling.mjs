@@ -16,8 +16,11 @@ const SRC = fileURLToPath(new URL('../src', import.meta.url))
 
 // 禁词表：宿主样式命名空间（hb- 覆盖 .hb-*/--hb-*/$hb-* 一切形态）。
 // 新宿主接入时若引入新的命名空间，在此登记即可全局拦截。
+// 开源中立红线（rules 包）：宿主标记/表前缀/公司名一律禁止出现在引擎源码中。
 const BANNED_PATTERNS = [
   { pattern: /hb-/g, reason: '宿主样式命名空间（hb-* / --hb-* / $hb-*）' },
+  { pattern: /\bxr-|xrerp|jy_/gi, reason: '宿主标记/表前缀（开源中立红线）' },
+  { pattern: /心睿|xinrui/i, reason: '宿主公司名（开源中立红线）' },
 ]
 
 const EXTENSIONS = new Set(['.vue', '.ts', '.tsx', '.scss', '.css', '.mjs'])

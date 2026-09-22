@@ -103,6 +103,7 @@ const columns = computed<WrapperColumn[]>(() => {
       actionDanger: isAction && field.rowAction?.type === 'delete',
       rowActionType: isAction ? field.rowAction?.type : undefined,
       actionVisibleWhen: field.rowAction?.visibleWhen,
+      actionLabelWhen: field.rowAction?.labelWhen,
       isRelation,
       cellClass: booleanCellClass,
       fieldType: field.type,

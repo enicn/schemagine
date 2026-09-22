@@ -10,6 +10,8 @@ import { usePermission } from '@/composables/usePermission'
 import { useCellEdit } from '@/composables/useCellEdit'
 import { useRecordHistory } from '@/composables/useRecordHistory'
 import { useFormula } from '@/composables/useFormula'
+import { createRulesState, provideRules } from '@/composables/useRules'
+import type { RuleEffect } from '@/rules'
 import { createSchemaMetaState, createRecordState, createUiState, createRuntimeContextState, SCHEMA_META_KEY, RECORD_STATE_KEY, UI_STATE_KEY, RUNTIME_CONTEXT_KEY } from '@/composables/instanceState'
 import { recordService, peekRecordService } from '@/services/api/recordService'
 import { useRecordSubscription } from '@/composables/useRecordSubscription'
@@ -47,6 +49,9 @@ const props = defineProps<{
   currentRoles?: string[]
   /** 外观与格式契约（docs/20）：表格边框/单元格值展示/卡片密度/保守工具栏导出入口，见 EngineAppearance */
   appearance?: EngineAppearance
+  /** 声明式动作执行器（rules 包）：rowAction.action / Effect 描述符的宿主解释出口。
+   *  声明了 action 的行动作点击时引擎产出 Effect 数组交此执行器；未注入时告警并丢弃 */
+  rulesExecutor?: (effects: RuleEffect[], ctx: { rowId: string; field: string; record: Record<string, unknown> }) => void
 }>()
 
 // 引擎语言注入（docs/19 G1）：宿主经 locale prop 切换（语言包先 registerLocale 注册）
@@ -81,6 +86,10 @@ provide(SCHEMA_META_KEY, schemaMeta)
 provide(RECORD_STATE_KEY, recordStore)
 provide(UI_STATE_KEY, uiState)
 provide(RUNTIME_CONTEXT_KEY, runtimeContext)
+
+// 声明式规则状态（rules 包）：模块级/字段级 rules 位编译与求值，Effect 交 rulesExecutor
+const rulesState = createRulesState(schemaMeta)
+provideRules(rulesState)
 
 const schema = useSchema(schemaMeta, uiState)
 provide('loadingModuleId', schema.loadingModuleId)
@@ -128,6 +137,22 @@ function handleFormulaDetailOpen(payload: { field: string; rowId?: string }): vo
 }
 
 function handleRowAction(payload: { rowId: string; field: string; actionId: string }): void {
+  // 声明式动作槽位（rules 包）：rowAction.action 声明后规则优先，产出 Effect 交宿主执行器，
+  // 不再走内置 target / 上抛链（同一动作禁双挂：action 与 target 二选一，同时声明 action 胜出）
+  const field = schemaMeta.getField(payload.field)
+  const record = payload.rowId ? recordStore.getRecordById(payload.rowId) : undefined
+  if (field?.rowAction?.action && record) {
+    const row = (record as { fields?: Record<string, unknown> }).fields ?? (record as unknown as Record<string, unknown>)
+    const effects = rulesState.planRowAction(field, row)
+    if (effects.length > 0) {
+      if (props.rulesExecutor) {
+        props.rulesExecutor(effects, { rowId: payload.rowId, field: payload.field, record: row })
+      } else {
+        console.warn('[schemagine] rowAction.action declared but rulesExecutor prop is missing; effects dropped.')
+      }
+      return
+    }
+  }
   // 行级操作（如删除）上抛给宿主处理，由宿主侧调用删除接口并刷新
   emit('row-action', payload)
 }

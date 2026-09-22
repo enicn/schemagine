@@ -19,6 +19,7 @@ import type { FilterTab } from '@/components/filter/BottomTabs.vue'
 import ListActionBar from '@/engine/actions/ListActionBar.vue'
 import type { FieldSchema } from '@/types'
 import { useAggregation } from '@/composables/useAggregation'
+import { useRules } from '@/composables/useRules'
 import { resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
 import { usePermission } from '@/composables/usePermission'
 import { useViewportMode } from '@/composables/useViewportMode'
@@ -93,6 +94,7 @@ const schemaMeta = useSchemaMeta()
 const uiState = useUi()
 const permission = usePermission(schemaMeta)
 const aggregation = useAggregation()
+const rulesHost = useRules()
 const history = useRecordHistory(recordStore, uiState)
 const { isMobile } = useViewportMode()
 const loadingModuleId = inject<Ref<string | null>>('loadingModuleId', ref(null))
@@ -349,7 +351,22 @@ if (!props.externalFilters?.length) {
 }
 
 const aggregationSummary = computed<AggregationItem[]>(() => {
-  return aggregation.compute(recordStore.records)
+  const items = aggregation.compute(recordStore.records)
+  // 声明式 aggregate 规则（rules 包）：{ key, expr } 追加为统计条末尾项（列值数组入作用域）
+  const ruleItems = rulesHost?.runAggregates(recordStore.records) ?? []
+  if (ruleItems.length === 0) return items
+  const totalCount = recordStore.records.length
+  return [
+    ...items,
+    ...ruleItems.map(r => ({
+      fieldKey: r.key,
+      label: r.key,
+      type: 'sum' as const,
+      value: typeof r.value === 'number' ? Math.round(r.value * 100) / 100 : 0,
+      count: totalCount,
+      totalCount,
+    })),
+  ]
 })
 
 const totalCount = computed(() => aggregationSummary.value[0]?.totalCount ?? 0)

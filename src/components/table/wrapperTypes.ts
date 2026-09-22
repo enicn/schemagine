@@ -24,6 +24,8 @@ export interface WrapperColumn {
   rowActionType?: string
   /** 行级显隐条件：逐行以行数据为 record 上下文求值，false 时该行不渲染此操作按钮 */
   actionVisibleWhen?: Condition
+  /** 行级文案切换（rowAction.labelWhen 透传）：逐行解析按钮文案，未声明回落 title */
+  actionLabelWhen?: Array<{ when: Condition; label: string }>
   /** 未声明 width 的数据列携带 min-width：vxe 把表格剩余宽度平均分给带 min-width 的列（仅省略 width 不参与分配） */
   minWidth?: number
   isRelation?: boolean

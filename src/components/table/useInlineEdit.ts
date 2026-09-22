@@ -11,6 +11,7 @@ import { useMediaMode } from '@/services/api/mediaConfig'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
 import { t } from '@/locales'
+import { useRules } from '@/composables/useRules'
 import type { CandidateOption, RowValidationRule } from '@/types'
 import type { WrapperColumn } from './wrapperTypes'
 import type { useFkOptions } from './useFkOptions'
@@ -34,6 +35,8 @@ export function useInlineEdit(
   emit: InlineEditEmit,
   deps: InlineEditDeps,
 ) {
+  // 声明式规则（rules 包）：引擎树外独立使用时为 null，功能静默关闭
+  const rulesHost = useRules()
   const editingRowId = ref<string | null>(null)
   const editingField = ref<string | null>(null)
   const editValue = ref<unknown>('')
@@ -328,9 +331,39 @@ export function useInlineEdit(
     }
     const field = col.field
     const oldValue = row[field]
+    // 声明式 validate 规则（rules 包）：when 为违反式；带 force 时改写为强制值放行
+    if (rulesHost) {
+      const ruleValidation = rulesHost.validateCell(row, field, val, oldValue)
+      if (!ruleValidation.ok) {
+        if (ruleValidation.force !== undefined) {
+          val = ruleValidation.force as typeof val
+        } else {
+          cancelEdit()
+          import('element-plus').then(({ ElMessage }) => {
+            ElMessage.warning(ruleValidation.message ?? `${col.title}: 校验未通过`)
+          })
+          return
+        }
+      }
+    }
     if (val !== oldValue && !(val === '' && oldValue == null)) {
       emit('inline-edit', { row, field, value: val, oldValue })
       row[field] = val
+    }
+    // 声明式 compute 链（rules 包）：watch 触发 + 声明序级联，写回行数据；
+    // 派生字段逐个走同一 inline-edit 事件链（值未变时上层按 old===new 自动去重）
+    if (rulesHost) {
+      const effects = rulesHost.applyComputes(row, field)
+      for (const effect of effects) {
+        if ((effect.type === 'set' || effect.type === 'force') && typeof effect.target === 'string') {
+          emit('inline-edit', {
+            row,
+            field: effect.target,
+            value: row[effect.target],
+            oldValue: effect.oldValue,
+          })
+        }
+      }
     }
     emit('edit-closed', { row, column: col, value: val })
     editingRowId.value = null

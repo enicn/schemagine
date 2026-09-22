@@ -5,6 +5,7 @@ export type { WrapperColumn } from './wrapperTypes'
 
 <script setup lang="ts">
 import { formatDateTimeCell } from '@/utils/recordRow'
+import { evaluateCondition } from '@/utils/condition'
 import { reorderColumnsByDrag } from '@/utils/columnDrag'
 import type { SpanCellParams } from '@/utils/mergeCells'
 import type { VxeTableDefines } from 'vxe-table'
@@ -319,6 +320,17 @@ function opIcon(col: WrapperColumn): Component | null {
   if (col.actionDanger) return Delete
   if (col.field === '__rowEdit__') return Edit
   return null
+}
+
+/** 行级按钮文案：labelWhen 声明序首个命中生效，均不命中回落静态 title（docs/20 派生位） */
+function opLabel(col: WrapperColumn, row: Record<string, unknown>): string {
+  const labelWhen = col.actionLabelWhen
+  if (labelWhen && labelWhen.length > 0) {
+    for (const item of labelWhen) {
+      if (evaluateCondition(item.when, { record: row, global: {} })) return item.label
+    }
+  }
+  return col.title
 }
 
 function handleCellDblclick(params: VxeTableDefines.CellDblclickEventParams): void {
@@ -790,7 +802,7 @@ defineExpose({
               >
                 <ElIcon v-if="opIcon(op)" class="op-link__icon" :size="13">
                   <component :is="opIcon(op)" />
-                </ElIcon>{{ op.title }}
+                </ElIcon>{{ opLabel(op, row) }}
               </button>
             </template>
             <span v-else class="op-empty">无操作</span>

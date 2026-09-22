@@ -74,7 +74,7 @@ export function useColumnBuilding(
       let maxWidth = -1
       for (const row of props.data) {
         const ops = visibleOps(row)
-        const width = ops.reduce((s, c) => s + measureOpTextWidth(c.title) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
+        const width = ops.reduce((s, c) => s + measureOpTextWidth(opPricingLabel(c)) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
         if (width > maxWidth) {
           maxWidth = width
           priced = ops
@@ -82,7 +82,7 @@ export function useColumnBuilding(
       }
       if (priced.length === 0) priced = buttons
     }
-    const content = priced.reduce((w, c) => w + measureOpTextWidth(c.title) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
+    const content = priced.reduce((w, c) => w + measureOpTextWidth(opPricingLabel(c)) + (opHasIcon(c) ? OP_ICON_WIDTH : 0), 0)
     return Math.ceil(OP_COLUMN_PADDING * 2 + OP_LINK_GAP * (priced.length - 1) + content)
   })
 
@@ -91,6 +91,15 @@ export function useColumnBuilding(
     return opColumns.value.filter(
       c => !c.actionVisibleWhen || evaluateCondition(c.actionVisibleWhen, { record: row, global: {} }),
     )
+  }
+
+  /** 计价文案：title 与 labelWhen 全部候选文案中的最宽者，保证切换文案不溢出 */
+  function opPricingLabel(c: WrapperColumn): string {
+    let label = c.title
+    for (const item of c.actionLabelWhen ?? []) {
+      if (item.label.length > label.length) label = item.label
+    }
+    return label
   }
 
   return {

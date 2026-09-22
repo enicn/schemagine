@@ -362,6 +362,8 @@ export interface RowActionConfig {
   /** 声明式动作槽位（rules 包）：声明后点击经 RulesRuntime.planAction 产出 Effect 交宿主执行器；
    *  与 target（引擎内置动作）二选一，同时声明时 action 优先 */
   action?: ActionAct
+  /** 按行切换按钮文案（声明序首个命中生效；均不命中回落 label） */
+  labelWhen?: Array<{ when: Condition; label: string }>
   /** 危险操作红字样式；不改变 type 语义（custom 也可标红） */
   danger?: boolean
   target?: ActionTargetConfig

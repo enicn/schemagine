@@ -50,6 +50,16 @@ describe('rules/condition: triplet, object and expression forms', () => {
     expect(runtime.evalCondition('price * quantity > 100', ctx)).toBe(true)
     expect(runtime.evalCondition(undefined, ctx)).toBe(true)
   })
+
+  it('expression-string conditions can call host-registered functions', () => {
+    const flagged = createRuntime({
+      evaluate,
+      functions: { flag: (v: unknown) => Number(v) >> 0, set: (k: string) => ({ with_check: 1 })[k] },
+    })
+    const ctx = makeCtx({ is_checked: 0, is_suspended: 0 })
+    expect(flagged.evalCondition("flag(set('with_check')) > 0 and flag(is_checked) == 0", ctx)).toBe(true)
+    expect(flagged.evalCondition("flag(set('with_check')) > 0 and flag(is_suspended) == 1", ctx)).toBe(false)
+  })
 })
 
 describe('rules/compute: ordered chain referencing prior targets', () => {

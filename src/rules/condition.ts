@@ -124,11 +124,12 @@ export function evalCondition(
   cond: AnyCondition | undefined,
   ctx: EvalContext,
   evaluate?: (expr: string, scope?: Record<string, unknown>) => unknown,
+  functions?: Record<string, unknown>,
 ): boolean {
   if (cond === undefined || cond === null) return true
   if (typeof cond === 'string') {
     if (!evaluate) return false
-    const result = evaluate(cond, buildExpressionScope(ctx))
+    const result = evaluate(cond, buildExpressionScope(ctx, functions))
     return Boolean(result)
   }
   if (isTriplet(cond)) {

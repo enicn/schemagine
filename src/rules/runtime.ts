@@ -149,7 +149,7 @@ export function createRuntime(options: RuntimeOptions = {}) {
     const tentative: Record<string, unknown> = { ...ctx.record, [key]: $new, $new, $old }
     const scopedCtx: EvalContext = { ...ctx, record: tentative, $new, $old }
     for (const rule of c.validates as ValidateRule[]) {
-      if (!evalCondition(rule.when, scopedCtx, evaluate)) continue
+      if (!evalCondition(rule.when, scopedCtx, evaluate, functions)) continue
       const scope = scopeOf(scopedCtx)
       return {
         ok: false,
@@ -164,7 +164,7 @@ export function createRuntime(options: RuntimeOptions = {}) {
 
   /** Plan an action rule into effects: confirm -> invoke/open/navigate -> toast. */
   const planAction = (rule: ActionRule, ctx: EvalContext): RuleEffect[] => {
-    if (rule.when !== undefined && !evalCondition(rule.when, ctx, evaluate)) return []
+    if (rule.when !== undefined && !evalCondition(rule.when, ctx, evaluate, functions)) return []
     const act = rule.act ?? {}
     const scope = scopeOf(ctx)
     const effects: RuleEffect[] = []
@@ -262,7 +262,7 @@ export function createRuntime(options: RuntimeOptions = {}) {
             ...ctx,
             record: { ...ctx.record, $flow: flowScope },
           }
-          if (!evalCondition(step.when, scopedCtx, evaluate)) continue
+          if (!evalCondition(step.when, scopedCtx, evaluate, functions)) continue
         }
         const scope = scopeOf(ctx, flowScope)
         const params = interpolateDeep(step.params, scope, evaluate)
@@ -299,7 +299,7 @@ export function createRuntime(options: RuntimeOptions = {}) {
     compileModule: (schema: RulesModuleSchema | unknown): CompiledModule =>
       compileModule(schema, parse),
     evalCondition: (cond: Parameters<typeof evalCondition>[0], ctx: EvalContext): boolean =>
-      evalCondition(cond, ctx, evaluate),
+      evalCondition(cond, ctx, evaluate, functions),
     runComputes,
     runValidates,
     planAction,

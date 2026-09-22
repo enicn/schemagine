@@ -25,6 +25,7 @@ Built with **Vue 3.5 + TypeScript + Pinia + Element Plus + vxe-table**, packaged
 | **Productivity** | CSV export honoring current filters/sort/visible columns, time-range presets, quick-create for FK fields, bottom tabs, per-user view config (column widths, layout). |
 | **Themeable** | All styles based on `--sg-*` CSS tokens; follows your Element Plus theme (including `html.dark`) out of the box, overridable per token; `appearance` prop controls table borders / cell value display (tags / plain / classic) / card density. |
 | **Extensible** | `registerFieldType` for custom field types (wired into rendering, forms and inline editing), `registerDialog` for custom dialogs, vxe slot passthrough and `getTableInstance()` access. |
+| **Declarative rules (optional subpath)** | The `schemagine/rules` subpath adds a framework-free rules runtime: eight rule kinds (condition/compute/map/lookup/validate/action/style/aggregate), Effect-based action planning, guarded flow orchestration and isomorphic validators. Attached rules are wired natively into inline editing, row actions and the statistics bar — see [Declarative rules](#-declarative-rules-schemaginerules). |
 | **i18n & mobile** | Built-in zh-CN locale + `registerLocale` injection + `locale` prop; narrow viewports automatically switch to a mobile card layout (search, infinite scroll, action fallbacks). |
 | **Media management (optional export)** | Image fields support four integration modes: plain URL rendering by default with zero config; the optional `schemagine/media` subpath adds OSS direct upload (S3-compatible / Qiniu, pure-JS signing, no SDK), a host upload API mode, and a media library component set (`MediaLibrary` manager, `MediaPickerDialog` selector, generic `createHttpMediaService`) — editors degrade automatically per mode. |
 | **Multi-instance safe** | Isolated state per `<SchemaEngine>` instance via `create*State()` factories injected with Vue `provide/inject` — embed several modules on one page. |
@@ -262,6 +263,35 @@ Filtering uses a normalized `FilterClause[]` protocol with 10 operators: `eq` ·
 | `createSchemaMetaState()` / `createRecordState()` / `createUiState()` | Factories for standalone multi-instance state |
 
 Utilities: `formatMoney`, `getOperatorLabel` / `OPERATOR_LABEL_MAP`, `resolveDataOperations` / `applyBuiltinOperations`, `resolveEnumTagStyle`, `resolveMediaUrl`, and more — all exported from the package root with types.
+
+| Composable (rules) | Purpose |
+|-----------|---------|
+| `useRules()` | Consume the provided rules state inside `<SchemaEngine>` (compiled rules, compute/validation/action planning) |
+
+## 📜 Declarative rules (`schemagine/rules`)
+
+A standalone, **framework-free and dependency-free** subpath export for declarative business rules. The library *plans*; your host *executes* — every side effect is produced as a plain `Effect` descriptor.
+
+```ts
+import { createRuntime, Effect, validateRules, validateFlow, validateDictionary } from 'schemagine/rules'
+
+const runtime = createRuntime({
+  evaluate,   // expression evaluator, e.g. mathjs/number's evaluate (host-injected)
+  parse,      // optional syntax checker, e.g. mathjs.parse → compile warnings
+  functions,  // your function dictionary (qty/flag/set/allow/...); built-ins: now/sum/count/min/max/abs/ceilTo/roundTo
+  flows,      // named flows for sub-flow recursion (depth ≤ 8, cycle detection, action-kind whitelist)
+  actions,    // action dictionary { name, title, kind, params, result, impl|flow }
+})
+
+const compiled = runtime.compileModule(schema)
+runtime.evalCondition(['status', 'eq', 0], { record })          // object | [field, op, operand?] | 'expr > 0'
+runtime.runComputes(compiled, { record }, 'price')              // watch-triggered ordered chain → SET/FORCE
+runtime.runValidates(compiled, { record }, 'price', 5, 0)       // { ok, message?, force? }
+runtime.planAction(actionRule, { record })                      // confirm → invoke/open/navigate → toast
+await runtime.runFlow(flow, { record }, executor)               // steps: action / params / when / as
+```
+
+Eight rule kinds — `condition`, `compute` (ordered chain, watch-cascade), `map`, `lookup`, `validate` (violation `when` + optional `force` value), `action`, `style`, `aggregate` — attach at `ModuleSchema.rules`, `FieldSchema.rules`, and the `RowActionConfig.action` slot. When rules are attached to a schema rendered by `<SchemaEngine>` the engine wires them natively: inline-edit submits run compute chains and validate gates, `action` clicks plan Effects into the `rulesExecutor` prop, `labelWhen` switches row-button labels per row, and `aggregate` rules extend the statistics bar. The visual Schema Editor ships a rules panel, and `validateSchema` reports malformed rules as error diagnostics.
 
 ## 🎨 Theming
 

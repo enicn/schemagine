@@ -252,6 +252,28 @@ type FieldType =
 
 工具函数：`formatMoney`、`getOperatorLabel` / `OPERATOR_LABEL_MAP`、`resolveDataOperations` / `applyBuiltinOperations`、`resolveEnumTagStyle`、`resolveMediaUrl` 等，均从包根导出并附带类型。
 
+| Composable（规则） | 用途 |
+|-----------|------|
+| `useRules()` | 在 `<SchemaEngine>` 内消费规则状态（编译、compute/validate/动作规划） |
+
+## 📜 声明式规则（`schemagine/rules`）
+
+独立子路径导出的规则运行时：**框架无关、零依赖**——库只产出 Effect 描述符（"规划"），宿主负责执行（"解释"）。求值器（如 mathjs）、函数词典（内置仅 now/sum/count/min/max/abs/ceilTo/roundTo，业务函数一律由宿主经词典注册）、动作与 Flow 均以注入接入。
+
+```ts
+import { createRuntime, validateRules } from 'schemagine/rules'
+
+const runtime = createRuntime({ evaluate, parse, functions, flows, actions })
+const compiled = runtime.compileModule(schema)
+runtime.evalCondition(['status', 'eq', 0], { record })     // 对象形 | 三段形 | 表达式串
+runtime.runComputes(compiled, { record }, 'price')         // watch 触发 + 声明序级联 → SET/FORCE
+runtime.runValidates(compiled, { record }, 'price', 5, 0)  // { ok, message?, force? }
+runtime.planAction(actionRule, { record })                 // confirm → invoke/open/navigate → toast
+await runtime.runFlow(flow, { record }, executor)          // 步骤四要素 action/params/when/as
+```
+
+八类规则位 condition/compute/map/lookup/validate/action/style/aggregate，挂载于 `ModuleSchema.rules`、`FieldSchema.rules` 与 `RowActionConfig.action`。schema 交 `<SchemaEngine>` 渲染时引擎原生接线：行内编辑触发 compute 链与 validate 门禁，action 点击产出 Effect 交 `rulesExecutor` prop，`labelWhen` 按行切换按钮文案，`aggregate` 规则扩展统计条；Schema Editor 内置规则编辑面板，`validateSchema` 对非法规则给出 error 诊断。同构校验器 `validateRules / validateFlow / validateDictionary` 可在服务端复用。
+
 ## 🎨 主题定制
 
 全部组件样式 Token 化为 `--sg-*` CSS 变量（随库打包在 `schemagine.css` 中）。三种可叠加的定制方式：

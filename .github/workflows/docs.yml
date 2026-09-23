@@ -1,0 +1,64 @@
+name: Docs & Demo
+
+# L1.3/L2.2(docs/22):英文文档站(VitePress)部署到 Pages 根路径,
+# 演示 app(--base=/schemagine/demo/)部署到 demo/ 子路径。
+# 仓库 Settings → Pages → Source 需设为 GitHub Actions(一次性配置)。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs-site/**'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build docs site (VitePress)
+        run: pnpm docs:build
+      - name: Build demo app (subpath base)
+        run: pnpm exec vite build --base=/schemagine/demo/
+      - name: Assemble site (docs root + demo subpath)
+        run: |
+          mkdir -p site/demo
+          cp -r docs-site/.vitepress/dist/* site/
+          cp -r dist/* site/demo/
+          # SPA(history 路由)深链回退:Pages 对未命中路径回落 404.html
+          cp site/demo/index.html site/demo/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

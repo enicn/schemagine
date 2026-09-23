@@ -53,3 +53,7 @@ e2e-results/
 
 # Python 缓存（gen-icon.py 等）
 __pycache__/
+
+# VitePress 本地产物
+docs-site/.vitepress/cache/
+docs-site/.vitepress/dist/

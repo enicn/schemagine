@@ -1,6 +1,8 @@
 # Schemagine
 
-**Schema-driven dynamic form & data management engine for Vue 3.** · v0.1.0 · [MIT](./LICENSE)
+**Schema-driven dynamic form & data management engine for Vue 3.** · [MIT](./LICENSE)
+
+[![Docs](https://img.shields.io/badge/docs-online-7C3ACD)](https://enicn.github.io/schemagine/) [![Playground](https://img.shields.io/badge/live%20demo-playground-2F80ED)](https://enicn.github.io/schemagine/demo/playground)
 
 English | [简体中文](./README.zh-CN.md)
 

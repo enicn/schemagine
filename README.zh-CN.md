@@ -1,6 +1,8 @@
 # Schemagine
 
-**Schema 驱动的 Vue 3 动态表单与数据管理引擎。** · v0.1.0 · [MIT 许可证](./LICENSE)
+**Schema 驱动的 Vue 3 动态表单与数据管理引擎。** · [MIT 许可证](./LICENSE)
+
+[![Docs](https://img.shields.io/badge/docs-online-7C3ACD)](https://enicn.github.io/schemagine/) [![Playground](https://img.shields.io/badge/live%20demo-playground-2F80ED)](https://enicn.github.io/schemagine/demo/playground)
 
 [English](./README.md) | 简体中文
 

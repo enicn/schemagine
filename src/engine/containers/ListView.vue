@@ -737,6 +737,8 @@ function handleListAction(payload: ActionTriggerEvent): void {
 const bottomTabsRef = ref<InstanceType<typeof BottomTabs> | null>(null)
 
 const bottomTabsField = computed(() => {
+  // 模块声明 bottomTabsEnabled=false 关闭页签（如合同已按类型分菜单入口，页签语义重复）
+  if (props.schema.bottomTabsEnabled === false) return null
   return props.schema.fields.find(f => f.filterable && f.type === 'select' && (f.options ?? []).length > 0) ?? null
 })
 

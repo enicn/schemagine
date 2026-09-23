@@ -21,6 +21,9 @@ export interface ModuleSchema {
    *  将命中的可筛选字段控件直接摊开渲染（免点「筛选」弹层），未列入的其余可筛选字段
    *  经「显示更多」展开；缺省维持「筛选」弹层交互 */
   quickFilterFields?: string[]
+  /** 底部状态页签开关（缺省 true）：列表底部按「第一个可筛选且有选项的 select 字段」生成页签；
+   *  模块已被外部维度切片（如合同按类型分菜单入口）时声明 false 关闭，避免重复语义 */
+  bottomTabsEnabled?: boolean
   /** 移动端卡片投影（§3.4）：缺省按字段类型推导（零配置可用），声明后逐项覆盖 */
   cardView?: CardViewConfig
   /** 树形数据声明（docs/19 F2）：声明后列表按树形渲染（vxe tree-config） */

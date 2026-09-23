@@ -559,7 +559,8 @@ export type { FilterSummaryItem }
       </div>
     </template>
 
-    <!-- FK 筛选弹窗选值：目标模块完整列表（含其自身的快捷筛选摊开面板），多选确认回填 in 条件 -->
+    <!-- FK 筛选弹窗选值：目标模块完整列表（含其自身的快捷筛选摊开面板），多选确认回填 in 条件。
+         z-index 4100：需盖过列表页「筛选」弹层（4000）——本弹窗常从该弹层内打开 -->
     <SchemaEngineDialog
       :visible="fkDialogField !== null"
       :module-id="fkDialogField?.targetModule || ''"
@@ -567,7 +568,7 @@ export type { FilterSummaryItem }
       selectable
       selectable-multiple
       :selected-ids="fkDialogSelectedIds"
-      :z-index="2200"
+      :z-index="4100"
       @confirm="handleFkDialogConfirm"
       @close="fkDialogField = null"
     />
@@ -741,9 +742,9 @@ export type { FilterSummaryItem }
 </style>
 
 <style>
-/* 筛选控件弹层（teleport 到 body）：钉在筛选弹层(4000)/各级弹窗(≤3100)之上，
+/* 筛选控件弹层（teleport 到 body）：钉在筛选弹层(4000)/FK 筛选弹窗(4100)与各级弹窗(≤3100)之上，
    滚动容器（弹层 body / 快捷筛选摊开面板）不再裁剪下拉与日期面板 */
 .sg-filter-popper {
-  z-index: 4200 !important;
+  z-index: 5000 !important;
 }
 </style>

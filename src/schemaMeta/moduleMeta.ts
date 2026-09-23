@@ -20,6 +20,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   operations: true,
   searchFields: true,
   quickFilterFields: true,
+  bottomTabsEnabled: true,
   cardView: true,
   treeConfig: true,
   groupBy: true,
@@ -128,6 +129,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: 'FK 弹窗搜索的快捷筛选字段集(字段 key 数组):声明后 SchemaEngineDialog(选择关联/查看数据)将命中的可筛选字段控件直接摊开渲染,免点「筛选」弹层;未列入的其余可筛选字段经「显示更多」展开/收起。缺省维持「筛选」弹层交互。',
     example: ['name', 'status'],
+  },
+  {
+    key: 'bottomTabsEnabled', target: 'module', label: '底部状态页签', group: 'display', appliesTo: 'all', kind: 'boolean',
+    default: true, surfaces: ['render'],
+    description: '列表底部按「第一个可筛选且有选项的 select 字段」生成状态页签(全部/各选项);模块已被外部维度切片(如合同按类型分菜单入口)时声明 false 关闭,避免页签与切片语义重复。',
+    related: ['searchFields'],
   },
   {
     key: 'cardView', target: 'module', label: '移动卡片投影', group: 'display', appliesTo: 'all', kind: 'object',

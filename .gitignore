@@ -50,3 +50,6 @@ e2e-results/
 .zcode/
 .workbuddy/
 .git_prev_*/
+
+# Python 缓存（gen-icon.py 等）
+__pycache__/

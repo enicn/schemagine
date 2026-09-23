@@ -1,0 +1,6 @@
+# Standalone workspace root: keeps this example independent from the
+# schemagine repository workspace one level up (own lockfile, npm-version deps).
+packages:
+  - .
+minimumReleaseAgeExclude:
+  - schemagine@0.3.12

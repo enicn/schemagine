@@ -144,4 +144,21 @@ describe('VxeTableWrapper 组件挂载（docs/19 G6）', () => {
     expect(fitWrapper.find('.vxe-table-wrapper').classes()).toContain('is-fit-row-edit')
     fitWrapper.unmount()
   })
+
+  it('单选 radio 列（docs/20）：showRadio 渲染 radio 列并按 selectedRowId 勾选，radio-change 上抛行', async () => {
+    const wrapper = mount(VxeTableWrapper, {
+      props: { moduleId: 'm1', data: rows, columns: baseColumns(), showRadio: true, selectedRowId: 'r2' },
+    })
+    await flush(10)
+    // radio 列存在；vxe 依 radio-config.checkRowKey 勾选 r2（图标切到 checked 态）
+    expect(wrapper.find('.vxe-body--column.col--radio').exists()).toBe(true)
+    expect(wrapper.html()).toContain('radio-checked')
+    // 点击另一行 radio → 上抛 radio-change
+    const radios = wrapper.findAll('.vxe-body--column.col--radio .vxe-cell--radio')
+    await radios[0]!.trigger('click')
+    await flush()
+    const events = wrapper.emitted('radio-change')
+    expect(events).toBeTruthy()
+    wrapper.unmount()
+  })
 })

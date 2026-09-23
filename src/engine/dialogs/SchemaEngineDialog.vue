@@ -194,6 +194,13 @@ function handleRowClick(payload: { row: Record<string, unknown>; rowIndex: numbe
   selectedRowId.value = typeof id === 'string' ? id : String(id ?? '')
 }
 
+/** 单选 radio 列（docs/20）：与行点击同语义，radio 勾选即更新唯一选中行（行高亮随 selected-row-id） */
+function handleRadioRow(payload: { row: Record<string, unknown> }): void {
+  if (!props.selectable || props.selectableMultiple) return
+  const id = payload.row._recordId
+  selectedRowId.value = typeof id === 'string' ? id : String(id ?? '')
+}
+
 function handleSelectionChange(rowIds: string[]): void {
   if (!props.selectable || !props.selectableMultiple) return
   checkedRowIds.value = rowIds
@@ -593,6 +600,7 @@ watch(
     :z-index="getDialogZIndex()"
     top="5vh"
     class="popup-dialog"
+    append-to-body
     @update:model-value="handleClose"
   >
     <div v-if="schemaError" class="dialog-error">
@@ -710,11 +718,13 @@ watch(
           :filter-clauses="flatFilterClauses"
           :selected-row-id="selectable ? selectedRowId : null"
           :show-selection="selectable && !!selectableMultiple"
+          :show-radio="selectable && !selectableMultiple"
           :row-numbers="rowNumbers"
           :row-number-start="(currentPage - 1) * pageSize"
           @sort-change="handleSortChange"
           @filter-change="handleHeaderFilterChange"
           @row-click="handleRowClick"
+          @radio-change="handleRadioRow"
           @cell-dblclick="(payload: { row: Record<string, unknown>; column: WrapperColumn }) => { if (payload.column.isAction) return; handleRowDblclick(payload.row) }"
           @selection-change="handleSelectionChange"
         />

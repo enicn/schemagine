@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-09-24
+
+### Added
+
+- **弹窗单选 radio 列** — `SchemaEngineDialog` selectable 单选模式（`selectableMultiple` 缺省 false，如 FK 弹窗搜索选择一条记录）的表格渲染行首 **radio 列**（vxe type=radio，勾选列同位、36px fixed left）：勾选 radio、行高亮（`selected-row-id` 行类）双重视觉标出唯一选中行，弥补原「仅行点击高亮」的选择提示不足。`VxeTableWrapper` 新 `showRadio` prop（`radio-config.checkRowKey` 按 `selected-row-id` 声明式勾选 + `radio-change` 事件上抛），radio 与行点击/双击确认同语义。
+
+### Fixed
+
+- **FK 筛选弹窗随筛选弹层级联关闭** — `SchemaEngineDialog` 的 ElDialog 改 `append-to-body`：列表页「筛选」弹层（ElPopover）内打开的外键筛选弹窗，其 DOM 原先挂在弹层内容里——在弹窗内的任何点击对弹层都是「外部点击」，弹层关闭时把整个弹窗一并藏掉（关闭后再点「筛选」弹窗又随弹层复活）。挂到 body 后弹窗独立于弹层存活，事件上下文不再串。
+
 ## [0.3.10] - 2026-09-24
 
 ### Fixed

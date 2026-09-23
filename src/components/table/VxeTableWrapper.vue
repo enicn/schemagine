@@ -9,7 +9,7 @@ import { evaluateCondition } from '@/utils/condition'
 import { reorderColumnsByDrag } from '@/utils/columnDrag'
 import type { SpanCellParams } from '@/utils/mergeCells'
 import type { VxeTableDefines } from 'vxe-table'
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { VxeTable, VxeColumn, VxeColgroup } from 'vxe-table'
 import { VxeLoading, getI18n } from 'vxe-pc-ui'
 import 'vxe-table/lib/style.css'
@@ -60,6 +60,9 @@ const props = withDefaults(defineProps<{
   filterClauses?: FilterClause[]
   /** 是否渲染行首复选框列（用于批量操作，如批量删除） */
   showSelection?: boolean
+  /** 单选模式 radio 列（SchemaEngineDialog selectable 单选）：行首渲染 vxe radio 列，
+   *  唯一选中行以单选框 + 行高亮双重视觉标出；与 showSelection 互斥使用 */
+  showRadio?: boolean
   /** 单元格插槽透传（docs/19 B2）：field → 插槽名，命中后该列单元格由宿主插槽渲染 */
   cellSlots?: Record<string, string>
   /** 表头插槽透传（docs/19 B2）：field → 插槽名，命中后该列表头由宿主插槽渲染 */
@@ -98,6 +101,7 @@ const props = withDefaults(defineProps<{
   columnDraggable: false,
   fixedRowCount: undefined,
   showSelection: false,
+  showRadio: false,
   density: 'default',
   keyboardNav: true,
 })
@@ -115,6 +119,8 @@ const emit = defineEmits<{
   'relation-click': [payload: { row: Record<string, unknown>; column: WrapperColumn }]
   'inline-edit': [payload: { row: Record<string, unknown>; field: string; value: unknown; oldValue: unknown }]
   'selection-change': [rowIds: string[]]
+  /** 单选 radio 列勾选（docs/20）：上抛新选中的行，由上层更新唯一选中 id */
+  'radio-change': [payload: { row: Record<string, unknown> }]
   /** 拖拽调宽结束(docs/20):{ field, width(px) } 上抛,由上层持久化进视图配置 */
   'column-width-change': [payload: { field: string; width: number }]
 }>()
@@ -391,6 +397,21 @@ function handleSelectionChange(): void {
   }
   emit('selection-change', ids)
 }
+
+function handleRadioChange(payload: { row: Record<string, unknown> }): void {
+  emit('radio-change', { row: payload.row })
+}
+
+// 单选回显：selectedRowId 变化或数据装载后同步 vxe radio 行（打开弹窗回显初始选中行的场景；
+// immediate+post：挂载即带初始值时也要在表格渲染后补一次同步）
+watch([() => props.selectedRowId, () => props.data], async () => {
+  const table = tableRef.value
+  const id = props.selectedRowId
+  if (!table || !props.showRadio || !id) return
+  await nextTick()
+  const row = props.data.find((r) => r[props.rowKey] === id)
+  if (row) table.setRadioRow(row)
+}, { immediate: true, flush: 'post' })
 
 function handleRelationClick(col: WrapperColumn, row: Record<string, unknown>): void {
   emit('relation-click', { row, column: col })
@@ -680,6 +701,7 @@ defineExpose({
       :border="tableBorder"
       :stripe="false"
       :checkbox-config="{ highlight: true, reserve: true }"
+      :radio-config="{ highlight: true, checkRowKey: selectedRowId || undefined }"
       @sort-change="handleSortChange"
       @cell-click="handleCellClick"
       @cell-dblclick="handleCellDblclick"
@@ -687,6 +709,7 @@ defineExpose({
       @resizable-change="handleResizableChange"
       @checkbox-change="handleSelectionChange"
       @checkbox-all="handleSelectionChange"
+      @radio-change="handleRadioChange"
     >
       <template v-if="loading" #loading>
         <VxeLoading />
@@ -698,6 +721,8 @@ defineExpose({
       <!-- 勾选列保持最左（常规列表页顺序：勾选 → 行号）；宽度用固定 width，不随视口/fit 均摊拉扯 -->
       <!-- 勾选列(docs/20):36px = 20px 勾选框 + 左右各 8px padding,align=center 上下居中 -->
       <VxeColumn v-if="showSelection" type="checkbox" width="36" align="center" fixed="left" />
+      <!-- 单选 radio 列（docs/20，与勾选列互斥）：弹窗单选模式的选中标记，选中行 radio 高亮 -->
+      <VxeColumn v-if="showRadio" type="radio" width="36" align="center" fixed="left" drag-disabled />
       <!-- 行号列（appearance.rowNumbers）：勾选列之后；seq 列无 field，不参与列拖拽与合并，
            footerMethod 若只按数据列计值需自行注意与 seq 列的索引错位。
            序号经默认插槽自渲染（不依赖 vxe seq 内建计算，避免二次渲染场景下的调度缺失）。

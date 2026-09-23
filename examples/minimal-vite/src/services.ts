@@ -28,7 +28,7 @@ setSchemaService({
       data: moduleId === taskSchema.id ? taskSchema : ({} as typeof taskSchema),
     }
   },
-  async loadModulePermissions(moduleId: string) {
+  async loadModulePermissions() {
     return { success: true, data: taskSchema.permissions }
   },
   async validateSchema() {

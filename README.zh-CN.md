@@ -332,7 +332,9 @@ pnpm build:lib        # 库构建 → dist/schemagine.{mjs,cjs} + schemagine.css
 
 | 文档 | 内容 |
 |------|------|
-| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **外部项目集成指南（首选）**：安装、Service 契约、完整 API 与类型参考、扩展注册、i18n、npm 发布、FAQ |
+| [英文文档站](https://enicn.github.io/schemagine/) | **英文入口**：介绍、安装、快速开始、15 分钟教程、六 Service 契约 |
+| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **外部项目集成指南（首选，完整参考）**：安装、Service 契约、完整 API 与类型参考、扩展注册、i18n、npm 发布、FAQ |
+| [examples/minimal-vite](examples/minimal-vite/README.md) | 可运行的最小示例：单模块 schema + 内存数据源，零后端 |
 | [说明文档（docs/18）](docs/18-维护记录与文档索引.md) | 项目概述与维护记录索引 |
 | [docs/01-项目概述.md](docs/01-项目概述.md) | 概述、目录结构、架构分层 |
 | [docs/02-组件文档.md](docs/02-组件文档.md) | 全部组件（表格 / 卡片 / 字段 / 筛选） |

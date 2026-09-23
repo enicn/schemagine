@@ -46,7 +46,9 @@ jobs:
           mkdir -p site/demo
           cp -r docs-site/.vitepress/dist/* site/
           cp -r dist/* site/demo/
-          # SPA(history 路由)深链回退:Pages 对未命中路径回落 404.html
+          # SPA(history 路由)深链回退:Pages 只认站点根 /404.html——
+          # 以 demo 应用作为站点级 404,深链(/demo/**)落到 demo 路由器接管
+          cp site/demo/index.html site/404.html
           cp site/demo/index.html site/demo/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

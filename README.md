@@ -345,13 +345,15 @@ pnpm build:lib        # library build → dist/schemagine.{mjs,cjs} + schemagine
 
 Requirements: Node `^20.19.0 || >=22.12.0`, pnpm.
 
-Publishing (`pnpm publish`, auto-builds via `prepublishOnly`) ships only `dist/` in ESM + CJS + CSS + type declarations. See the publishing section of [引用指南.md](引用指南.md) for CI examples.
+Publishing (`pnpm publish`, auto-builds via `prepublishOnly`) ships only `dist/` in ESM + CJS + CSS + type declarations. See the publishing section of [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) for CI examples.
 
 ## 📚 Documentation
 
 | Document | Content |
 |----------|---------|
-| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **Integration guide (start here, Chinese)**: install, service contracts, full API & type reference, extensibility, i18n, npm publishing, FAQ |
+| [English docs site](https://enicn.github.io/schemagine/) | **Start here (English)**: introduction, installation, quick start, 15-minute tutorial, six-service contracts |
+| [docs/17-集成与使用指南.md](docs/17-集成与使用指南.md) | **Integration guide (full reference, Chinese)**: install, service contracts, full API & type reference, extensibility, i18n, npm publishing, FAQ |
+| [examples/minimal-vite](examples/minimal-vite/README.md) | Runnable minimal example: one schema, in-memory service, zero backend |
 | Project overview & notes ([docs/18](docs/18-维护记录与文档索引.md)) | Overview and maintenance-record index (Chinese) |
 | [docs/01-项目概述.md](docs/01-项目概述.md) | Overview, directory layout, architecture layers |
 | [docs/02-组件文档.md](docs/02-组件文档.md) | All components (table / card / field / filter) |

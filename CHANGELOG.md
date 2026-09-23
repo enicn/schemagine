@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-09-24
+
+### Added
+
+- **快捷筛选 16 列栅格布局 + `FieldSchema.quickFilterSpan`** — 新字段属性（登记 `FIELD_SCHEMA_KEYS`/`FIELD_META`）：快捷筛选摊开面板中的栅格跨度（16 列栅格，整数 1–16），默认 4 = 一行 4 个字段，16 = 独占一行，越界钳制。`FilterConditionControls` 新 `layout: 'grid'` 形态（`SchemaEngineDialog` 快捷面板启用）：`repeat(16, 1fr)` 栅格 + 标签在上、控件铺满单元格，窄屏（≤767.98px）退化为单列；弹层/抽屉纵排形态不受影响。
+
+- **FK 筛选弹窗选值** — `FilterConditionControls` 的外键控件新增「打开列表选择」按钮：弹出目标模块完整列表（SchemaEngineDialog 多选模式，带其自身快捷筛选摊开面板），跨页勾选确认后回填 `in` 条件，选中行并入候选缓存使人读标签在多选框/摘要中显示。新增 `SchemaEngineDialog.zIndex` 基准 z-index prop（FK 筛选弹窗用 2200，避免与外层弹窗/嵌套栈重叠）。
+
+### Fixed
+
+- **筛选控件弹层被滚动容器裁剪** — 下拉/日期面板由 `:teleported="false"` 改为 teleport 到 body 并统一挂 `sg-filter-popper` 类（`z-index: 4200 !important`，钉在筛选弹层 4000 与各级弹窗之上）：快捷筛选摊开面板（overflow-y 容器）与标准列表筛选弹层内的下拉、日期面板不再被裁剪。
+
 ## [0.3.8] - 2026-09-23
 
 ### Added

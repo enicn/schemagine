@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue'
+import { ref, computed, reactive, watch, defineAsyncComponent } from 'vue'
 import { ElInput, ElSelect, ElOption, ElButton, ElDatePicker, ElButtonGroup, ElTooltip } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import type { FieldSchema, FilterClause, FilterCondition, FilterOperator, CandidateOption } from '@/types'
 import { candidateService } from '@/services/api/candidateService'
 import { cacheFkOptions, resolveFkLabelForSummary } from '@/composables/useFkLabelCache'
@@ -10,8 +11,12 @@ import { buildFilterSummaryItems, type FilterSummaryItem } from '@/utils/filterS
 /**
  * 筛选值控件集（管理端移动适配 §3.6 自 SchemaFilterBar 抽取，逻辑单源）：
  * 按字段类型分派的 text/fk/select/date/boolean 控件模板 + 本栏草稿状态。
- * 桌面 popover 与移动端筛选底部抽屉两处消费；父级持有 matchType（匹配方式切换 UI 在父级），
+ * 桌面 popover、移动端筛选底部抽屉与快捷筛选摊开面板三处消费；父级持有 matchType（匹配方式切换 UI 在父级），
  * 交互：resync()（打开时从已提交条件同步草稿）→ 用户改控件 → apply()（组装上抛条件）。
+ *
+ * 布局：list=纵排（弹层/抽屉，默认）；grid=16 列栅格（快捷筛选摊开面板，字段行按
+ * FieldSchema.quickFilterSpan 跨度排布、标签在上）。控件弹层 teleport 到 body 并经
+ * .sg-filter-popper 钉高 z-index——滚动容器（弹层/摊开面板）不再裁剪下拉与日期面板。
  */
 const props = defineProps<{
   /** 可筛选字段（已按受支持类型过滤） */
@@ -26,7 +31,12 @@ const props = defineProps<{
   quickFilterKeys?: string[]
   /** 其余（非快捷）字段行是否展开（配合 quickFilterKeys；缺省 false 只显示快捷字段） */
   expanded?: boolean
+  /** 布局形态：grid=快捷筛选摊开面板（16 列栅格 + quickFilterSpan 跨度，标签在上）；list=弹层/抽屉纵排（默认） */
+  layout?: 'list' | 'grid'
 }>()
+
+// 异步引入避免与 SchemaEngineDialog 的循环依赖（其快捷面板反向消费本组件）
+const SchemaEngineDialog = defineAsyncComponent(() => import('@/engine/dialogs/SchemaEngineDialog.vue'))
 
 const emit = defineEmits<{
   /** 文本框回车等「立即应用」意图，由父级决定动作（桌面=确认弹层，移动=应用抽屉） */
@@ -313,6 +323,41 @@ function isRowVisible(fieldKey: string): boolean {
   return !!props.expanded
 }
 
+/** 快捷筛选栅格跨度（FieldSchema.quickFilterSpan）：16 列栅格，默认 4（一行 4 个字段），钳制 1–16 */
+function spanOf(field: FieldSchema): number {
+  const raw = field.quickFilterSpan ?? 4
+  return Math.min(16, Math.max(1, Math.round(raw)))
+}
+
+function gridItemStyle(field: FieldSchema): Record<string, string> | undefined {
+  if (props.layout !== 'grid') return undefined
+  return { gridColumn: `span ${spanOf(field)}` }
+}
+
+// ---- FK 筛选弹窗选值：打开目标模块完整列表（含其快捷筛选），多选回填 in 条件 ----
+const fkDialogField = ref<FieldSchema | null>(null)
+
+const fkDialogSelectedIds = computed<string[]>(() => {
+  const f = fkDialogField.value
+  if (!f) return []
+  return (getClause(f.key)?.values as string[]) || []
+})
+
+function openFkDialog(field: FieldSchema): void {
+  fkDialogField.value = field
+}
+
+function handleFkDialogConfirm(rows: Array<{ id: string; label: string }>): void {
+  const field = fkDialogField.value
+  fkDialogField.value = null
+  if (!field || rows.length === 0) return
+  const picked = rows.map(r => ({ value: r.id, label: r.label }))
+  // 选中行并入候选缓存：多选框显示人读标签，摘要/重同步同源
+  const existing = fkOptions[field.key] || []
+  fkOptions[field.key] = [...picked, ...existing.filter(o => !picked.some(p => p.value === o.value))]
+  handleFkMultiChange(field, picked.map(p => p.value))
+}
+
 /** 摘要（FK 标签走全局共享缓存，表格预取/弹层候选/兜底解析同源），供父级标签行/expose 同口径 */
 function buildSummary(clauses?: FilterCondition[]): FilterSummaryItem[] {
   const items = flattenFilterConditions(clauses ?? props.modelValue)
@@ -334,9 +379,14 @@ export type { FilterSummaryItem }
 </script>
 
 <template>
-  <div class="filter-condition-controls">
+  <div class="filter-condition-controls" :class="{ 'is-grid': layout === 'grid' }">
     <template v-for="field in fields" :key="field.key">
-      <div v-show="isRowVisible(field.key)" class="filter-popover-item" :class="{ 'is-active': isActive(field.key) }">
+      <div
+        v-show="isRowVisible(field.key)"
+        class="filter-popover-item"
+        :class="{ 'is-active': isActive(field.key) }"
+        :style="gridItemStyle(field)"
+      >
         <label class="filter-popover-label">
           {{ field.label }}
           <ElTooltip
@@ -395,30 +445,39 @@ export type { FilterSummaryItem }
           />
         </div>
 
-        <!-- FK field: multi-select in/notIn -->
-        <ElSelect
-          v-else-if="field.type === 'fk'"
-          :model-value="(getClause(field.key)?.values as string[]) || []"
-          :placeholder="`选择${field.label}`"
-          size="small"
-          clearable
-          multiple
-          filterable
-          collapse-tags
-          collapse-tags-tooltip
-          :loading="fkLoading[field.key]"
-          :teleported="false"
-          class="filter-fk-select"
-          @update:model-value="(val: unknown) => handleFkMultiChange(field, val as unknown[])"
-        >
-          <ElOption
-            v-for="opt in fkOptions[field.key] || []"
-            :key="opt.value"
-            :label="opt.label"
-            :value="opt.value"
-            :disabled="opt.disabled"
+        <!-- FK field: multi-select in/notIn + 弹窗选值（打开目标模块完整列表，跨页勾选回填） -->
+        <div v-else-if="field.type === 'fk'" class="field-control-group filter-fk-group">
+          <ElSelect
+            :model-value="(getClause(field.key)?.values as string[]) || []"
+            :placeholder="`选择${field.label}`"
+            size="small"
+            clearable
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            :loading="fkLoading[field.key]"
+            popper-class="sg-filter-popper"
+            class="filter-fk-select"
+            @update:model-value="(val: unknown) => handleFkMultiChange(field, val as unknown[])"
+          >
+            <ElOption
+              v-for="opt in fkOptions[field.key] || []"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+              :disabled="opt.disabled"
+            />
+          </ElSelect>
+          <ElButton
+            size="small"
+            :icon="Search"
+            class="fk-filter-dialog-btn"
+            :title="`打开${field.label}列表选择`"
+            :disabled="!field.targetModule"
+            @click="openFkDialog(field)"
           />
-        </ElSelect>
+        </div>
 
         <!-- Select field: eq/neq -->
         <ElSelect
@@ -427,7 +486,7 @@ export type { FilterSummaryItem }
           :placeholder="`选择${field.label}`"
           size="small"
           clearable
-          :teleported="false"
+          popper-class="sg-filter-popper"
           class="filter-select"
           @update:model-value="(val: unknown) => handleSelectChange(field, val)"
         >
@@ -462,7 +521,7 @@ export type { FilterSummaryItem }
             :placeholder="`选择${field.label}`"
             size="small"
             clearable
-            :teleported="false"
+            popper-class="sg-filter-popper"
             style="width: 160px"
             @update:model-value="(val: string | null) => handleDateSingleChange(field, val)"
           />
@@ -477,7 +536,7 @@ export type { FilterSummaryItem }
             :end-placeholder="`结束${field.label}`"
             size="small"
             clearable
-            :teleported="false"
+            popper-class="sg-filter-popper"
             style="width: 260px"
             @update:model-value="(val: [string, string] | null) => handleDateRangeChange(field, val)"
           />
@@ -490,7 +549,7 @@ export type { FilterSummaryItem }
           :placeholder="`选择${field.label}`"
           size="small"
           clearable
-          :teleported="false"
+          popper-class="sg-filter-popper"
           class="filter-select"
           @update:model-value="(val: unknown) => handleBoolChange(field, val)"
         >
@@ -499,6 +558,19 @@ export type { FilterSummaryItem }
         </ElSelect>
       </div>
     </template>
+
+    <!-- FK 筛选弹窗选值：目标模块完整列表（含其自身的快捷筛选摊开面板），多选确认回填 in 条件 -->
+    <SchemaEngineDialog
+      :visible="fkDialogField !== null"
+      :module-id="fkDialogField?.targetModule || ''"
+      :title="fkDialogField ? `选择${fkDialogField.label}` : ''"
+      selectable
+      selectable-multiple
+      :selected-ids="fkDialogSelectedIds"
+      :z-index="2200"
+      @confirm="handleFkDialogConfirm"
+      @close="fkDialogField = null"
+    />
   </div>
 </template>
 
@@ -585,6 +657,57 @@ export type { FilterSummaryItem }
   border: 1px solid var(--sg-color-primary-light-8);
   white-space: nowrap;
 }
+/* FK 筛选的弹窗选值按钮：与 FkSelector 搜索按钮同形态 */
+.filter-fk-group {
+  flex: 1;
+  min-width: 0;
+}
+.filter-fk-group .filter-fk-select {
+  flex: 1;
+  min-width: 0;
+}
+.fk-filter-dialog-btn {
+  flex-shrink: 0;
+}
+
+/* 快捷筛选摊开面板的 16 列栅格形态（layout="grid"）：标签在上、控件铺满单元格；
+   跨度由 FieldSchema.quickFilterSpan 内联 gridColumn（默认 4 = 一行 4 个字段） */
+.filter-condition-controls.is-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: var(--sg-spacing-3) var(--sg-spacing-4);
+}
+.filter-condition-controls.is-grid .filter-popover-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sg-spacing-1);
+  min-height: 0;
+  padding: var(--sg-spacing-2);
+}
+.filter-condition-controls.is-grid .filter-popover-label {
+  min-width: 0;
+  width: auto;
+}
+.filter-condition-controls.is-grid .field-control-group,
+.filter-condition-controls.is-grid .date-filter-group {
+  width: 100%;
+}
+.filter-condition-controls.is-grid .filter-input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+.filter-condition-controls.is-grid .filter-select,
+.filter-condition-controls.is-grid .filter-fk-select {
+  width: 100%;
+  min-width: 0;
+}
+.filter-condition-controls.is-grid .date-filter-group {
+  flex-wrap: wrap;
+}
+.filter-condition-controls.is-grid .date-filter-group .el-date-editor {
+  width: 100% !important;
+}
 
 /* 移动端筛选抽屉内的形态：控件纵排铺满行宽（桌面 popover 横排不变） */
 @media (max-width: 767.98px) {
@@ -610,5 +733,17 @@ export type { FilterSummaryItem }
   .filter-input {
     flex: 1;
   }
+  /* 栅格形态在窄屏退化为单列（内联 gridColumn 需 !important 覆盖） */
+  .filter-condition-controls.is-grid .filter-popover-item {
+    grid-column: span 16 !important;
+  }
+}
+</style>
+
+<style>
+/* 筛选控件弹层（teleport 到 body）：钉在筛选弹层(4000)/各级弹窗(≤3100)之上，
+   滚动容器（弹层 body / 快捷筛选摊开面板）不再裁剪下拉与日期面板 */
+.sg-filter-popper {
+  z-index: 4200 !important;
 }
 </style>

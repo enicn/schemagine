@@ -46,6 +46,8 @@ const props = defineProps<{
   selectableMultiple?: boolean
   /** 选择模式初始选中 id：打开弹窗时回显（单选取首个，多选勾选命中行） */
   selectedIds?: string[]
+  /** 弹窗基准 z-index（FK 筛选弹窗选值等叠层场景）：缺省 2000；popupStack 逐层在其上递增 */
+  zIndex?: number
 }>()
 
 const emit = defineEmits<{
@@ -549,10 +551,11 @@ function handleNestedPopup(action: ListAction): void {
 }
 
 function getDialogZIndex(): number {
+  const base = props.zIndex ?? 2000
   if (popupStack.value.length > 0) {
-    return 2100 + popupStack.value.length * 100
+    return base + 100 + popupStack.value.length * 100
   }
-  return 2000
+  return base
 }
 
 watch([activeModuleId, activeInitialFilters], () => {
@@ -608,6 +611,7 @@ watch(() => props.visible, (show) => {
             :match-type="matchType"
             :quick-filter-keys="quickFilterKeys ?? undefined"
             :expanded="showMoreFilters"
+            layout="grid"
             @submit="handleQuickFilterApply"
           />
         </div>
@@ -819,7 +823,7 @@ watch(() => props.visible, (show) => {
 }
 .quick-filter-body {
   overflow-y: auto;
-  max-height: 320px;
+  max-height: 420px;
   padding-right: var(--sg-spacing-2);
 }
 .quick-filter-body :deep(.filter-condition-controls) {

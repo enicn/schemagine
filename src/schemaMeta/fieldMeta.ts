@@ -74,6 +74,7 @@ export const FIELD_SCHEMA_KEYS: Record<keyof import('@/types').FieldSchema, true
   mergeCells: true,
   category: true,
   nullableFilter: true,
+  quickFilterSpan: true,
   rowAction: true,
   aggregation: true,
   countCondition: true,
@@ -217,6 +218,12 @@ export const FIELD_META: PropertyMeta[] = [
     surfaces: ['filter'],
     description: '筛选面板中提供「为空/不为空」三态筛选;筛选栏(SchemaFilterBar)据此展示空值运算。',
     related: ['filterable'],
+  },
+  {
+    key: 'quickFilterSpan', target: 'field', label: '快捷筛选宽度(16栅格)', group: 'filter', appliesTo: ALL, kind: 'number',
+    default: 4, surfaces: ['filter'],
+    description: '快捷筛选摊开面板中的栅格跨度(16 列栅格,整数 1–16):默认 4 即一行 4 个字段,8=半行,16=独占一行;超出范围按边界钳制。仅快捷筛选摊开模式(SchemaEngineDialog)消费,主列表筛选弹层/移动端抽屉不受影响。',
+    related: ['filterable', 'nullableFilter'],
   },
   {
     key: 'validationRules', target: 'field', label: '校验规则', group: 'edit', appliesTo: ALL, kind: 'rules',

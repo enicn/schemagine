@@ -214,6 +214,9 @@ export interface FieldSchema {
   mergeCells?: boolean
   category?: string
   nullableFilter?: boolean
+  /** 快捷筛选摊开面板中的栅格跨度（16 列栅格，1–16）：默认 4 = 一行 4 个字段，16 = 独占一行。
+   *  仅快捷筛选摊开模式（SchemaEngineDialog）消费，主列表筛选弹层/移动端抽屉不受影响 */
+  quickFilterSpan?: number
   rowAction?: RowActionConfig
   aggregation?: 'sum' | 'average' | 'count' | 'max' | 'min'
   countCondition?: 'empty' | 'notEmpty'

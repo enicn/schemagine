@@ -401,9 +401,11 @@ function initColumnsFromSchema(): void {
 }
 
 async function loadModule(): Promise<void> {
+  const modId = activeModuleId.value
+  // 挂载型消费（如 FK 筛选弹窗关闭后 moduleId 归空）：无目标模块不发请求
+  if (!modId) return
   isSchemaLoading.value = true
   schemaError.value = null
-  const modId = activeModuleId.value
 
   try {
     const res = await schemaService.loadModuleSchema(modId)
@@ -558,29 +560,28 @@ function getDialogZIndex(): number {
   return base
 }
 
-watch([activeModuleId, activeInitialFilters], () => {
-  currentPage.value = 1
-  currentSort.value = null
-  filters.value = activeInitialFilters.value ?? []
-  cardIndex.value = 0
-  viewMode.value = 'list'
-  resetQuickFilterState()
-  loadModule()
-})
-
-watch(() => props.visible, (show) => {
-  if (show) {
-    popupStack.value = []
+// 统一加载时机：visible / moduleId / initialFilters 任一变化且弹窗可见时重载一次。
+// 弹窗不可见时不发请求——FK 筛选弹窗等挂载型消费在关闭后 moduleId 会归空，
+// 此前 moduleId watch 不看 visible，关闭瞬间的空 id 会打出 schema/records 404。
+watch(
+  () => `${props.visible ? 1 : 0}|${activeModuleId.value}|${JSON.stringify(activeInitialFilters.value ?? null)}`,
+  (key, oldKey) => {
+    if (!key.startsWith('1|')) return
+    const wasVisible = oldKey ? oldKey.startsWith('1|') : false
+    if (!wasVisible) {
+      // 全新打开：清层级栈并重置选择态
+      popupStack.value = []
+      initSelection()
+    }
     currentPage.value = 1
     currentSort.value = null
-    filters.value = props.initialFilters ?? []
+    filters.value = activeInitialFilters.value ?? []
     cardIndex.value = 0
     viewMode.value = 'list'
-    initSelection()
     resetQuickFilterState()
     loadModule()
-  }
-})
+  },
+)
 </script>
 
 <template>

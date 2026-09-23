@@ -5,6 +5,12 @@
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-09-24
+
+### Fixed
+
+- **弹窗隐藏时不再发请求** — `SchemaEngineDialog` 的加载时机统一为单个 watch（visible × moduleId × initialFilters 组合键）：弹窗不可见时任何变化都不触发 schema/records 请求。此前 moduleId watch 不看 visible，FK 筛选弹窗等挂载型消费在关闭瞬间 moduleId 归空，会打出 `GET /schema/`、`GET /records/`（空 id → 404）噪声请求；同批 visible 与 moduleId 同时变化的打开路径也由两次加载收敛为一次。`loadModule` 另加空 moduleId 早退兜底。
+
 ## [0.3.9] - 2026-09-24
 
 ### Added

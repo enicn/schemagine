@@ -40,6 +40,8 @@ export default defineConfig({
   webServer: {
     command: 'pnpm run build && pnpm exec vite preview --port 5173 --strictPort',
     port: 5173,
+    // Windows 本机 build 阶段可超 60s，默认超时会让 test:e2e:all 无法直跑
+    timeout: 180_000,
     reuseExistingServer: !process.env.CI,
   },
 })

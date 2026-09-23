@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Filter } from '@element-plus/icons-vue'
 import { ElButton, ElButtonGroup, ElPopover, ElTag } from 'element-plus'
 import type { FieldSchema, FilterCondition } from '@/types'
@@ -32,6 +32,19 @@ const matchType = ref<FilterMatchType>('all')
 
 const popoverVisible = ref(false)
 
+// 受控弹层的误报关闭守卫（0.3.9 起 teleport 到 body 后暴露）：ElPopover 在受控 :visible
+// 模式下会把「内容内点击」「teleport 面板（.sg-filter-popper：下拉/日期面板挂 body）内点击」
+// 误判为外部点击并发 update:visible(false)，导致选完一个条件弹层即被级联关闭。
+// pointerdown 捕获段记录来源，落在弹层内容∪teleport 面板∪触发按钮内时吞掉关闭请求；
+// 真外部点击与触发按钮二击照常关（确认/重置/摘要标签走各自的直接赋值，不经此处）。
+let pointerInFilterSurface = false
+function handleDocPointerDownCapture(event: PointerEvent): void {
+  const target = event.target as Element | null
+  pointerInFilterSurface = !!target?.closest?.('.filter-popover-body, .sg-filter-popper, .filter-bar-header .el-button')
+}
+onMounted(() => document.addEventListener('pointerdown', handleDocPointerDownCapture, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', handleDocPointerDownCapture, true))
+
 function applyFilter(): void {
   const next = controlsRef.value?.apply() ?? []
   emit('update:modelValue', next)
@@ -63,6 +76,8 @@ function handleRemoveTag(fieldKey: string): void {
 function handlePopoverVisibleChange(visible: boolean): void {
   if (visible) {
     controlsRef.value?.resync()
+  } else if (pointerInFilterSurface) {
+    return
   }
   popoverVisible.value = visible
 }

@@ -5,7 +5,13 @@
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-09-23
+
 ### Added
+
+- **FK 弹窗搜索快捷筛选摊开模式** — `ModuleSchema.quickFilterFields`（字段 key 数组）新契约键：声明后 `SchemaEngineDialog`（选择关联/查看数据）将命中的可筛选字段控件直接摊开渲染（免点「筛选」弹层），未列入的其余可筛选字段经「显示更多（N）/收起」展开收起；搜索/重置/匹配方式（全部/任一条件）与弹层模式同语义，筛选条件模型同源（`filters`）。草稿状态单源在 `FilterConditionControls`（新增 `quickFilterKeys`/`expanded` 可选 props，行显隐只影响渲染），收起/展开不丢已填条件。缺省（未声明）维持「筛选」弹层交互，主列表页不受影响。键已登记 `MODULE_SCHEMA_KEYS` 穷举表与 `MODULE_META` 文档。
+
+- **行号列 i18n** — seq 列标题改经 `t('table.rowNumber')`：zh-CN 基准包「行号」；新增内置 `en` 增量语言包覆盖为「#」（未翻译 key 回退基准包），`setLocale('en')` 即生效。
 
 - **Engine pipeline wiring for declarative rules** — new `useRules` composable (instance-provided by `SchemaEngine`): compiles module/field rules with the same mathjs/number evaluator as formula fields. (1) Inline edit: `validate` rules run at confirm — violation blocks with message, `force` rewrites the value; `compute` chains fire on the changed key, cascade in declaration order and write back into the row, derived fields flowing through the same persistence path (unchanged values deduped). (2) Action execution: `RowActionConfig.action` clicks plan Effects (confirm → invoke/open/navigate → toast) and hand them to the new `SchemaEngine.rulesExecutor` prop (warn+drop when absent); built-in `target` handling stays for action-less rows. (3) Derived positions: `rowAction.labelWhen` switches the row button label per row (op-column width prices the longest candidate); `aggregate` rules append `sum(...)`-style items to the list statistics bar. Zero rules → zero overhead (compile is skipped, guards short-circuit).
 

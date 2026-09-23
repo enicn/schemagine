@@ -700,8 +700,9 @@ defineExpose({
       <VxeColumn v-if="showSelection" type="checkbox" width="36" align="center" fixed="left" />
       <!-- 行号列（appearance.rowNumbers）：勾选列之后；seq 列无 field，不参与列拖拽与合并，
            footerMethod 若只按数据列计值需自行注意与 seq 列的索引错位。
-           序号经默认插槽自渲染（不依赖 vxe seq 内建计算，避免二次渲染场景下的调度缺失） -->
-      <VxeColumn v-if="rowNumbers" type="seq" width="48" align="center" fixed="left" drag-disabled title="#">
+           序号经默认插槽自渲染（不依赖 vxe seq 内建计算，避免二次渲染场景下的调度缺失）。
+           标题走 i18n（table.rowNumber）：zh-CN「行号」，英文包覆盖为「#」 -->
+      <VxeColumn v-if="rowNumbers" type="seq" width="48" align="center" fixed="left" drag-disabled :title="t('table.rowNumber')">
         <template #default="{ rowIndex }">{{ (rowNumberStart ?? 0) + rowIndex + 1 }}</template>
       </VxeColumn>
       <!-- 行展开列（docs/19 F4）：展开区内容经宿主插槽渲染（B2 插槽透传机制） -->

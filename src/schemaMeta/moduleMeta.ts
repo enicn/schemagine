@@ -19,6 +19,7 @@ export const MODULE_SCHEMA_KEYS: Record<keyof ModuleSchema, true> = {
   listActions: true,
   operations: true,
   searchFields: true,
+  quickFilterFields: true,
   cardView: true,
   treeConfig: true,
   groupBy: true,
@@ -121,6 +122,12 @@ export const MODULE_META: PropertyMeta[] = [
     surfaces: ['render'],
     description: '顶部搜索框作用的字段集(移动适配 §3.6):搜索经 list 通道 keyword 参数下推,支持方按字段跨字段 OR 包含匹配;缺省取第一个 text 字段,无 text 字段则不渲染搜索框。',
     example: ['name', 'origin'],
+  },
+  {
+    key: 'quickFilterFields', target: 'module', label: '快捷筛选字段', group: 'display', appliesTo: 'all', kind: 'string[]',
+    surfaces: ['render'],
+    description: 'FK 弹窗搜索的快捷筛选字段集(字段 key 数组):声明后 SchemaEngineDialog(选择关联/查看数据)将命中的可筛选字段控件直接摊开渲染,免点「筛选」弹层;未列入的其余可筛选字段经「显示更多」展开/收起。缺省维持「筛选」弹层交互。',
+    example: ['name', 'status'],
   },
   {
     key: 'cardView', target: 'module', label: '移动卡片投影', group: 'display', appliesTo: 'all', kind: 'object',

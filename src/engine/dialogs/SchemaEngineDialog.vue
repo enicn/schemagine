@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject } from 'vue'
+import { ref, computed, watch, nextTick, inject } from 'vue'
 import {
   ElDialog,
   ElButton,
+  ElButtonGroup,
   ElMessage,
 } from 'element-plus'
 import { flattenRecordRow } from '@/utils/recordRow'
@@ -14,6 +15,8 @@ import SchemaCard from '@/components/card/SchemaCard.vue'
 import ColumnSettingsPopover from '@/components/table/ColumnSettingsPopover.vue'
 import CardLayoutSettingsPopover from '@/components/card/CardLayoutSettingsPopover.vue'
 import SchemaFilterBar from '@/components/filter/SchemaFilterBar.vue'
+import FilterConditionControls from '@/components/filter/FilterConditionControls.vue'
+import type { FilterMatchType } from '@/utils/filterConditions'
 import { recordService } from '@/services/api/recordService'
 import { schemaService } from '@/services/api/schemaService'
 import { collectSelectedRows, type SelectedRow } from '@/utils/selectedRows'
@@ -106,6 +109,58 @@ const filterableFields = computed(() => {
   if (!schema.value) return []
   const supported = new Set(['text', 'select', 'multi-select', 'date', 'datetime', 'boolean', 'fk'])
   return schema.value.fields.filter(f => f.filterable && supported.has(f.type))
+})
+
+// ---- 快捷筛选摊开模式（ModuleSchema.quickFilterFields）----
+// 声明即生效：命中的可筛选字段控件直接摊开（免点「筛选」弹层），
+// 未列入的其余字段经「显示更多」展开；筛选条件模型与弹层模式同源（filters）
+const quickFilterKeys = computed<string[] | null>(() => {
+  const declared = schema.value?.quickFilterFields
+  if (!declared || declared.length === 0) return null
+  const declaredSet = new Set(declared)
+  const hit = filterableFields.value.filter(f => declaredSet.has(f.key)).map(f => f.key)
+  return hit.length > 0 ? hit : null
+})
+const quickFilterMode = computed(() => quickFilterKeys.value !== null)
+const moreFilterCount = computed(() =>
+  quickFilterMode.value ? filterableFields.value.length - quickFilterKeys.value!.length : 0)
+
+const quickControlsRef = ref<InstanceType<typeof FilterConditionControls> | null>(null)
+const matchType = ref<FilterMatchType>('all')
+const showMoreFilters = ref(false)
+
+const hasMultiDrafts = computed(() => (quickControlsRef.value?.activeCount ?? 0) > 1)
+
+function resyncQuickControls(): void {
+  if (!quickFilterMode.value) return
+  nextTick(() => quickControlsRef.value?.resync())
+}
+
+function handleQuickFilterApply(): void {
+  const next = quickControlsRef.value?.apply() ?? []
+  filters.value = next
+  currentPage.value = 1
+}
+
+function handleQuickFilterReset(): void {
+  quickControlsRef.value?.reset()
+  handleQuickFilterApply()
+}
+
+function toggleMoreFilters(): void {
+  showMoreFilters.value = !showMoreFilters.value
+}
+
+/** 打开/切换模块时重置摊开态：显示更多收起、匹配方式还原、草稿按已提交条件重同步 */
+function resetQuickFilterState(): void {
+  showMoreFilters.value = false
+  matchType.value = 'all'
+  resyncQuickControls()
+}
+
+/** schema 异步加载完成后摊开模式才成立：成立瞬间再同步一次（初次打开时 controls 尚未挂载） */
+watch(quickFilterMode, (on) => {
+  if (on) resyncQuickControls()
 })
 
 /** 表头「已筛」高亮只认简单子句；组合过滤组不对应单列，拍平掉 */
@@ -506,6 +561,7 @@ watch([activeModuleId, activeInitialFilters], () => {
   filters.value = activeInitialFilters.value ?? []
   cardIndex.value = 0
   viewMode.value = 'list'
+  resetQuickFilterState()
   loadModule()
 })
 
@@ -518,6 +574,7 @@ watch(() => props.visible, (show) => {
     cardIndex.value = 0
     viewMode.value = 'list'
     initSelection()
+    resetQuickFilterState()
     loadModule()
   }
 })
@@ -540,11 +597,51 @@ watch(() => props.visible, (show) => {
     </div>
 
     <div v-else class="dialog-body">
+      <!-- 快捷筛选摊开面板（ModuleSchema.quickFilterFields）：免点「筛选」直接渲染控件，
+           其余字段经「显示更多」展开；搜索/重置与弹层模式同语义（Enter 亦可提交） -->
+      <div v-if="quickFilterMode" class="quick-filter-panel">
+        <div class="quick-filter-body">
+          <FilterConditionControls
+            ref="quickControlsRef"
+            :fields="filterableFields"
+            :model-value="filters"
+            :match-type="matchType"
+            :quick-filter-keys="quickFilterKeys ?? undefined"
+            :expanded="showMoreFilters"
+            @submit="handleQuickFilterApply"
+          />
+        </div>
+        <div class="quick-filter-actions">
+          <ElButton
+            v-if="moreFilterCount > 0"
+            size="small"
+            link
+            type="primary"
+            class="more-toggle-btn"
+            @click="toggleMoreFilters"
+          >
+            {{ showMoreFilters ? '收起' : `显示更多（${moreFilterCount}）` }}
+          </ElButton>
+          <div v-if="hasMultiDrafts" class="match-toggle">
+            <span class="match-label">匹配</span>
+            <ElButtonGroup size="small">
+              <ElButton size="small" :type="matchType === 'all' ? 'primary' : ''" @click="matchType = 'all'">全部条件</ElButton>
+              <ElButton size="small" :type="matchType === 'any' ? 'primary' : ''" @click="matchType = 'any'">任一条件</ElButton>
+            </ElButtonGroup>
+          </div>
+          <div class="quick-filter-buttons">
+            <ElButton size="small" type="primary" @click="handleQuickFilterApply">搜索</ElButton>
+            <ElButton size="small" @click="handleQuickFilterReset">重置</ElButton>
+          </div>
+        </div>
+      </div>
+
       <div class="popup-toolbar">
-        <!-- 工具栏布局对齐常规列表页：筛选（+列表动作）靠左，列/卡片设置与视图切换靠右 -->
+        <!-- 工具栏布局对齐常规列表页：筛选（+列表动作）靠左，列/卡片设置与视图切换靠右；
+             摊开模式下面板取代「筛选」弹层入口 -->
       <div class="popup-toolbar-left">
         <SchemaFilterBar
-          v-if="schema && filterableFields.length > 0"
+          v-if="schema && filterableFields.length > 0 && !quickFilterMode"
           :fields="schema.fields"
           :model-value="filters"
           @update:model-value="handleSearch"
@@ -712,6 +809,47 @@ watch(() => props.visible, (show) => {
   gap: var(--sg-spacing-2);
   flex: 1;
   overflow: hidden;
+}
+.quick-filter-panel {
+  flex-shrink: 0;
+  border: 1px solid var(--sg-border-color-light);
+  border-radius: var(--sg-radius-md);
+  background: var(--sg-bg-color, transparent);
+  padding: var(--sg-spacing-3) var(--sg-spacing-4) var(--sg-spacing-2);
+}
+.quick-filter-body {
+  overflow-y: auto;
+  max-height: 320px;
+  padding-right: var(--sg-spacing-2);
+}
+.quick-filter-body :deep(.filter-condition-controls) {
+  gap: var(--sg-spacing-2);
+}
+.quick-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-spacing-4);
+  padding-top: var(--sg-spacing-2);
+  margin-top: var(--sg-spacing-1);
+  border-top: 1px solid var(--sg-border-color-light);
+}
+.more-toggle-btn {
+  flex-shrink: 0;
+}
+.match-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sg-spacing-2);
+}
+.match-label {
+  font-size: var(--sg-font-size-sm);
+  color: var(--sg-text-color-secondary);
+  white-space: nowrap;
+}
+.quick-filter-buttons {
+  display: flex;
+  gap: var(--sg-spacing-4);
+  margin-left: auto;
 }
 .popup-toolbar {
   display: flex;

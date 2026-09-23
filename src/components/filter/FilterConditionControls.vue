@@ -20,6 +20,12 @@ const props = defineProps<{
   modelValue: FilterCondition[]
   /** 匹配方式（全部/任一），由父级持有与切换 */
   matchType: FilterMatchType
+  /** 快捷筛选字段 key 集（SchemaEngineDialog 摊开模式，§FK 弹窗快捷筛选）：
+   *  声明后仅这些字段的行直接可见，其余字段行随 expanded 显隐；
+   *  显隐只影响渲染，草稿状态单源在本组件，收起/展开不丢已填条件 */
+  quickFilterKeys?: string[]
+  /** 其余（非快捷）字段行是否展开（配合 quickFilterKeys；缺省 false 只显示快捷字段） */
+  expanded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -300,6 +306,13 @@ function syncCommittedToDraft(): void {
 
 const activeCount = computed(() => localClauses.value.length)
 
+/** 行可见性（快捷筛选摊开模式）：未声明 quickFilterKeys 时全部可见；声明后非快捷字段随 expanded */
+function isRowVisible(fieldKey: string): boolean {
+  if (!props.quickFilterKeys || props.quickFilterKeys.length === 0) return true
+  if (props.quickFilterKeys.includes(fieldKey)) return true
+  return !!props.expanded
+}
+
 /** 摘要（FK 标签走全局共享缓存，表格预取/弹层候选/兜底解析同源），供父级标签行/expose 同口径 */
 function buildSummary(clauses?: FilterCondition[]): FilterSummaryItem[] {
   const items = flattenFilterConditions(clauses ?? props.modelValue)
@@ -323,7 +336,7 @@ export type { FilterSummaryItem }
 <template>
   <div class="filter-condition-controls">
     <template v-for="field in fields" :key="field.key">
-      <div class="filter-popover-item" :class="{ 'is-active': isActive(field.key) }">
+      <div v-show="isRowVisible(field.key)" class="filter-popover-item" :class="{ 'is-active': isActive(field.key) }">
         <label class="filter-popover-label">
           {{ field.label }}
           <ElTooltip

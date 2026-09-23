@@ -17,6 +17,10 @@ export interface ModuleSchema {
   /** 移动端顶部搜索框作用的字段集（管理端移动适配 §3.6）：缺省取第一个 text 字段。
    *  搜索经 ListQueryParams.keyword 下推（后端 searchFields 同名配置跨字段 OR 包含匹配） */
   searchFields?: string[]
+  /** FK 弹窗搜索快捷筛选字段（字段 key 数组）：声明后 SchemaEngineDialog（选择关联/查看数据）
+   *  将命中的可筛选字段控件直接摊开渲染（免点「筛选」弹层），未列入的其余可筛选字段
+   *  经「显示更多」展开；缺省维持「筛选」弹层交互 */
+  quickFilterFields?: string[]
   /** 移动端卡片投影（§3.4）：缺省按字段类型推导（零配置可用），声明后逐项覆盖 */
   cardView?: CardViewConfig
   /** 树形数据声明（docs/19 F2）：声明后列表按树形渲染（vxe tree-config） */

@@ -2,7 +2,7 @@
  * 引擎 i18n（docs/19 批次 G1）：极轻量文案层——注册制语言包 + 点路径 t()。
  *
  * 设计约束：
- *  - 零依赖、无按需加载：内置 zh-CN（基准包），宿主经 registerLocale 注入其他语言；
+ *  - 零依赖、无按需加载：内置 zh-CN（基准包）与 en（增量覆盖包），宿主经 registerLocale 注入其他语言；
  *  - 响应式：t 读取内部 locale ref，模板/computed 中使用时切换语言即重渲染；
  *  - 插值：`{name}` 占位符，t('key', { name: 'x' })；
  *  - 容错：key 缺失回退基准包，仍缺失返回 key 本身（开发期可见、不炸）；
@@ -10,6 +10,7 @@
  */
 import { ref } from 'vue'
 import zhCN from './zh-CN'
+import en from './en'
 
 export type MessageSchema = Record<string, unknown>
 
@@ -17,6 +18,8 @@ const BASE_LOCALE = 'zh-CN'
 
 const locales: Record<string, MessageSchema> = {
   [BASE_LOCALE]: zhCN as MessageSchema,
+  // 内置英文包（增量覆盖，未翻译 key 回退基准包）；宿主可 registerLocale 整体替换
+  en: en as MessageSchema,
 }
 
 /** 当前语言（响应式：模板/computed 中经 t() 建立依赖） */

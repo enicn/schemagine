@@ -69,19 +69,18 @@ describe('FilterConditionControls 快捷筛选显隐', () => {
     })
     expect(wrapper.find('.filter-condition-controls').classes()).toContain('is-grid')
     const items = wrapper.findAll('.filter-popover-item')
-    expect(items[0].element.style.gridColumn).toBe('span 4')
-    expect(items[1].element.style.gridColumn).toBe('span 8')
-    expect(items[2].element.style.gridColumn).toBe('span 16')
+    const spans = items.map(el => (el.element as HTMLElement).style.gridColumn)
+    expect(spans).toEqual(['span 4', 'span 8', 'span 16'])
     wrapper.unmount()
   })
 
   it('栅格跨度钳制：低于 1 取 1；list 布局不产生内联 gridColumn', () => {
     const fields = [{ ...field('memo', '备注', 'text'), quickFilterSpan: 0 }]
     const grid = mount(FilterConditionControls, { props: { fields, modelValue: [], matchType: 'all' as const, layout: 'grid' as const } })
-    expect(grid.find('.filter-popover-item').element.style.gridColumn).toBe('span 1')
+    expect((grid.find('.filter-popover-item').element as HTMLElement).style.gridColumn).toBe('span 1')
     grid.unmount()
     const list = mount(FilterConditionControls, { props: { fields, modelValue: [], matchType: 'all' as const } })
-    expect(list.find('.filter-popover-item').element.style.gridColumn).toBe('')
+    expect((list.find('.filter-popover-item').element as HTMLElement).style.gridColumn).toBe('')
     list.unmount()
   })
 })

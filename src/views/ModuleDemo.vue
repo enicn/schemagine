@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElRadioGroup, ElRadioButton, ElMessage } from 'element-plus'
+import { ElRadioGroup, ElRadioButton, ElMessage, ElMessageBox } from 'element-plus'
 import SchemaEngine from '@/engine/entry/SchemaEngine.vue'
+import type { RuleEffect } from '@/rules'
 import { registerLocale } from '@/locales'
 import { moduleRoutes } from '@/router'
 import { setMediaService } from '@/services/api/mediaService'
@@ -120,6 +121,42 @@ function onModuleLoaded(payload: { moduleId: string }): void {
 function onError(payload: { moduleId: string; code: string; message: string }): void {
   ElMessage.error(`${payload.code}: ${payload.message}`)
 }
+
+// 声明式动作执行器演示（docs/21 K1.2）：Effect 链 confirm → invoke/open/navigate → toast，
+// 真实宿主在此接自有 API/路由/弹窗；演示壳转 ElMessage/ElMessageBox + console 留痕。
+// 未注入时引擎对 Effect 走 warn+drop（有单测钉住），此处注入后 rowAction.action 演示位可见。
+async function handleRulesExecutor(
+  effects: RuleEffect[],
+  ctx: { rowId: string; field: string; record: Record<string, unknown> },
+): Promise<void> {
+  void ctx
+  for (const effect of effects) {
+    switch (effect.type) {
+      case 'confirm':
+        try {
+          await ElMessageBox.confirm(effect.message ?? '确认执行?', '提示', { type: 'warning' })
+        } catch {
+          return // 用户取消：中止后续 Effect
+        }
+        break
+      case 'toast':
+        ElMessage.success(effect.message ?? '已执行')
+        break
+      case 'invoke':
+        console.log('[demo rulesExecutor] invoke', effect.api, effect.params)
+        ElMessage.info(`invoke ${String(effect.api)}`)
+        break
+      case 'open':
+        console.log('[demo rulesExecutor] open', effect.viewRef, effect.params)
+        break
+      case 'navigate':
+        console.log('[demo rulesExecutor] navigate', effect.payload, effect.params)
+        break
+      default:
+        console.log('[demo rulesExecutor] effect', effect)
+    }
+  }
+}
 </script>
 
 <template>
@@ -159,6 +196,7 @@ function onError(payload: { moduleId: string; code: string; message: string }): 
         :density="density"
         :appearance="appearance"
         :locale="localeParam"
+        :rules-executor="handleRulesExecutor"
         @module-loaded="onModuleLoaded"
         @error="onError"
       />

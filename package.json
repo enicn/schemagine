@@ -74,7 +74,7 @@
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:p0": "playwright test e2e/p0-engine.spec.ts",
-    "test:e2e:ext": "playwright test e2e/p1-engine.spec.ts e2e/p2-engine.spec.ts e2e/batch-e.spec.ts e2e/batch-f.spec.ts e2e/batch-g.spec.ts e2e/batch-h.spec.ts",
+    "test:e2e:ext": "playwright test e2e/p1-engine.spec.ts e2e/p2-engine.spec.ts e2e/batch-e.spec.ts e2e/batch-f.spec.ts e2e/batch-g.spec.ts e2e/batch-h.spec.ts e2e/rules.spec.ts",
     "bench": "playwright test e2e/perf-benchmark.spec.ts",
     "test:e2e:p1": "playwright test e2e/p1-engine.spec.ts",
     "test:e2e:p2": "playwright test e2e/p2-engine.spec.ts",
@@ -91,7 +91,10 @@
     "gen:schema-docs": "node scripts/generate-schema-docs.run.mjs",
     "prepublishOnly": "pnpm build:lib",
     "prepack": "pnpm build:lib",
-    "version": "node -p \"require('./package.json').version\""
+    "version": "node -p \"require('./package.json').version\"",
+    "docs:dev": "vitepress dev docs-site",
+    "docs:build": "vitepress build docs-site",
+    "docs:preview": "vitepress preview docs-site"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -133,6 +136,7 @@
     "typescript": "~6.0.0",
     "vite": "^8.0.8",
     "vite-plugin-vue-devtools": "^8.1.1",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1.4",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4",

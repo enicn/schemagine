@@ -100,11 +100,17 @@ function evalAtomic(cond: AtomicCondition, ctx: EvalContext): boolean {
   return compareValues(cond.operator, left, right)
 }
 
-function evalObjectForm(cond: Condition | undefined, ctx: EvalContext): boolean {
+function evalObjectForm(
+  cond: Condition | undefined,
+  ctx: EvalContext,
+  evaluate?: (expr: string, scope?: Record<string, unknown>) => unknown,
+  functions?: Record<string, unknown>,
+): boolean {
   if (!cond) return true
-  if ('and' in cond) return (cond.and ?? []).every(c => evalObjectForm(c, ctx))
-  if ('or' in cond) return (cond.or ?? []).some(c => evalObjectForm(c, ctx))
-  if ('not' in cond) return !evalObjectForm(cond.not, ctx)
+  // 组内子节点走统一入口：子节点可以是表达式串或三段形（GroupCondition.children: AnyCondition[]）
+  if ('and' in cond) return (cond.and ?? []).every(c => evalCondition(c, ctx, evaluate, functions))
+  if ('or' in cond) return (cond.or ?? []).some(c => evalCondition(c, ctx, evaluate, functions))
+  if ('not' in cond) return !evalCondition(cond.not, ctx, evaluate, functions)
   return evalAtomic(cond as AtomicCondition, ctx)
 }
 
@@ -140,7 +146,7 @@ export function evalCondition(
       : operand
     return compareValues(operator, left, right)
   }
-  return evalObjectForm(cond as Condition, ctx)
+  return evalObjectForm(cond as Condition, ctx, evaluate, functions)
 }
 
 /**

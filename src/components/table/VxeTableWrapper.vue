@@ -355,6 +355,11 @@ function handleCellDblclick(params: VxeTableDefines.CellDblclickEventParams): vo
     emit('cell-dblclick', { row: params.row, column: col, rowIndex: params.rowIndex })
     return
   }
+  // editableWhen 行级前置条件（宿主 page_settings precondition 语义）：不满足同 readonly 处理
+  if (col.fieldSchema?.editableWhen && !evaluateCondition(col.fieldSchema.editableWhen, { record: params.row as Record<string, unknown>, global: {} })) {
+    emit('cell-dblclick', { row: params.row, column: col, rowIndex: params.rowIndex })
+    return
+  }
   if (props.editable) {
     startEdit(params.row, col, params.rowIndex)
     return

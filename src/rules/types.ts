@@ -28,9 +28,10 @@ export interface AtomicCondition {
 }
 
 export interface GroupCondition {
-  and?: Condition[]
-  or?: Condition[]
-  not?: Condition
+  /** Children accept the full union (nested groups, triplets, expression strings). */
+  and?: AnyCondition[]
+  or?: AnyCondition[]
+  not?: AnyCondition
 }
 
 export type Condition = AtomicCondition | GroupCondition

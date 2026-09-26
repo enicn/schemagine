@@ -98,6 +98,9 @@ export {
 } from './utils/filterConditions'
 export type { FilterMatchType } from './utils/filterConditions'
 export { reorderColumnsByDrag } from './utils/columnDrag'
+// 条件表达式求值接缝：宿主注入求值器与函数词典后，表格路径的字符串/三段形条件（visibleWhen、
+// labelWhen、rowValidationRules、行内编辑 editableWhen）按 rules 方言求值；未注册时恒 false
+export { registerConditionEvaluator } from './utils/condition'
 // 批量字段更新执行器(docs/19 批次 H4):两阶段(apply+补偿回写),整体生效或整体不生效
 export { executeBatchPatch, survivingChanges } from './utils/batchPatch'
 export type { BatchPatchOutcome, BatchPatchAppliedRow } from './utils/batchPatch'

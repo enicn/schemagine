@@ -448,6 +448,10 @@ export type Condition =
     operator: ConditionOperator
     right?: ConditionValueRef
   }
+  /** 表达式串（rules 方言，宿主求值器算术/函数调用；需 registerConditionEvaluator） */
+  | string
+  /** 三段形 [field, operator, operand?]：operand 为字面量或 ConditionValueRef */
+  | [string, ConditionOperator, unknown?]
 
 export type ConditionValueRef =
   | { record: string }

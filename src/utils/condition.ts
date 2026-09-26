@@ -5,6 +5,36 @@ export interface ConditionEvalContext {
   global: Record<string, unknown>
 }
 
+/**
+ * 条件表达式求值接缝（宿主注入）：引擎表格路径的条件求值（rowAction.visibleWhen、
+ * labelWhen、rowValidationRules、行内编辑 editableWhen）不经 rules runtime——
+ * 字符串（表达式串）与三段形条件需要宿主提供求值器与函数词典。宿主在安装引擎
+ * 环境时调用 registerConditionEvaluator（与 rules 包 buildExpressionScope 同构：
+ * 平铺行字段 + $form + 函数表），未注册时字符串条件恒 false（fail-closed）。
+ */
+type ConditionExpressionEvaluator = (expr: string, scope: Record<string, unknown>) => unknown
+let conditionEvaluator: ConditionExpressionEvaluator | null = null
+let conditionFunctions: Record<string, unknown> = {}
+const warnedExpressions = new Set<string>()
+
+export function registerConditionEvaluator(options: { evaluate?: ConditionExpressionEvaluator, functions?: Record<string, unknown> }): void {
+  if (options.evaluate) conditionEvaluator = options.evaluate
+  if (options.functions) conditionFunctions = options.functions
+}
+
+/** 表达式串作用域：平铺行字段 + $form(=ctx.global) + 宿主函数（与 rules 包同构） */
+function buildExpressionScope(ctx: ConditionEvalContext): Record<string, unknown> {
+  return { ...ctx.record, $form: ctx.global, ...conditionFunctions }
+}
+
+function isConditionValueRef(v: unknown): v is ConditionValueRef {
+  return typeof v === 'object' && v !== null && ('value' in v || 'record' in v || 'global' in v)
+}
+
+function isTripletCondition(v: unknown): v is [string, ConditionOperator, unknown?] {
+  return Array.isArray(v) && v.length >= 2 && typeof v[0] === 'string'
+}
+
 function getPathValue(obj: unknown, path: string): unknown {
   if (!path) return undefined
   const segments = path.split('.').filter(Boolean)
@@ -81,6 +111,32 @@ function compare(operator: ConditionOperator, left: unknown, right: unknown): bo
 
 export function evaluateCondition(condition: Condition | undefined, ctx: ConditionEvalContext): boolean {
   if (!condition) return true
+
+  if (typeof condition === 'string') {
+    if (!conditionEvaluator) {
+      if (!warnedExpressions.has('#no-evaluator')) {
+        warnedExpressions.add('#no-evaluator')
+        console.warn('[schemagine] 字符串条件缺少求值器：请先 registerConditionEvaluator（恒按 false 处理）')
+      }
+      return false
+    }
+    try {
+      return Boolean(conditionEvaluator(condition, buildExpressionScope(ctx)))
+    } catch (error) {
+      if (!warnedExpressions.has(condition)) {
+        warnedExpressions.add(condition)
+        console.warn(`[schemagine] 条件表达式求值失败（按 false 处理）：${condition}`, error)
+      }
+      return false
+    }
+  }
+
+  if (isTripletCondition(condition)) {
+    const [fieldPath, operator, operand] = condition
+    const left = getPathValue(ctx.record, fieldPath)
+    const right = isConditionValueRef(operand) ? resolveValueRef(operand, ctx) : operand
+    return compare(operator, left, right)
+  }
 
   if ('and' in condition) {
     const list = condition.and ?? []

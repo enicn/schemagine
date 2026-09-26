@@ -10,6 +10,7 @@ import { mediaService } from '@/services/api/mediaService'
 import { useMediaMode } from '@/services/api/mediaConfig'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
 import { validateFieldValue, validateRecordRow } from '@/utils/fieldValidation'
+import { evaluateCondition } from '@/utils/condition'
 import { t } from '@/locales'
 import { useRules } from '@/composables/useRules'
 import type { CandidateOption, RowValidationRule } from '@/types'
@@ -227,6 +228,8 @@ export function useInlineEdit(
   async function startEdit(row: Record<string, unknown>, col: WrapperColumn, rowIndex?: number): Promise<void> {
     // 双保险：绝对只读/有限编辑字段不进编辑态（正常路径已在 handleCellDblclick 拦截）
     if (col.readonly || col.editMode === 'limited') return
+    // editableWhen 行级前置条件（宿主 page_settings precondition 语义）：逐行求值，不满足不进编辑态
+    if (col.fieldSchema?.editableWhen && !evaluateCondition(col.fieldSchema.editableWhen, { record: row, global: {} })) return
     const rowId = row[deps.rowKey()] as string
     editingRowId.value = rowId
     editingField.value = col.field

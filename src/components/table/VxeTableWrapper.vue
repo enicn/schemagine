@@ -821,7 +821,7 @@ defineExpose({
         class-name="op-column"
       >
         <template #default="{ row }">
-          <span class="op-cell">
+          <span class="op-cell" :data-sg-row-id="String(row[props.rowKey] ?? '')">
             <template v-if="visibleOps(row).length > 0">
               <button
                 v-for="op in visibleOps(row)"
@@ -829,6 +829,7 @@ defineExpose({
                 type="button"
                 class="op-link"
                 :class="{ 'op-link--danger': op.actionDanger }"
+                :data-sg-row-action="op.field"
                 @click.stop="handleOpClick(row, op)"
               >
                 <ElIcon v-if="opIcon(op)" class="op-link__icon" :size="13">

@@ -172,6 +172,27 @@ onMounted(async () => {
   subscribeRemoteChanges()
 })
 
+// ── W2 引导锚点生命周期（AI 操作引导方案 §5）：sg:ready / sg:refreshed 生命周期事件 +
+// 根节点 data-sg-ready 标记。纯事件与属性、零业务逻辑改动；消费方 = 宿主 operation-map
+// readiness（MutationObserver 兜底不依赖此事件，事件只是更准的通道）。
+// ready 时机 = 首次记录查询完成（recordStore.isLoading 真假沿 + nextTick，DOM 已挂载）；
+// refreshed = 之后每次查询/翻页完成与行内编辑提交。
+const sgReady = ref(false)
+
+function dispatchSgEvent (type: 'sg:ready' | 'sg:refreshed'): void {
+  document.dispatchEvent(new CustomEvent(type, { detail: { moduleKey: props.moduleId } }))
+}
+
+watch(() => recordStore.isLoading, async (loading, prev) => {
+  if (!prev || loading || schemaMeta.loadError) return
+  await nextTick()
+  if (!sgReady.value) {
+    sgReady.value = true
+    dispatchSgEvent('sg:ready')
+  }
+  dispatchSgEvent('sg:refreshed')
+})
+
 // ── 实时数据订阅（docs/19 I1）：宿主在 recordService.subscribeRecords 提供传输时,
 // 模块加载完成后订阅推送,引擎增量合并;模块切换重订阅,卸载退订 ──
 const { mergeRemoteChange } = useRecordSubscription(recordStore, uiState)
@@ -185,6 +206,7 @@ function subscribeRemoteChanges(): void {
 }
 
 watch(() => props.moduleId, () => {
+  sgReady.value = false
   if (schemaMeta.isLoaded) subscribeRemoteChanges()
 })
 
@@ -368,7 +390,10 @@ function handleColumnWidthChange(payload: { field: string; width: number }): voi
 }
 
 function handleCellEdit(payload: { rowId: string; field: string; value: unknown; oldValue: unknown; mode: string; source: string }): void {
-  cellEdit.onCellEdit(payload as CellEditPayload)
+  // 行内编辑提交完成也发 sg:refreshed（W2 约定）；失败由 onCellEdit 内部处理不发事件
+  void cellEdit.onCellEdit(payload as CellEditPayload).then((ok) => {
+    if (ok) dispatchSgEvent('sg:refreshed')
+  })
   emit('data-changed', { moduleId: props.moduleId })
 }
 
@@ -569,7 +594,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="schema-engine" :class="{ embedded, readonly }">
+  <div class="schema-engine" :class="{ embedded, readonly }" :data-sg-engine="moduleId" :data-sg-ready="sgReady ? '1' : undefined">
     <div v-if="schemaMeta.loadError" class="engine-error">
       <el-empty description="模块加载失败">
         <template #description>
@@ -610,6 +635,7 @@ defineExpose({
                     size="small"
                     :icon="Refresh"
                     :loading="schemaMeta.isLoading"
+                    data-sg-toolbar="refresh"
                     @click="handleRefresh"
                   >
                     刷新
@@ -625,7 +651,7 @@ defineExpose({
                     @save="handleColumnSettingsSave"
                     @reset="handleColumnSettingsReset"
                   >
-                    <ElButton size="small" :icon="Setting">
+                    <ElButton size="small" :icon="Setting" data-sg-toolbar="column-settings">
                       列表设置
                     </ElButton>
                   </ColumnSettingsPopover>
@@ -638,7 +664,7 @@ defineExpose({
                     @save="handleCardLayoutSave"
                     @reset="handleCardLayoutReset"
                   >
-                    <ElButton size="small" :icon="Grid">
+                    <ElButton size="small" :icon="Grid" data-sg-toolbar="card-settings">
                       卡片设置
                     </ElButton>
                   </CardLayoutSettingsPopover>
@@ -648,7 +674,7 @@ defineExpose({
                   :content="'检测到公式循环依赖: ' + cycleAlert.cyclePath.join(' → ')"
                   placement="bottom"
                 >
-                  <ElTag type="danger" size="small" effect="dark" style="cursor: pointer;" @click="openDialog('formula-detail', { fieldKey: cycleAlert.cyclePath[0] })">
+                  <ElTag type="danger" size="small" effect="dark" style="cursor: pointer;" data-sg-toolbar="cycle-alert" @click="openDialog('formula-detail', { fieldKey: cycleAlert.cyclePath[0] })">
                     &#9888; 公式循环
                   </ElTag>
                 </ElTooltip>
@@ -657,6 +683,7 @@ defineExpose({
                     v-if="!isMobile && currentCreateMode !== 'list'"
                     size="small"
                     :icon="DocumentAdd"
+                    data-sg-toolbar="create-mode-list"
                     @click="currentCreateMode = 'list'"
                   >
                     列表新增
@@ -665,6 +692,7 @@ defineExpose({
                     v-if="!isMobile && currentCreateMode !== 'card'"
                     size="small"
                     :icon="Postcard"
+                    data-sg-toolbar="create-mode-card"
                     @click="currentCreateMode = 'card'"
                   >
                     卡片新增
@@ -673,6 +701,7 @@ defineExpose({
                     size="small"
                     type="primary"
                     :icon="Back"
+                    data-sg-toolbar="back-to-list"
                     @click="handleViewModeChange('list')"
                   >
                     返回列表
@@ -687,6 +716,7 @@ defineExpose({
                     <ElButton
                       size="small"
                       :icon="isCardDefaultModule ? Menu : Back"
+                      data-sg-toolbar="view-list"
                       @click="handleViewModeChange('list')"
                     >
                       {{ isCardDefaultModule ? '列表界面' : '返回列表' }}
@@ -700,6 +730,7 @@ defineExpose({
                     <ElButton
                       size="small"
                       :icon="Postcard"
+                      data-sg-toolbar="view-card"
                       @click="handleViewModeChange('card')"
                     >
                       卡片界面
@@ -710,6 +741,7 @@ defineExpose({
                     size="small"
                     type="primary"
                     :icon="Plus"
+                    data-sg-toolbar="create"
                     @click="handleViewModeChange('create')"
                   >
                     新增

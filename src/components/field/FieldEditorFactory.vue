@@ -50,7 +50,7 @@ function handleUpdate(value: unknown): void {
 </script>
 
 <template>
-  <div class="field-editor-factory">
+  <div class="field-editor-factory" :data-sg-field="fieldSchema.key">
     <component
       :is="editorComponent"
       :value="modelValue"

@@ -192,9 +192,11 @@ function handleClose(): void {
     <div v-if="schemaLoading" class="schema-loading">
       加载表单中...
     </div>
+    <!-- data-sg-dialog：引导锚点（W1）。ElDialog 不透传任意属性到面板，用内容壳承载 -->
     <ElForm
       v-else
       ref="formRef"
+      data-sg-dialog="quick-create"
       :model="formModel"
       label-width="90px"
       size="small"

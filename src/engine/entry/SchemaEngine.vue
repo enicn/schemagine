@@ -643,6 +643,8 @@ defineExpose({
                 </ElTooltip>
               </div>
               <div class="toolbar-actions">
+                <!-- 宿主工具栏扩展接缝(docs/20 同族):导入等业务动作注入引擎工具栏左端,宿主自管可见性 -->
+                <slot name="toolbar-extra" />
                 <template v-if="uiState.viewMode === 'list'">
                   <ColumnSettingsPopover
                     v-if="schemaMeta.schema && !isMobile"

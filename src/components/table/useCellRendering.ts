@@ -44,13 +44,13 @@ export function useCellRendering(deps: CellRenderingDeps) {
     return !!getFilterClause(col)
   }
 
-  function getCellHighlightHtml(value: unknown, col: WrapperColumn): string {
+  function getCellHighlightHtml(value: unknown, col: WrapperColumn, row?: Record<string, unknown>): string {
     const clause = getFilterClause(col)
     // classic 模式：无任何取值染色，命中筛选拼音/关键词也只出纯文本
-    if (deps.classicMode?.()) return escapeHtml(formatDisplay(value, col))
-    if (!clause) return escapeHtml(formatDisplay(value, col))
+    if (deps.classicMode?.()) return escapeHtml(formatDisplay(value, col, row))
+    if (!clause) return escapeHtml(formatDisplay(value, col, row))
 
-    const textValue = formatDisplay(value, col)
+    const textValue = formatDisplay(value, col, row)
     if (!textValue) return ''
 
     const defaultStyle = 'background:var(--sg-color-highlight);color:var(--sg-color-on-highlight);font-weight:bold;padding:0 var(--sg-spacing-1);border-radius:var(--sg-radius-xs)'
@@ -105,11 +105,13 @@ export function useCellRendering(deps: CellRenderingDeps) {
       .join('')
   }
 
-  function formatDisplay(value: unknown, col: WrapperColumn): string {
+  function formatDisplay(value: unknown, col: WrapperColumn, row?: Record<string, unknown>): string {
     // 操作列（type:'action'）没有底层数据值，必须优先用 formatter 渲染动作标签（如「删除」），
     // 否则 value==null 会提前返回空字符串导致单元格空白。
+    // 关联列（many-to-many 等）formatter 依赖 row 取 `__rel_<field>` 摘要（N笔: 合同号 ¥金额），
+    // 必须把行上下文带进来——此前只传 cellValue，关联列恒落「无关联」兜底（2026-09-30 发票↔合同实测发现）。
     if (col.formatter) {
-      return col.formatter({ cellValue: value })
+      return col.formatter({ cellValue: value, row: row ?? {} })
     }
     if (value == null) return ''
     // 自定义字段类型（docs/19 批次 B1）：命中注册渲染器时按注册渲染（经 v-html 信任输出）
@@ -159,9 +161,9 @@ export function useCellRendering(deps: CellRenderingDeps) {
     return String(value)
   }
 
-  /** 关联列固定文案：宿主传了 formatter 就用之，否则「查看」 */
-  function relationFormatter(col: WrapperColumn): string {
-    return col.formatter ? col.formatter({ cellValue: undefined, row: {}, column: col }) : t('table.view')
+  /** 关联列固定文案：宿主传了 formatter 就用之（须携带行上下文取 `__rel_<field>` 摘要），否则「查看」 */
+  function relationFormatter(col: WrapperColumn, row?: Record<string, unknown>): string {
+    return col.formatter ? col.formatter({ cellValue: undefined, row: row ?? {}, column: col }) : t('table.view')
   }
 
   function openImage(src: unknown): void {

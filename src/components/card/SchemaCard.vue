@@ -4,7 +4,7 @@ import { Check, Close, Edit } from '@element-plus/icons-vue'
 import { ElCard, ElButton, ElTag, ElMessageBox } from 'element-plus'
 import type { FieldSchema, RecordEntity, CardFieldLayout, CardLayoutConfig } from '@/types'
 import CardGridField from './CardGridField.vue'
-import { useRuntimeContext } from '@/composables/instanceState'
+import { useRuntimeContext, useSchemaMeta } from '@/composables/instanceState'
 import { evaluateCondition, isFieldEditableInContext, isFieldVisibleInContext } from '@/utils/condition'
 import { builtinEditorForType } from '@/components/field/editorMap'
 import { getFieldTypeDefinition } from '@/engine/registry/fieldTypeRegistry'
@@ -43,6 +43,8 @@ const defaultSpan = computed(() => (props.density === 'compact' ? 4 : 8))
 // 声明靠后会踩 TDZ（ReferenceError），autoEdit 静默失效（卡片永不进入编辑态）
 const handleEditingField = ref<string | null>(null)
 const runtimeContext = useRuntimeContext()
+// 关联类字段(many-to-many 等)的编辑器需要记录上下文拉取关联明细:卡片所在模块 id
+const schemaMeta = useSchemaMeta()
 
 function startEdit(): void {
   // 手柄编辑态与整卡草稿互斥：进入草稿编辑前先退出手柄
@@ -301,6 +303,8 @@ defineExpose({
         :disabled="!isEditableField(item.schema)"
         :handle-visible="canHandleEdit(item.schema)"
         :handle-active="handleEditingField === item.field"
+        :record-id="String(props.record.id)"
+        :module-id="schemaMeta.schema?.id"
         @update:edit-value="(val: unknown) => handleFieldUpdate(item.field, val)"
         @handle-click="handleFieldClick(item.field)"
         @handle-cancel="handleFieldCancel"

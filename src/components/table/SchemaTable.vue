@@ -6,6 +6,7 @@ import type { WrapperColumn } from './VxeTableWrapper.vue'
 import type { TableDensity } from './tableDensity'
 import type { ModuleSchema, FieldSchema, ColumnConfig, RecordEntity, SortParam, FilterClause, EngineAppearance } from '@/types'
 import { relationService } from '@/services/api/relationService'
+import { candidateService } from '@/services/api/candidateService'
 import { flattenRecordRow } from '@/utils/recordRow'
 import { buildRecordTree } from '@/utils/recordTree'
 import { buildSameValueSpanMethod } from '@/utils/mergeCells'
@@ -164,6 +165,25 @@ async function rebuildFlatRows(): Promise<void> {
     f => f.type === 'one-to-many' || f.type === 'many-to-many' || f.type === 'reverse-ref',
   )
 
+  // 关联摘要展示目标记录的业务标签(如合同号)而非裸 id:每个目标模块批量取一次候选缓存
+  const labelMaps = new Map<string, Map<string, string>>()
+  await Promise.all(relationFields
+    .filter(f => f.type !== 'reverse-ref' && f.relationConfig?.targetModule)
+    .map(async (f) => {
+      try {
+        const res = await candidateService.query({
+          targetModule: f.relationConfig!.targetModule,
+          page: 1,
+          pageSize: 200,
+        })
+        if (res.success) {
+          labelMaps.set(f.key, new Map(res.data.options.map(o => [o.value, o.label])))
+        }
+      } catch {
+        // 候选取不到时退回裸 id,不阻塞列表渲染
+      }
+    }))
+
   const built = await Promise.all(rows.map(async r => {
     const row: Record<string, unknown> = flattenRecordRow(r)
 
@@ -179,6 +199,7 @@ async function rebuildFlatRows(): Promise<void> {
         continue
       }
 
+      const labels = labelMaps.get(fieldKey)
       const parts: string[] = []
       for (const rel of relations) {
         if (rf.type === 'reverse-ref') {
@@ -190,7 +211,7 @@ async function rebuildFlatRows(): Promise<void> {
             if (ef.type === 'select') return ef.options?.find(o => o.value === v)?.label ?? String(v ?? '')
             return v != null ? String(v) : ''
           }).filter(Boolean).join(' ') || ''
-          parts.push(`${rel.targetRecordId}${extras ? ' ' + extras : ''}`)
+          parts.push(`${labels?.get(rel.targetRecordId) ?? rel.targetRecordId}${extras ? ' ' + extras : ''}`)
         }
       }
       row[`__rel_${fieldKey}`] = `${relations.length}笔: ` + parts.join(', ')

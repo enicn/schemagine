@@ -131,6 +131,10 @@ function handlePageChange(page: number): void {
         </template>
       </SchemaCard>
 
+      <!-- 详情卡下方扩展区：宿主注入关联单据列表等业务面板，作用域 { record: 当前记录 }；
+           置于卡片与分页之间，随翻页/切记录联动 -->
+      <slot name="append" :record="currentRecord" />
+
       <ElPagination
         v-if="totalRecords > pageSize"
         :current-page="currentPage"

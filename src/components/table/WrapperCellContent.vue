@@ -266,5 +266,5 @@ const ctx = props.ctx
     v-html="ctx.getEnumCellHtml(row[col.field], col)"
   ></span>
     <!-- select/fk 空值不挂 cell-tag：否则空单元格渲染出空胶囊占位；值展示为 plain（docs/20）时同样不挂胶囊 -->
-    <span v-else class="cell-value" :class="[ctx.valueDisplayOf(col) === 'tag' && (col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', ctx.valueDisplayOf(col) === 'tag' && col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', ctx.getBooleanStateClass(row[col.field]), ctx.isClassicMode() ? '' : (row[col.field] ? col.trueLabelClass : col.falseLabelClass)] : '', ctx.hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="ctx.getCellHighlightHtml(row[col.field], col)"></span>
+    <span v-else class="cell-value" :class="[ctx.valueDisplayOf(col) === 'tag' && (col.fieldType === 'select' || col.fieldType === 'fk') && row[col.field] != null && row[col.field] !== '' ? 'cell-tag' : '', ctx.valueDisplayOf(col) === 'tag' && col.fieldType === 'fk' ? 'cell-tag--fk' : '', col.fieldType === 'boolean' ? ['cell-boolean', ctx.getBooleanStateClass(row[col.field]), ctx.isClassicMode() ? '' : (row[col.field] ? col.trueLabelClass : col.falseLabelClass)] : '', ctx.hasFilterMatch(col) ? 'cell-highlighted' : '']" v-html="ctx.getCellHighlightHtml(row[col.field], col, row)"></span>
 </template>

@@ -5,6 +5,23 @@
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-09-30
+
+### Fixed
+
+- **列表关联列恒显「无关联」** — 关联列（many-to-many 等）由独立的只读通道渲染（`relationColumns` 专属 `VxeColumn`），其模板调 `relationFormatter(col)` 时构造的是**空行上下文**，`__rel_<field>` 摘要（`N笔: 合同号 ¥分摊金额`）永远落「无关联」兜底；现随行透传（`relationFormatter(col, row)`）。这是首个月经模块（发票↔合同）接入后暴露的引擎历史缺陷。附带把 `formatDisplay`/`getCellHighlightHtml` 的 formatter 分支补传 `row`（普通数据列的自定义 formatter 同样受益）。
+
+## [0.3.16] - 2026-09-30
+
+### Added
+
+- **详情卡下方扩展插槽 `card-append`** — `CardView` 在详情卡与分页之间新开作用域插槽（`{ record: 当前记录 }`），`SchemaEngine` 以 `card-append` 透传宿主：详情页需要在卡片内容下方追加关联单据列表等业务面板时（如合同详情下方列关联发票），宿主经该插槽注入，无需改引擎。
+
+### Fixed
+
+- **详情卡片内关联字段编辑器拿不到记录上下文** — `SchemaCard` → `CardGridField` → `FieldEditorFactory` 补传 `recordId`/`moduleId`（关联编辑器按 (moduleId, recordId, fieldKey) 读写关联明细）。此前仅列表路径（`open-relation-editor`）带记录 id，卡片详情里打开关联弹窗是空上下文，保存必失败。
+- **列表关联列摘要显示裸 id** — many-to-many/one-to-many 列的摘要（`N笔: ...`）改经 `candidateService` 按目标模块批量解析业务标签（如合同号），候选不可用时退回裸 id，不阻塞渲染。
+
 ## [0.3.12] - 2026-09-24
 
 ### Added

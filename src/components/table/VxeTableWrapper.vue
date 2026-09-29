@@ -805,7 +805,7 @@ defineExpose({
             class="relation-click-trigger"
             @click.stop="handleRelationClick(col, row)"
           >
-            {{ relationFormatter(col) }}
+            {{ relationFormatter(col, row) }}
           </span>
         </template>
       </VxeColumn>

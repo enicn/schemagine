@@ -797,6 +797,11 @@ defineExpose({
                 <template #extra-actions="slotProps">
                   <slot name="card-actions" v-bind="slotProps" />
                 </template>
+                <!-- 详情卡下方扩展区透传：宿主经 card-append 注入关联单据面板等业务内容，
+                     作用域 { record: 当前记录 } -->
+                <template #append="slotProps">
+                  <slot name="card-append" v-bind="slotProps" />
+                </template>
               </CardView>
             </ErrorBoundary>
           </template>

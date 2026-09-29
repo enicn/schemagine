@@ -16,6 +16,10 @@ const props = defineProps<{
   handleVisible?: boolean
   /** 本字段处于手柄编辑态（同一时刻全局仅一个字段，由父级 SchemaCard 仲裁） */
   handleActive?: boolean
+  /** 记录上下文：关联类字段（many-to-many 等）编辑器拉取/写入关联明细所需 */
+  recordId?: string
+  /** 所在模块 id：同上，关联编辑器按 (moduleId, recordId, fieldKey) 读写关联 */
+  moduleId?: string
 }>()
 
 const emit = defineEmits<{
@@ -145,6 +149,8 @@ defineExpose({ isDirty, discardDraft })
           mode="edit"
           :disabled="disabled"
           :readonly="readonly"
+          :record-id="recordId"
+          :module-id="moduleId"
           @update:model-value="(v: unknown) => (handleDraft = v)"
         />
       </template>
@@ -155,6 +161,8 @@ defineExpose({ isDirty, discardDraft })
           mode="edit"
           :disabled="disabled"
           :readonly="readonly"
+          :record-id="recordId"
+          :module-id="moduleId"
           @update:model-value="handleUpdate"
         />
       </template>
@@ -163,6 +171,8 @@ defineExpose({ isDirty, discardDraft })
           :field-schema="fieldSchema"
           :model-value="value"
           mode="view"
+          :record-id="recordId"
+          :module-id="moduleId"
         />
       </template>
       <button

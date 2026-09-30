@@ -1,6 +1,6 @@
 {
   "name": "schemagine",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "description": "Schema-driven dynamic form & data management engine for Vue 3",
   "type": "module",
   "license": "MIT",
@@ -47,6 +47,18 @@
         "default": "./dist/media.cjs"
       },
       "default": "./dist/media.mjs"
+    },
+    "./mock": {
+      "types": "./dist/mock/index.d.ts",
+      "import": {
+        "types": "./dist/mock/index.d.ts",
+        "default": "./dist/mock.mjs"
+      },
+      "require": {
+        "types": "./dist/mock/index.d.ts",
+        "default": "./dist/mock.cjs"
+      },
+      "default": "./dist/mock.mjs"
     },
     "./rules": {
       "types": "./dist/rules/index.d.ts",

@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-09-30
+
+> 本版为**交付一致性收口**（docs/23 批次 M）：让「发出去的」与「门禁验证过的」重新成为同一份东西。
+
+### Added
+
+- **`schemagine/mock` 子路径导出（M4）** — mock 全家桶（`initMockServices`、六个 Mock Service、`createMockRecordSubscription`、`mockMediaService`、`sampleSchemas`/`sampleRecords` 示例数据命名空间）迁入独立子路径，新增第四库构建入口；主入口不再静态携带约 2000 行演示代码（dist 根入口 300KB→247KB、示例数据字符串 0 处，包解包体积 3.5MB→1.6MB）。
+
+### Changed
+
+- **mock 根导出转软迁移垫片（0.4.0 移除）** — `initMockServices` / `resetAllStorage` / `createMockRecordSubscription` 根导出保留可用，但改为告警 + 动态加载；`createMockRecordSubscription` 返回值由同步句柄变为 `Promise` 句柄；`MockRecordService` 根导出改为构造即抛迁移错误。请改自 `'schemagine/mock'` 导入。
+- **xlsx 恢复 optional peer 真实语义（M3）** — 库构建将 `xlsx` 外置，dist 不再内嵌 npm 版 0.18.5（已知 CVE-2023-30533 / CVE-2024-22363，见 docs/17 §8.6）：宿主未安装时导入回退 CSV 并提示，安装后 xlsx 导入导出即启用（此前回退分支永不触发、CVE 版本被硬打包）。
+- **交付基线双轨（M2）** — CI 新增 stable-vue job（`scripts/use-vue-stable.mjs` 移除 beta overrides 后按稳定版 3.5 跑 type-check/单测/构建/P0 e2e）。stable 基线实测全绿，peerDependencies 维持 `vue ^3.5.0`；开发基线仍为 3.6 beta。
+
+### Removed
+
+- **三个遗留 Pinia store（M5）** — `recordStore` / `schemaMetaStore` / `uiStateStore`（0.1 期遗留、主链路零引用、仅存量单测覆盖，合计 335 行）删除；引擎状态主链路为 instanceState 四态工厂（docs/04）。三者从未进入公开导出面，无宿主影响。
+- **引擎核心的 mock 命名空间反向依赖** — 通用 `readStorage` / `writeStorage` 迁至 `services/storage.ts`，`useSchema` 不再 import `services/mock`。
+
 ## [0.3.18] - 2026-09-30
 
 ### Added

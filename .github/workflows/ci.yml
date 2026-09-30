@@ -125,3 +125,29 @@ jobs:
           name: lib-dist
           path: dist
           retention-days: 7
+
+  # stable Vue 双基线(docs/23 M2):开发基线把 vue/@vue/* overrides 钉在 beta,而交付 peer 是 ^3.5.0——
+  # 本 job 移除 overrides 后按稳定版 Vue(与宿主安装形态一致)跑同一套门禁,防 beta-only 行为漏进发布物
+  stable-vue:
+    name: Stable Vue Baseline (^3.5)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: node scripts/use-vue-stable.mjs
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm test:unit --run
+      - run: pnpm build:lib
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e:p0
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-stable-vue
+          path: playwright-report
+          retention-days: 7

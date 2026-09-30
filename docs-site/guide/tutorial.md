@@ -93,7 +93,7 @@ setSchemaService({
 
 You now have a working module: filterable table, inline editing, create form, card view — zero backend. (A runnable copy of this step lives in [`examples/minimal-vite`](https://github.com/enicn/schemagine/tree/main/examples/minimal-vite).)
 
-Or skip your own schema entirely for prototyping: `initMockServices()` boots 10 sample modules.
+Or skip your own schema entirely for prototyping: `initMockServices()` from `schemagine/mock` boots 10 sample modules.
 
 ## 4. Swap in your backend (5 min)
 
@@ -142,7 +142,7 @@ setSchemaService(new HttpSchemaService())  // serve ModuleSchema JSON from your 
 - [ ] Theme: override `--sg-*` tokens (or nothing — it follows your Element Plus theme by default)
 - [ ] Permissions: `loadModulePermissions` reflects your auth model; role overrides via the `currentRoles` prop
 - [ ] Only trusted files for Excel import, or pin `xlsx` to the official SheetJS CDN build (see [Installation](./installation#peer-dependencies))
-- [ ] Remove `initMockServices()` from production entry points
+- [ ] Remove `initMockServices()` (from `schemagine/mock`) from production entry points
 
 ## Where to go
 

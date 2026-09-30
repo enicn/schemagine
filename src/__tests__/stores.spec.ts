@@ -1,84 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useRecordStore } from '@/stores/recordStore'
-import { useUiStateStore } from '@/stores/uiStateStore'
 import { useRuntimeCacheStore } from '@/stores/runtimeCacheStore'
-import type { RecordEntity, DraftRecord, CandidateOption } from '@/types'
+import type { CandidateOption } from '@/types'
 
-function makeRecord(id: string, fields: Record<string, unknown> = {}): RecordEntity {
-  return { id, moduleId: 'module-test', fields, version: 1, createdAt: '', updatedAt: '' }
-}
+// stores/ 下唯一在用的 Pinia store(FK 候选/公式缓存,主链路经 runtimeCache 消费);
+// record/schemaMeta/uiState 三个遗留 store 已随 docs/23 M5 删除——引擎主链路状态走
+// composables/instanceState.ts 的四态工厂 + provide/inject(见 docs/04),其覆盖在 instanceState 相关 spec。
 
 beforeEach(() => {
   setActivePinia(createPinia())
-})
-
-describe('recordStore', () => {
-  it('setRecords 更新记录与 total，getRecordById 按 id 查找', () => {
-    const store = useRecordStore()
-    store.setRecords([makeRecord('r1'), makeRecord('r2')], 20)
-    expect(store.hasRecords).toBe(true)
-    expect(store.totalRecords).toBe(20)
-    expect(store.getRecordById('r2')?.id).toBe('r2')
-    expect(store.getRecordById('nope')).toBeUndefined()
-  })
-
-  it('updateRecordField 同步列表与当前记录并更新乐观锁版本', () => {
-    const store = useRecordStore()
-    const rec = makeRecord('r1', { amount: 1 })
-    store.setRecords([rec], 1)
-    store.setCurrentRecord(rec)
-    store.updateRecordField('r1', 'amount', 42, 7)
-    expect(store.getRecordById('r1')?.fields.amount).toBe(42)
-    expect(store.currentRecord?.version).toBe(7)
-  })
-
-  it('undo 栈已上提为引擎级 history(docs/19 H3),Pinia 旧 store 不再承载', () => {
-    const store = useRecordStore()
-    expect('pushUndo' in store).toBe(false)
-    expect('undoStack' in store).toBe(false)
-  })
-
-  it('草稿行操作与 setErrorsForDraft', () => {
-    const store = useRecordStore()
-    const draft: DraftRecord = { tempId: 't1', fields: { a: 1 }, isValid: true }
-    store.addDraftRow(draft)
-    store.updateDraftField(0, 'a', 9)
-    expect(store.draftRows[0]!.fields.a).toBe(9)
-    store.setErrorsForDraft(0, [{ field: 'a', message: '必填', level: 'error' }])
-    expect(store.draftRows[0]!.isValid).toBe(false)
-    store.clearDrafts()
-    expect(store.hasDrafts).toBe(false)
-  })
-})
-
-describe('uiStateStore', () => {
-  it('视图模式切换与编辑态', () => {
-    const store = useUiStateStore()
-    expect(store.viewMode).toBe('list')
-    store.setViewMode('create')
-    expect(store.viewMode).toBe('create')
-    store.setEditingCell({ rowId: 'r1', field: 'a' })
-    expect(store.isEditing).toBe(true)
-  })
-
-  it('行选择 toggle', () => {
-    const store = useUiStateStore()
-    store.toggleRowSelection('r1')
-    store.toggleRowSelection('r1')
-    expect(store.selectedRowIds).toEqual([])
-    store.setSelectedRows(['r2', 'r3'])
-    expect(store.selectedRowIds).toEqual(['r2', 'r3'])
-  })
-
-  it('对话框状态', () => {
-    const store = useUiStateStore()
-    store.openDialog('confirm', { id: 'r1' })
-    expect(store.dialogVisible).toBe(true)
-    expect(store.dialogType).toBe('confirm')
-    store.closeDialog()
-    expect(store.dialogVisible).toBe(false)
-  })
 })
 
 describe('runtimeCacheStore', () => {
@@ -121,19 +51,5 @@ describe('runtimeCacheStore', () => {
     expect(store.getCandidates('m', 'k')).toBeNull()
     expect(store.getFormulaResult('k')).toBeNull()
     expect(store.getSnapshot()).toBeNull()
-  })
-})
-
-describe('Pinia 多实例隔离', () => {
-  it('不同 Pinia 实例间的 recordStore 互不串扰', () => {
-    const storeA = useRecordStore()
-    storeA.setRecords([makeRecord('a1')], 1)
-
-    setActivePinia(createPinia())
-    const storeB = useRecordStore()
-    storeB.setRecords([makeRecord('b1')], 1)
-
-    expect(storeB.getRecordById('a1')).toBeUndefined()
-    expect(storeA.getRecordById('b1')).toBeUndefined()
   })
 })

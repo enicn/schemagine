@@ -23,5 +23,5 @@ You get a full data module — sortable/filterable table, inline editing, create
 ## Next steps
 
 - Point the service at your API: implement `IRecordService`/`ISchemaService` yourself — contract tour at [enicn.github.io/schemagine/guide/services](https://enicn.github.io/schemagine/guide/services).
-- Or prototype faster with the built-in mock: call `initMockServices()` instead of wiring services, and you get 10 sample modules with no schema of your own.
+- Or prototype faster with the built-in mock: `import { initMockServices } from 'schemagine/mock'` instead of wiring services, and you get 10 sample modules with no schema of your own.
 - Full host guide: [`docs/17-集成与使用指南.md`](../../docs/17-集成与使用指南.md) in the repository root.

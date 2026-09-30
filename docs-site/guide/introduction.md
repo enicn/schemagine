@@ -35,7 +35,7 @@ This keeps the relationship **bidirectionally zero-intrusion**: business logic s
 - CSV/Excel import and export with formula-injection protection
 - Undo/redo on batch and inline edits
 - i18n hooks, style tokens (`--sg-*`) that follow your Element Plus theme
-- Mock mode (`initMockServices()`) with 10 sample modules for instant development
+- Mock mode (`initMockServices()` from `schemagine/mock`) with 10 sample modules for instant development
 
 ## Where to go next
 

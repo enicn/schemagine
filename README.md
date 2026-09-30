@@ -112,7 +112,8 @@ import 'schemagine/dist/schemagine.css'
 
 ```ts
 // main.ts
-import { initMockServices } from 'schemagine'
+// 0.3.19+: mock lives in the subpath — the root entry no longer bundles mock code
+import { initMockServices } from 'schemagine/mock'
 
 initMockServices() // localStorage-backed demo modules, persists across reloads
 ```
@@ -127,7 +128,7 @@ import { SchemaEngine } from 'schemagine'
 </template>
 ```
 
-Bundled demo modules: `module-voucher` (full-featured voucher management), `module-ap` (FK relations), `module-invoice`, `module-sales-order`, `module-receivable`, `module-user`, `module-workshop`, plus edge-case modules (`module-empty`, `module-no-perm`). Reset data with `resetAllStorage()`. You can also mock only some services and override the rest with real implementations.
+Bundled demo modules: `module-voucher` (full-featured voucher management), `module-ap` (FK relations), `module-invoice`, `module-sales-order`, `module-receivable`, `module-user`, `module-workshop`, plus edge-case modules (`module-empty`, `module-no-perm`). Reset data with `resetAllStorage()` (also from `schemagine/mock` — the root export is a deprecated shim, removed in 0.4.0). You can also mock only some services and override the rest with real implementations.
 
 ### Option B — Your own backend (Service Injection)
 

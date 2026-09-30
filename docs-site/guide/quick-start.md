@@ -73,10 +73,10 @@ export class MyRecordService implements IRecordService {
 ```ts
 // main.ts
 import {
-  initMockServices,            // or your own services, see below
   setRecordService, setSchemaService, setCandidateService,
   setUserViewConfigService, setRelationService,
 } from 'schemagine'
+import { initMockServices } from 'schemagine/mock' // mock lives in the subpath (0.3.19+)
 
 // Option A: backend not ready yet — use the built-in mock adapter
 initMockServices()

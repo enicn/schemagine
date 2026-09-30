@@ -100,7 +100,8 @@ import 'schemagine/dist/schemagine.css'
 
 ```ts
 // main.ts
-import { initMockServices } from 'schemagine'
+// 0.3.19 起 mock 从子路径导入，根入口不再携带 mock 代码
+import { initMockServices } from 'schemagine/mock'
 
 initMockServices() // 基于 localStorage 的示例模块，刷新后数据保留
 ```
@@ -115,7 +116,7 @@ import { SchemaEngine } from 'schemagine'
 </template>
 ```
 
-内置示例模块：`module-voucher`（凭证管理，完整功能演示）、`module-ap`（FK 关联）、`module-invoice`、`module-sales-order`、`module-receivable`、`module-user`、`module-workshop`，以及边界场景模块（`module-empty`、`module-no-perm`）。调用 `resetAllStorage()` 可重置数据。也支持只 Mock 部分 Service，其余覆盖为真实实现。
+内置示例模块：`module-voucher`（凭证管理，完整功能演示）、`module-ap`（FK 关联）、`module-invoice`、`module-sales-order`、`module-receivable`、`module-user`、`module-workshop`，以及边界场景模块（`module-empty`、`module-no-perm`）。调用 `resetAllStorage()` 可重置数据（同样自 `schemagine/mock` 导入——根导出已标注废弃，0.4.0 移除）。也支持只 Mock 部分 Service，其余覆盖为真实实现。
 
 ### 方式 B — 对接自己的后端（Service 注入）
 

@@ -119,11 +119,35 @@ export { resolveListActionMobilePolicy, resolveRowActionMobilePolicy } from './u
 export type { MobileActionPolicy } from './utils/mobileActions'
 export { useViewportMode, MOBILE_MEDIA_QUERY } from './composables/useViewportMode'
 
-// === Mock 适配器（开发/演示用） ===
-export { initMockServices, MockRecordService } from './services/mock/mockAdapter'
-export { createMockRecordSubscription } from './services/mock/mockAdapter'
+// === Mock 适配器（开发/演示用）→ 已迁移至子路径 'schemagine/mock'（docs/23 M4）。
+//     根导出仅保留软迁移垫片：调用时告警并动态加载（不再静态携带 mock 代码），0.4.0 移除。 ===
+import type { MockPollingOptions } from './services/mock/mockAdapter'
+
+/** @deprecated 改自 'schemagine/mock' 导入；根导出于 0.4.0 移除 */
+export function initMockServices(): Promise<void> {
+  console.warn('[schemagine] initMockServices has moved to "schemagine/mock"; the root export will be removed in 0.4.0')
+  return import('./services/mock/mockAdapter').then(m => m.initMockServices())
+}
+
+/** @deprecated 改自 'schemagine/mock' 导入；根导出于 0.4.0 移除。注意：返回值由同步句柄变为 Promise 句柄 */
+export function createMockRecordSubscription(options?: MockPollingOptions) {
+  console.warn('[schemagine] createMockRecordSubscription has moved to "schemagine/mock"; the root export will be removed in 0.4.0')
+  return import('./services/mock/mockAdapter').then(m => m.createMockRecordSubscription(options))
+}
+
+/** @deprecated 改自 'schemagine/mock' 导入；根导出于 0.4.0 移除 */
+export function resetAllStorage(): Promise<void> {
+  console.warn('[schemagine] resetAllStorage has moved to "schemagine/mock"; the root export will be removed in 0.4.0')
+  return import('./services/mock/mockStorage').then(m => m.resetAllStorage())
+}
+
+/** @deprecated 改自 'schemagine/mock' 导入；根导出于 0.4.0 移除（0.3.19 起构造即抛迁移错误） */
+export class MockRecordService {
+  constructor() {
+    throw new Error('[schemagine] MockRecordService has moved to "schemagine/mock"; import from the subpath instead')
+  }
+}
 export type { MockPollingOptions } from './services/mock/mockAdapter'
-export { resetAllStorage } from './services/mock/mockStorage'
 
 // === 运行时 Schema 诊断（docs/19 批次 I2） ===
 export { validateSchema } from './schemaMeta/validateSchema'

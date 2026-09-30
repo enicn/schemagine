@@ -1,14 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
+import { describe, it, expect } from 'vitest'
 import { useFormula } from '@/composables/useFormula'
 import { usePermission } from '@/composables/usePermission'
 import { createSchemaMetaState } from '@/composables/instanceState'
-import { useRecordStore } from '@/stores/recordStore'
 import type { ModuleSchema, FieldSchema, FormulaFieldConfig, RecordEntity } from '@/types'
-
-beforeEach(() => {
-  setActivePinia(createPinia())
-})
 
 const PERMS = { view: true, create: true, edit: true, delete: true, export: true, configure: true }
 
@@ -39,10 +33,25 @@ function makeMetaWithFormula(config: FormulaFieldConfig[]): ModuleSchema {
   return makeSchema({ formulaConfig: { enabled: true, fields: config, maxDepth: 8, circularDependencyCheck: true } })
 }
 
-function makeRecordsStub(store?: ReturnType<typeof useRecordStore>) {
+// 记录查找桩:useFormula 只经 getRecordById 消费记录(旧 recordStore 已删,docs/23 M5)
+function makeRecordsStub(lookup?: (id: string) => RecordEntity | undefined) {
   return {
-    getRecordById: (id: string) => store?.getRecordById(id),
+    getRecordById: (id: string) => lookup?.(id),
   } as never
+}
+
+// 轻量记录持有器:镜像引擎 updateRecordField 语义(字段写入 + 乐观锁版本递增)
+function makeRecordHolder(initial: RecordEntity) {
+  const records = [initial]
+  return {
+    updateRecordField(id: string, field: string, value: unknown, version: number) {
+      const r = records.find(x => x.id === id)
+      if (!r) return
+      r.fields = { ...r.fields, [field]: value }
+      r.version = version
+    },
+    getRecordById: (id: string) => records.find(x => x.id === id),
+  }
 }
 
 function makeFormula(fields: Partial<Record<string, unknown>>): Record<string, unknown> {
@@ -216,21 +225,19 @@ describe('usePermission', () => {
   })
 })
 
-describe('乐观锁场景（recordStore × useFormula）', () => {
+describe('乐观锁场景（记录更新 × useFormula）', () => {
   it('记录版本更新后公式依赖取到最新值', () => {
-    const store = useRecordStore()
-    const rec: RecordEntity = { id: 'r1', moduleId: 'm', fields: { price: 10, qty: 2 }, version: 1, createdAt: '', updatedAt: '' }
-    store.setRecords([rec], 1)
-    store.updateRecordField('r1', 'qty', 5, 2)
+    const holder = makeRecordHolder({ id: 'r1', moduleId: 'm', fields: { price: 10, qty: 2 }, version: 1, createdAt: '', updatedAt: '' })
+    holder.updateRecordField('r1', 'qty', 5, 2)
 
     const meta = createSchemaMetaState()
     meta.setSchema(makeMetaWithFormula([
       { fieldKey: 'total', expression: 'price * qty', dependencies: ['price', 'qty'], resultType: 'number' },
     ]))
-    const f = useFormula(makeRecordsStub(store), meta as never)
-    const result = f.evaluateFormula('total', store.getRecordById('r1')!.fields)
+    const f = useFormula(makeRecordsStub(holder.getRecordById), meta as never)
+    const result = f.evaluateFormula('total', holder.getRecordById('r1')!.fields)
     expect(result.success).toBe(true)
     expect(result.value).toBe(50)
-    expect(store.getRecordById('r1')?.version).toBe(2)
+    expect(holder.getRecordById('r1')?.version).toBe(2)
   })
 })
